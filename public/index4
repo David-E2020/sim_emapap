@@ -1,0 +1,26 @@
+
+
+
+
+EL CALCULO DEL  MONTO TOTAL MONEDA ES ERRONEO: Monto moneda esperado 1140.00 enviado 1120.00
+
+EL CALCULO DEL  MONTO TOTAL MONEDA ES ERRONEO: Monto moneda esperado 1140.00 enviado 1120.00
+
+
+montoTotal = tipoCambio * montoTotalMoneda
+174000 = 6.96 * 25000
+
+------------------------
+
+totalGastosNacionalesFob = costosGastosNacionales + montoDetalle
+16000 = {"Gasto Transporte":"900","Gasto de Seguro":"100"} + 15000.00
+
+
+--------------
+
+totalGastosInternacionales = {"Gasto Transporte":"7000","Gasto de Seguro":"2000"}
+9000 = 7000 + 2000
+
+19677AA8229355681304FA6605C211768B79A41B2782928E7089EDC74
+
+
