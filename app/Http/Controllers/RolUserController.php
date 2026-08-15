@@ -114,8 +114,6 @@ class RolUserController extends Controller {
 
 		try {
 			$userToUpdate->password = bcrypt($request->password);
-			// Eliminar guardado en texto claro por seguridad
-			$userToUpdate->usr_new_password = null;
 			$userToUpdate->save();
 
 			return response()->json([
