@@ -5,7 +5,6 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Administracion\UsuarioController;
 use App\Http\Controllers\Administracion\AccesoUsuarioController;
 use App\Http\Controllers\Administracion\Parametricas\ParametricaController;
-use App\Http\Controllers\Administracion\Parametricas\ClienteController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\RolUserController;
 use App\Http\Controllers\MenuController;
@@ -14,7 +13,7 @@ use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes - Sistema Base (Cobranzas y Facturación)
+| API Routes - Sistema Base Independiente
 |--------------------------------------------------------------------------
 */
 
@@ -36,7 +35,6 @@ Route::group(['middleware' => ['jwt.auth']], function () {
         Route::get('usuario_rol', [UsuarioController::class, 'usuario_rol']);
         Route::get('listar_usuario_acceso', [AccesoUsuarioController::class, 'listar_usuario_acceso']);
         Route::post('guardar_acceso_usuario', [AccesoUsuarioController::class, 'guardar_acceso_usuario']);
-        Route::post('acceso_usuario', [UsuarioController::class, 'acceso_usuario']);
 
         Route::apiResource('rol', RolController::class);
         Route::apiResource('menu', MenuController::class);
@@ -49,11 +47,11 @@ Route::group(['middleware' => ['jwt.auth']], function () {
 
     // Rutas para Obtener Estructura de Menú (Según Usuario/Rol Autenticado)
     Route::get('usuario/menu-rol/{rolId}', [UsuarioController::class, 'menuRol']);
-    Route::get('usuario/menu-acopio/{usuarioId}', [UsuarioController::class, 'menuAcopio']);
-    Route::get('usuario/menu-usuario/{usuarioId}', [UsuarioController::class, 'menuAcopio']);
+    Route::get('usuario/menu-usuario/{usuarioId}', [UsuarioController::class, 'menuUsuario']);
+    Route::get('usuario/menu-navegacion/{usuarioId}', [UsuarioController::class, 'menuUsuario']);
+    Route::get('usuario/menu-acopio/{usuarioId}', [UsuarioController::class, 'menuUsuario']); // Compatibilidad
 
     // Paramétricas y Datos Maestros
     Route::apiResource('parametrica-api', ParametricaController::class);
     Route::post('registrar_campo', [ParametricaController::class, 'registrar_campo']);
-    Route::apiResource('cliente-api', ClienteController::class);
 });

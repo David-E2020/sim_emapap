@@ -1,41 +1,56 @@
 <?php
 
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
-class Menu extends Model {
-	protected $table = "acopio.menus";
-	use HasFactory;
-	use SoftDeletes;
+class Menu extends Model
+{
+    use HasFactory;
+    use SoftDeletes;
 
-	protected $fillable = [
-		'label',
-		'icon',
-		'route',
-		'menu_id',
-		'level',
-		'order',
-	];
+    protected $table = 'menus';
 
-	protected $appends = ['icon_mdi', 'icon_menu'];
+    protected $fillable = [
+        'label',
+        'icon',
+        'route',
+        'menu_id',
+        'level',
+        'order',
+        'file',
+        'estado',
+        'usr_registrado',
+        'usr_modificado',
+        'usr_eliminado',
+    ];
 
-	public function getIconMdiAttribute() {
-		$icon = $this->attributes['icon'];
-		$slug = Str::kebab($icon, '_');
-		return $slug;
-	}
+    protected $appends = ['icon_mdi', 'icon_menu'];
 
-	public function getIconMenuAttribute() {
-		$icon = $this->attributes['icon'];
-		//$slug = Str::kebab($icon, '_');
-		return "icons." . $icon;
-	}
+    public function getIconMdiAttribute()
+    {
+        $icon = $this->attributes['icon'] ?? '';
+        return Str::kebab($icon);
+    }
 
-	public function subMenuN1() {
-		return $this->hasMany(Menu::class)->where('level', '=', '1');
-	}
+    public function getIconMenuAttribute()
+    {
+        $icon = $this->attributes['icon'] ?? '';
+        return 'icons.' . $icon;
+    }
 
+    public function subMenuN1()
+    {
+        return $this->hasMany(Menu::class, 'menu_id', 'id')
+            ->where('level', 1)
+            ->orderBy('order', 'asc');
+    }
+
+    public function parentMenu()
+    {
+        return $this->belongsTo(Menu::class, 'menu_id', 'id');
+    }
 }

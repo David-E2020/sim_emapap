@@ -3,80 +3,105 @@
 namespace Database\Seeders;
 
 use App\Models\Menu;
+use App\Models\MenuRol;
+use App\Models\Rol;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class MenuSeeder extends Seeder
 {
-	/**
-	 * Run the database seeds.
-	 *
-	 * @return void
-	 */
-	public function run()
-	{
-		// Limpiar las tablas de menús antes de poblar la estructura limpia
-		DB::statement('TRUNCATE TABLE acopio.menu_roles RESTART IDENTITY CASCADE');
-		DB::statement('TRUNCATE TABLE acopio.menus RESTART IDENTITY CASCADE');
+    /**
+     * Run the database seeds.
+     *
+     * @return void
+     */
+    public function run()
+    {
+        // 1. ADMINISTRAR (Nivel 0)
+        $menuAdmin = Menu::updateOrCreate(
+            ['label' => 'Administrar', 'level' => 0],
+            [
+                'icon' => 'mdiCog',
+                'route' => null,
+                'order' => 0,
+                'estado' => true,
+            ]
+        );
 
-		// 1. ADMINISTRAR
-		$menuAdmin = new Menu();
-		$menuAdmin->icon = 'mdiCog';
-		$menuAdmin->label = 'Administrar';
-		$menuAdmin->order = 0;
-		$menuAdmin->save();
+        $subUsuarios = Menu::updateOrCreate(
+            ['route' => 'usuarios'],
+            [
+                'icon' => 'mdiAccountMultiple',
+                'menu_id' => $menuAdmin->id,
+                'level' => 1,
+                'label' => 'Usuarios',
+                'order' => 1,
+                'estado' => true,
+            ]
+        );
 
-		$sub_menu_usuarios = DB::table('acopio.menus')->insertGetId([
-			'icon' => 'mdiAccountMultiple',
-			'menu_id' => $menuAdmin->id,
-			'level' => 1,
-			'label' => 'Usuarios',
-			'route' => 'usuarios',
-			'order' => 1,
-		]);
-		$sub_menu_asignacion = DB::table('acopio.menus')->insertGetId([
-			'icon' => 'mdiCog',
-			'menu_id' => $menuAdmin->id,
-			'level' => 1,
-			'label' => 'Administrar Menu',
-			'route' => 'admin_menu',
-			'order' => 2,
-		]);
-		$sub_menu_control = DB::table('acopio.menus')->insertGetId([
-			'icon' => 'mdiAccountCogOutline',
-			'menu_id' => $menuAdmin->id,
-			'level' => 1,
-			'label' => 'Control de Acceso',
-			'route' => 'control_acceso',
-			'order' => 3,
-		]);
+        $subAdminMenu = Menu::updateOrCreate(
+            ['route' => 'admin_menu'],
+            [
+                'icon' => 'mdiCog',
+                'menu_id' => $menuAdmin->id,
+                'level' => 1,
+                'label' => 'Administrar Menu',
+                'order' => 2,
+                'estado' => true,
+            ]
+        );
 
-		// 2. DATOS / PARAMETRICAS
-		$menuDatos = new Menu();
-		$menuDatos->icon = 'mdiDatabase';
-		$menuDatos->label = 'Datos';
-		$menuDatos->order = 1;
-		$menuDatos->save();
+        $subControlAcceso = Menu::updateOrCreate(
+            ['route' => 'control_acceso'],
+            [
+                'icon' => 'mdiAccountCogOutline',
+                'menu_id' => $menuAdmin->id,
+                'level' => 1,
+                'label' => 'Control de Acceso',
+                'order' => 3,
+                'estado' => true,
+            ]
+        );
 
-		$sub_menu_parametrica = DB::table('acopio.menus')->insertGetId([
-			'icon' => 'mdiCog',
-			'menu_id' => $menuDatos->id,
-			'level' => 1,
-			'label' => 'Parametrica',
-			'route' => 'parametrica',
-			'order' => 1,
-		]);
+        // 2. DATOS / PARAMETRICAS (Nivel 0)
+        $menuDatos = Menu::updateOrCreate(
+            ['label' => 'Datos', 'level' => 0],
+            [
+                'icon' => 'mdiDatabase',
+                'route' => null,
+                'order' => 1,
+                'estado' => true,
+            ]
+        );
 
-		// ASIGNACIONES DE ROLES PARA MENU (Para todos los roles activos o Rol 1)
-		$roles = DB::table('acopio.roles')->pluck('id');
-		foreach ([$sub_menu_usuarios, $sub_menu_asignacion, $sub_menu_control, $sub_menu_parametrica] as $menuId) {
-			foreach ($roles as $rolId) {
-				DB::table('acopio.menu_roles')->insert([
-					'menu_id' => $menuId,
-					'check' => true,
-					'rol_id' => $rolId,
-				]);
-			}
-		}
-	}
+        $subParametrica = Menu::updateOrCreate(
+            ['route' => 'parametrica'],
+            [
+                'icon' => 'mdiCog',
+                'menu_id' => $menuDatos->id,
+                'level' => 1,
+                'label' => 'Parametrica',
+                'order' => 1,
+                'estado' => true,
+            ]
+        );
+
+        // ASIGNACIONES DE ROLES PARA TODOS LOS MENUS HIJOS
+        $subMenus = [$subUsuarios->id, $subAdminMenu->id, $subControlAcceso->id, $subParametrica->id];
+        $roles = Rol::pluck('id');
+
+        foreach ($subMenus as $menuId) {
+            foreach ($roles as $rolId) {
+                MenuRol::updateOrCreate(
+                    [
+                        'menu_id' => $menuId,
+                        'rol_id' => $rolId,
+                    ],
+                    [
+                        'check' => true,
+                    ]
+                );
+            }
+        }
+    }
 }

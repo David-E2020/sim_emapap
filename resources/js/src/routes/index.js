@@ -11,47 +11,7 @@ export const routes = [
     name: 'dashboard',
     component: () => import('@/views/dashboard/Dashboard.vue'),
     meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/typography',
-    name: 'typography',
-    component: () => import('@/views/typography/Typography.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/icons',
-    name: 'icons',
-    component: () => import('@/views/icons/Icons.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/cards',
-    name: 'cards',
-    component: () => import('@/views/cards/Card.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/simple-table',
-    name: 'simple-table',
-    component: () => import('@/views/simple-table/SimpleTable.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/form-layouts',
-    name: 'form-layouts',
-    component: () => import('@/views/form-layouts/FormLayouts.vue'),
-    meta: {
-      requiresAuth: true
+      requiresAuth: true,
     },
   },
   {
@@ -59,7 +19,7 @@ export const routes = [
     name: 'pages-account-settings',
     component: () => import('@/views/pages/account-settings/AccountSettings.vue'),
     meta: {
-      requiresAuth: true
+      requiresAuth: true,
     },
   },
 
@@ -69,7 +29,7 @@ export const routes = [
     name: 'parametrica',
     component: () => import('@/views/parametricas/Parametrica.vue'),
     meta: {
-      requiresAuth: true
+      requiresAuth: true,
     },
   },
 
@@ -79,7 +39,7 @@ export const routes = [
     name: 'usuarios',
     component: () => import('@/views/administrar/Usuario.vue'),
     meta: {
-      requiresAuth: true
+      requiresAuth: true,
     },
   },
   {
@@ -87,7 +47,7 @@ export const routes = [
     name: 'control_acceso',
     component: () => import('@/views/administrar/ControlAcceso.vue'),
     meta: {
-      requiresAuth: true
+      requiresAuth: true,
     },
   },
   {
@@ -95,13 +55,9 @@ export const routes = [
     name: 'admin_menu',
     component: () => import('@/views/administrar/AdminMenu.vue'),
     meta: {
-      requiresAuth: true
+      requiresAuth: true,
     },
   },
-
-  // FUTUROS MÓDULOS DE COBRANZAS Y FACTURACIÓN
-  // { path: '/cobranzas/lecturas', name: 'cobranzas-lecturas', ... }
-  // { path: '/facturacion/emision', name: 'facturacion-emision', ... }
 
   // PAGES
   {

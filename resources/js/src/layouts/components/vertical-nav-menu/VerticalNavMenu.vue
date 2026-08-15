@@ -23,102 +23,56 @@
         </v-slide-x-transition>
       </router-link>
     </div>
+
+    <!-- Subtle divider below header -->
+    <div class="nav-header-divider mx-4 my-2"></div>
+
     <!-- Navigation Items -->
     <v-list expand shaped class="vertical-nav-menu-items" v-if="menus">
-      <v-list-group :value="false" :prepend-icon="item.icon_mdi" v-for="item in menus" :key="item.order">
+      <v-list-group :value="false" :prepend-icon="item.icon_mdi" v-for="item in menus" :key="item.order" class="nav-group-item">
         <template v-slot:activator>
-          <v-list-item-title>{{ item.label }} </v-list-item-title>
+          <v-list-item-title class="group-title font-weight-medium">{{ item.label }}</v-list-item-title>
         </template>
-        <v-list-item v-for="itemN2 in item.sub_menu" :key="itemN2.order" :to="{ name: itemN2.route }">
-          <v-list-item-icon>
-            <v-icon v-text="'mdi-minius'"></v-icon>
-          </v-list-item-icon>
-          <v-list-item-title v-text="itemN2.label" style="font-size: 14px; font-weight: bold;"></v-list-item-title>
-          <v-list-item-icon>
-            <!-- tamaño igual al texto -->
-            <v-icon v-text="itemN2.icon_mdi" style="font-size: 16px; font-weight: bold;"
-            ></v-icon>
-          </v-list-item-icon>
-        </v-list-item>
+        
+        <div class="submenu-container pl-2">
+          <v-list-item
+            v-for="itemN2 in item.sub_menu"
+            :key="itemN2.order"
+            :to="{ name: itemN2.route }"
+            class="submenu-item my-1 rounded-lg"
+            active-class="submenu-item--active"
+          >
+            <!-- Left subtle guide bullet -->
+            <v-list-item-icon class="me-2 my-auto submenu-bullet-icon">
+              <span class="submenu-bullet"></span>
+            </v-list-item-icon>
+
+            <v-list-item-title class="submenu-title text-body-2 font-weight-medium">{{ itemN2.label }}</v-list-item-title>
+            
+            <!-- Right action icon -->
+            <v-list-item-icon class="my-auto submenu-right-icon">
+              <v-icon v-text="itemN2.icon_mdi" small class="submenu-icon-inner"></v-icon>
+            </v-list-item-icon>
+          </v-list-item>
+        </div>
       </v-list-group>
     </v-list>
     <v-list expand shaped class="vertical-nav-menu-items" v-if="!menus">
-      <div class="text-center">
-        <v-progress-circular :size="30" color="primary" indeterminate></v-progress-circular>
+      <div class="text-center py-6">
+        <v-progress-circular :size="28" width="3" color="primary" indeterminate></v-progress-circular>
       </div>
     </v-list>
   </v-navigation-drawer>
 </template>
-<script>
-// eslint-disable-next-line object-curly-newline
-import {
-  mdiHomeOutline,
-  mdiAlphaTBoxOutline,
-  mdiEyeOutline,
-  mdiCreditCardOutline,
-  mdiTable,
-  mdiFolderCogOutline,
-  mdiFileOutline,
-  mdiFormSelect,
-  mdiAccountCogOutline,
-  mdiAccountCog,
-  mdiCart,
-  mdiCloudSyncOutline,
-  mdiAccountMultiple,
-  mdiHomeCity,
-  mdiAccountBoxMultiple,
-  mdiCrosshairsGps,
-  mdiFerry,
-  mdiCurrencyUsd,
-  mdiChartAreaspline,
-  mdiCloudPrintOutline,
-  mdiFileDocumentOutline,
-} from '@mdi/js'
-import NavMenuSectionTitle from './components/NavMenuSectionTitle.vue'
-import NavMenuGroup from './components/NavMenuGroup.vue'
-import NavMenuLink from './components/NavMenuLink.vue'
 
+<script>
 export default {
-  components: {
-    NavMenuSectionTitle,
-    NavMenuGroup,
-    NavMenuLink,
-  },
   props: {
     isDrawerOpen: {
       type: Boolean,
       default: null,
     },
   },
-  setup() {
-    return {
-      icons: {
-        mdiHomeOutline,
-        mdiAlphaTBoxOutline,
-        mdiEyeOutline,
-        mdiCreditCardOutline,
-        mdiTable,
-
-        mdiFolderCogOutline,
-        mdiFileOutline,
-        mdiFormSelect,
-        mdiAccountCogOutline,
-        mdiCart,
-        mdiCloudSyncOutline,
-        mdiAccountCog,
-        mdiAccountMultiple,
-        mdiHomeCity,
-        mdiAccountBoxMultiple,
-        mdiCrosshairsGps,
-        mdiFerry,
-        mdiCurrencyUsd,
-        mdiChartAreaspline,
-        mdiCloudPrintOutline,
-        mdiFileDocumentOutline,
-      },
-    }
-  },
-
   data: () => ({
     menus: null,
     user: null,
@@ -127,14 +81,15 @@ export default {
   mounted() {
     this.getMenu()
   },
-
   methods: {
     getMenu() {
-      this.routeHome = localStorage.getItem('rute_home')
+      this.routeHome = localStorage.getItem('rute_home') || 'dashboard'
       this.menus = null
-      var user_ = JSON.parse(localStorage.getItem('user'))
-      var userId_ = user_.id
-      var urlMenu = '/api/usuario/menu-acopio/' + userId_
+      const userStored = localStorage.getItem('user')
+      if (!userStored) return
+      const user_ = JSON.parse(userStored)
+      const userId_ = user_.id
+      const urlMenu = '/api/usuario/menu-acopio/' + userId_
       axios
         .get(urlMenu)
         .then(response => {
@@ -142,15 +97,13 @@ export default {
         })
         .catch(_error => {})
     },
-
     getUser() {
-      this.user = JSON.parse(localStorage.getItem('user'))
+      try {
+        this.user = JSON.parse(localStorage.getItem('user'))
+      } catch (e) {
+        this.user = null
+      }
     },
-
- collapseSubItems() {
-      this.nav.map((item)=>item.active=false)
- },
-
   },
 }
 </script>
@@ -159,46 +112,108 @@ export default {
 @import '@resources/sass/preset/mixins.scss';
 
 .app-title {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  font-stretch: normal;
-  font-style: normal;
-  line-height: normal;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
 }
 
-// ? Adjust this `translateX` value to keep logo in center when vertical nav menu is collapsed (Value depends on your logo)
 .app-logo {
-  transition: all 0.18s ease-in-out;
+  transition: all 0.2s ease-in-out;
   .v-navigation-drawer--mini-variant & {
     transform: translateX(-4px);
   }
 }
 
-@include theme(app-navigation-menu) using ($material) {
-  background-color: map-deep-get($material, 'background');
+.nav-header-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(145, 85, 253, 0.05) 0%, rgba(145, 85, 253, 0.25) 50%, rgba(145, 85, 253, 0.05) 100%);
+  margin-bottom: 8px;
 }
 
-.app-navigation-menu {
-  .v-list-item {
-    &.vertical-nav-menu-link {
-      ::v-deep .v-list-item__icon {
-        .v-icon {
-          transition: none !important;
-        }
+.nav-group-item {
+  margin-bottom: 4px;
+}
+
+.group-title {
+  font-size: 0.93rem;
+  letter-spacing: 0.2px;
+}
+
+.submenu-container {
+  position: relative;
+  border-left: 1.5px dashed rgba(145, 85, 253, 0.2);
+  margin-left: 28px;
+  padding-left: 6px !important;
+}
+
+.submenu-item {
+  min-height: 38px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0 12px !important;
+
+  .submenu-bullet-icon {
+    min-width: 14px !important;
+    margin-right: 8px !important;
+  }
+
+  .submenu-bullet {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: rgba(145, 85, 253, 0.35);
+    transition: all 0.2s ease;
+  }
+
+  .submenu-title {
+    font-size: 0.875rem !important;
+    color: rgba(94, 86, 105, 0.87);
+    transition: color 0.2s ease;
+  }
+
+  .submenu-right-icon {
+    min-width: 24px !important;
+    opacity: 0.75;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  &:hover {
+    background-color: rgba(145, 85, 253, 0.06) !important;
+    
+    .submenu-bullet {
+      background-color: var(--v-primary-base, #9155fd);
+      transform: scale(1.3);
+    }
+
+    .submenu-right-icon {
+      opacity: 1;
+      transform: translateX(2px);
+    }
+  }
+
+  &--active {
+    background: linear-gradient(98deg, rgba(145, 85, 253, 0.16), rgba(145, 85, 253, 0.06) 94%) !important;
+
+    .submenu-bullet {
+      background-color: var(--v-primary-base, #9155fd);
+      box-shadow: 0 0 6px rgba(145, 85, 253, 0.6);
+    }
+
+    .submenu-title {
+      color: var(--v-primary-base, #9155fd) !important;
+      font-weight: 600 !important;
+    }
+
+    .submenu-right-icon {
+      opacity: 1;
+      .submenu-icon-inner {
+        color: var(--v-primary-base, #9155fd) !important;
       }
     }
   }
 }
 
-// You can remove below style
-// Upgrade Banner
-.app-navigation-menu {
-  .upgrade-banner {
-    position: absolute;
-    bottom: 13px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
+@include theme(app-navigation-menu) using ($material) {
+  background-color: map-deep-get($material, 'background');
 }
 </style>
