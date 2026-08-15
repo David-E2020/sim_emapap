@@ -67,5 +67,6 @@ class Kernel extends HttpKernel {
 		'role_or_permission' => \Spatie\Permission\Middlewares\RoleOrPermissionMiddleware::class,
 		'jwt.auth'           => Tymon\JWTAuth\Middleware\Authenticate::class,
 		'jwt.refresh'        => Tymon\JWTAuth\Middleware\RefreshToken::class,
+		'admin.access'       => \App\Http\Middleware\AdminAccessMiddleware::class,
 	];
 }

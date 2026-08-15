@@ -15,6 +15,7 @@ class User extends Authenticatable implements JWTSubject {
 	protected $primaryKey = "id";
 	protected $guard_name = 'api';
 	public $timestamps    = false;
+
 	/**
 	 * The attributes that are mass assignable.
 	 *
@@ -61,82 +62,12 @@ class User extends Authenticatable implements JWTSubject {
 		return [];
 	}
 
-	public function puntoventa() {
-		return $this->belongsTo(PuntoventaUser::class, 'usr_id', 'id')->select(['id', 'puntoventa_id', 'usr_id']);
-	}
-
-	public function planta() {
-		return $this->belongsTo(PlantaUsuario::class, 'usr_id', 'id')->select(['id', 'planta_id', 'usr_id']);
-	}
-	#rol user
+	# Relación Rol User
 	public function rolPersmisos() {
-		return $this->hasOne(RolUser::class, 'id', 'id');
-	}
-
-	public function getSellingPoints() {
-		if ($this->hasRole('Administrador')) {
-			$storages = Planta::select('id', 'nombre', 'descripcion', 'codigo', 'tipo_acopio_id', 'municipio', 'telefono', 'direccion', 'capacidad', 'departamento_id', 'provincia_id', 'municipio_id', 'localidad_id', 'datos')->get();
-		} else {
-			$storages = $this->sellingpoints;
-		}
-		return $storages;
-	}
-
-	public function employee() {
-		return $this->belongsTo('App\Models\RRHH\Employee', 'usr_prs_id', 'id')->with('management');
-	}
-
-	public function sellingpoints() {
-		return $this->belongsToMany('App\Models\Planta', 'planta_usuarios', 'user_id', 'planta_id');
-	}
-
-	public function getSellingPoint() {
-		if (!session()->exists('planta_id')) {
-			if (sizeof($this->sellingpoints) > 0) {
-				session()->put('planta_id', $this->sellingpoints[0]->id);
-			} else {
-				return null;
-			}
-		}
-		$selling_point = Planta::where('id', session('planta_id'))->first();
-		return $selling_point;
-	}
-
-	//accesos para el SEDEM
-
-	public function getSellingPointsSEDEM() {
-		$storages = $this->sellingpointsSEDEM;
-		return $storages;
-	}
-
-	public function sellingpointsSEDEM() {
-		return $this->belongsToMany('App\Models\Almacen', 'App\Models\UsuarioAlmacen', 'user_id', 'almacen_id')->with('sucursal','loginsubsidio');
+		return $this->hasOne(RolUser::class, 'usuario_id', 'id');
 	}
 
 	public function getUser($id) {
-		$usuario = $this->find($id);
-		return $usuario;
+		return $this->find($id);
 	}
-
-	public function getGestion() {
-		$gestion = Gestion::where('state', true)->first();
-		return $gestion;
-	}
-
-	public function getGestions() {
-		$gestions = Gestion::all();
-		return $gestions;
-	}
-
-	public function getGestionSession() {
-		if (!session()->exists('gestion_id')) {
-			session()->put('gestion_id', self::getGestion()->id);
-		}
-
-		$gestion = Gestion::find(session('gestion_id'));
-		return $gestion;
-	}
-	public function user_cargos(){
-        return $this->belongsTo(Cargos::class, 'usr_cargo_id', 'id');
- }
 }

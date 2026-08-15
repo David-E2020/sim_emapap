@@ -72,44 +72,12 @@ export const routes = [
       requiresAuth: true
     },
   },
-  {
-    path: '/parametrica_planta',
-    name: 'parametrica_planta',
-    component: () => import('@/views/parametricas/Planta.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/parametrica_almacen',
-    name: 'parametrica_almacen',
-    component: () => import('@/views/parametricas/Almacen.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
 
   // MENU ADMINISTRACION
   {
     path: '/usuarios',
     name: 'usuarios',
     component: () => import('@/views/administrar/Usuario.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/asignacion_regional',
-    name: 'asignacion_regional',
-    component: () => import('@/views/administrar/AsignacionPlanta.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/asignacion_punto',
-    name: 'asignacion_punto',
-    component: () => import('@/views/administrar/AsignacionPunto.vue'),
     meta: {
       requiresAuth: true
     },
@@ -131,127 +99,9 @@ export const routes = [
     },
   },
 
-  // RECURSOS HUMANOS
-  {
-    path: '/employee',
-    name: 'employee',
-    component: () => import('@/views/rrhh/employee/Index.vue'),
-    meta: {
-      requiresAuth: true
-    },
-  },
-  {
-    path: '/employee_info',
-    name: 'employee_info',
-    component: () => import('@/views/rrhh/employee/Show.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/datos_rrhh',
-    name: 'datos_rrhh',
-    component: () => import('@/views/rrhh/datos/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/biometric',
-    name: 'biometric',
-    component: () => import('@/views/rrhh/biometric/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/position',
-    name: 'position',
-    component: () => import('@/views/rrhh/position/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/city',
-    name: 'city',
-    component: () => import('@/views/rrhh/city/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/country',
-    name: 'country',
-    component: () => import('@/views/rrhh/country/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/document_type',
-    name: 'document_type',
-    component: () => import('@/views/rrhh/document_type/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/contract_type',
-    name: 'contract_type',
-    component: () => import('@/views/rrhh/contract_type/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/contract_modality',
-    name: 'contract_modality',
-    component: () => import('@/views/rrhh/contract_modality/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/management',
-    name: 'management',
-    component: () => import('@/views/rrhh/management/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/unity',
-    name: 'unity',
-    component: () => import('@/views/rrhh/unity/Index.vue'),
-    meta: {
-      requiresAuth: true
-    }
-  },
-  {
-    path: '/contribution',
-    name: 'contribution',
-    component: () => import('@/views/rrhh/contribution/Index.vue'),
-    meta: {
-      requiresAuth: true,
-    }
-  },
-  {
-    path: '/my_request',
-    name: 'my_request',
-    component: () => import('@/views/rrhh/my_request/Index.vue'),
-    meta: {
-      requiresAuth: true,
-    }
-  },
-  {
-    path: '/report',
-    name: 'report',
-    component: () => import('@/views/rrhh/attendance/Report.vue'),
-    meta: {
-      requiresAuth: true,
-    }
-  },
+  // FUTUROS MÓDULOS DE COBRANZAS Y FACTURACIÓN
+  // { path: '/cobranzas/lecturas', name: 'cobranzas-lecturas', ... }
+  // { path: '/facturacion/emision', name: 'facturacion-emision', ... }
 
   // PAGES
   {

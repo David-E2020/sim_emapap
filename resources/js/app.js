@@ -39,6 +39,18 @@ const store = new Vuex.Store({
 });
 Vue.prototype.$http = axios;
 
+Vue.prototype.$can = function (permission) {
+  try {
+    const permissionsStr = localStorage.getItem('permissions');
+    if (!permissionsStr) return true;
+    const userPermissions = JSON.parse(permissionsStr);
+    if (!Array.isArray(userPermissions)) return true;
+    return userPermissions.includes(permission) || userPermissions.includes('SIGP') || userPermissions.includes('admin.usuarios.ver');
+  } catch (e) {
+    return true;
+  }
+};
+
 const tokenJWT = localStorage.getItem('token')
 /**
  * Next, we will create a fresh Vue application instance and attach it to

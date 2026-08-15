@@ -1,296 +1,218 @@
 <template>
-  <v-card flat class="mt-5">
-    <v-form ref="form" v-model="valid" lazy-validation>
-      <div class="px-3">
-        <v-card-text class="pt-5">
-          <v-row>
-            <v-col cols="12" sm="8" md="6">
-              <!-- current password -->
-              <v-text-field v-model="accountSettingData.account.password"
-                :type="isCurrentPasswordVisible ? 'text' : 'password'"
-                :append-icon="isCurrentPasswordVisible ? icons.mdiEyeOffOutline : icons.mdiEyeOutline"
-                label="Current Password" outlined dense
-                @click:append="isCurrentPasswordVisible = !isCurrentPasswordVisible"></v-text-field>
+  <v-card flat class="pa-4 mt-2">
+    <v-form ref="form" v-model="valid" lazy-validation @submit.prevent="openConfirmationDialog">
+      <v-card-text class="pt-2">
+        <v-row>
+          <v-col cols="12" md="7">
+            <div class="text-subtitle-1 font-weight-bold color-primary mb-3 d-flex align-center">
+              <v-icon color="primary" class="mr-2">mdi-lock-reset</v-icon>
+              Cambio de Contraseña
+            </div>
 
-              <!-- new password -->
-              <v-text-field v-model="newPassword" :type="isNewPasswordVisible ? 'text' : 'password'"
-                :append-icon="isNewPasswordVisible ? icons.mdiEyeOffOutline : icons.mdiEyeOutline" label="New Password"
-                outlined dense hint="Make sure it's at least 8 characters." persistent-hint
-                @click:append="isNewPasswordVisible = !isNewPasswordVisible"
-                :rules="passwordValidation"></v-text-field>
+            <!-- CONTRASEÑA ACTUAL -->
+            <v-text-field
+              v-model="currentPassword"
+              :type="isCurrentPasswordVisible ? 'text' : 'password'"
+              :append-icon="isCurrentPasswordVisible ? 'mdi-eye-off' : 'mdi-eye'"
+              label="Contraseña Actual"
+              outlined
+              dense
+              class="mb-3"
+              @click:append="isCurrentPasswordVisible = !isCurrentPasswordVisible"
+              :rules="[v => !!v || 'La contraseña actual es requerida']"
+            ></v-text-field>
 
-              <!-- confirm password -->
-              <v-text-field v-model="cPassword" :type="isCPasswordVisible ? 'text' : 'password'"
-                :append-icon="isCPasswordVisible ? icons.mdiEyeOffOutline : icons.mdiEyeOutline"
-                label="Confirm New Password" outlined dense class="mt-3"
-                @click:append="isCPasswordVisible = !isCPasswordVisible"
-                :rules="passwordValidation"></v-text-field>
-            </v-col>
+            <!-- NUEVA CONTRASEÑA -->
+            <v-text-field
+              v-model="newPassword"
+              :type="isNewPasswordVisible ? 'text' : 'password'"
+              :append-icon="isNewPasswordVisible ? 'mdi-eye-off' : 'mdi-eye'"
+              label="Nueva Contraseña"
+              outlined
+              dense
+              hint="Debe contener al menos 6 caracteres."
+              persistent-hint
+              class="mb-3"
+              @click:append="isNewPasswordVisible = !isNewPasswordVisible"
+              :rules="rulesNewPassword"
+            ></v-text-field>
 
-            <v-col cols="12" sm="4" md="6" class="d-none d-sm-flex justify-center position-relative">
-              <v-img contain max-width="170" :src="require('@/assets/images/3d-characters/pose-m-1.png').default"
-                class="security-character"></v-img>
-            </v-col>
-          </v-row>
-        </v-card-text>
-      </div>
+            <!-- CONFIRMAR NUEVA CONTRASEÑA -->
+            <v-text-field
+              v-model="cPassword"
+              :type="isCPasswordVisible ? 'text' : 'password'"
+              :append-icon="isCPasswordVisible ? 'mdi-eye-off' : 'mdi-eye'"
+              label="Confirmar Nueva Contraseña"
+              outlined
+              dense
+              class="mt-3 mb-4"
+              @click:append="isCPasswordVisible = !isCPasswordVisible"
+              :rules="rulesConfirmPassword"
+            ></v-text-field>
 
-      <!-- divider -->
-      <v-divider></v-divider>
-      <!-- action buttons -->
-      <v-card-text>
-        <v-btn color="primary" class="me-3 mt-3" @click="openConfirmationDialog">
-          GUARDAR CAMBIOS </v-btn>
-        <v-btn color="secondary" outlined class="mt-3" onclick="resetForm()">
-          CANCELAR </v-btn>
+            <div class="d-flex align-center gap-2">
+              <v-btn color="primary" elevation="1" class="text-capitalize px-5" @click="openConfirmationDialog">
+                <v-icon left small>mdi-content-save-outline</v-icon> Guardar Cambios
+              </v-btn>
+              <v-btn color="secondary" outlined class="text-capitalize" @click="resetForm">
+                Cancelar
+              </v-btn>
+            </div>
+          </v-col>
+
+          <v-col cols="12" md="5" class="d-none d-md-flex flex-column align-center justify-center text-center">
+            <v-avatar color="primary lighten-5" size="100" class="mb-3">
+              <v-icon size="48" color="primary">mdi-shield-check-outline</v-icon>
+            </v-avatar>
+            <h4 class="text-subtitle-1 font-weight-bold color-primary">Recomendación de Seguridad</h4>
+            <p class="text-caption text-secondary px-4">
+              Asegúrate de que tu nueva contraseña tenga al menos 6 caracteres y no coincida con claves utilizadas previamente.
+            </p>
+          </v-col>
+        </v-row>
       </v-card-text>
 
-      <div class="pa-3">
-        <v-card-title class="flex-nowrap">
-          <v-icon class="text--primary me-3">
-            {{ icons.mdiKeyOutline }}
-          </v-icon>
-          <span class="text-break">Two-factor authentication</span>
-        </v-card-title>
+      <!-- DIÁLOGO CONFIRMACIÓN -->
+      <v-dialog v-model="dialogConfirm" max-width="450" persistent>
+        <v-card rounded="lg">
+          <v-card-title class="primary white--text py-3">
+            <v-icon left color="white">mdi-alert-circle-outline</v-icon>
+            Confirmar Cambio de Contraseña
+          </v-card-title>
+          <v-card-text class="pt-4 text-body-1">
+            ¿Estás seguro de que deseas cambiar tu contraseña? Al confirmar, tu sesión finalizará y deberás iniciar sesión nuevamente con tu nueva clave.
+          </v-card-text>
+          <v-divider></v-divider>
+          <v-card-actions class="px-4 py-3">
+            <v-spacer></v-spacer>
+            <v-btn color="secondary" text @click="dialogConfirm = false" class="text-capitalize">
+              Cancelar
+            </v-btn>
+            <v-btn color="primary" elevation="1" :loading="updating" @click="updatePassword" class="text-capitalize">
+              Aceptar y Cerrar Sesión
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
 
-        <v-card-text class="two-factor-auth text-center mx-auto">
-          <v-avatar color="primary" class="primary mb-4" rounded>
-            <v-icon size="25" color="white">
-              {{ icons.mdiLockOpenOutline }}
-            </v-icon>
-          </v-avatar>
-          <p class="text-base text--primary font-weight-semibold">Two factor authentication is not enabled yet.</p>
-          <p class="text-sm text--primary">
-            Two-factor authentication adds an additional layer of security to your account by requiring more than just a
-            password to log in. Learn more.
-          </p>
-        </v-card-text>
-
-      </div>
-      <div>
-        <template>
-          <v-dialog v-model="dialogConfirm" max-width="50%">
-            <v-card>
-              <v-card-title class="headline color-primary text-center">GUARDAR CAMBIOS</v-card-title>
-              <v-card-text class="text-h6">¿Estás seguro de que deseas cambiar tu contraseña? si presiona <strong style="color: green;">ACEPTAR</strong> 
-                se cerrará la sesión y deberás iniciar sesión nuevamente. <p>Recargue la página para ver los cambios.</p></v-card-text>
-              <v-card-actions>
-                <v-spacer></v-spacer>
-                <v-btn color="red darken-1" text @click="dialogConfirm = false" rounded>Cancelar</v-btn>
-                <v-btn color="green darken-1" text @click="updatePassword" rounded >Aceptar</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-dialog>
-          <v-snackbar v-model="snackbar.status" bottom :color="snackbar.color" :timeout="1500">
-            {{ snackbar.text }}
-            <template v-slot:action="{ attrs }">
-              <v-btn color="blue" text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
-            </template>
-          </v-snackbar>
-        </template>
-      </div>
+      <!-- NOTIFICACIONES SNACKBAR -->
+      <v-snackbar v-model="snackbar.status" bottom right :color="snackbar.color" :timeout="2000" rounded="pill">
+        <div class="d-flex align-center">
+          <v-icon left color="white">mdi-information-outline</v-icon>
+          <span>{{ snackbar.text }}</span>
+        </div>
+      </v-snackbar>
     </v-form>
   </v-card>
 </template>
 
 <script>
-// eslint-disable-next-line object-curly-newline
-import { mdiKeyOutline, mdiLockOpenOutline, mdiEyeOffOutline, mdiEyeOutline } from '@mdi/js'
-import { ref } from '@vue/composition-api'
-import axios from 'axios'
-import { rule } from 'postcss';
+import axios from 'axios';
 
 export default {
-  setup() {
-    const valid = ref(false);
-    const isCurrentPasswordVisible = ref(false)
-    const isNewPasswordVisible = ref(false)
-    const isCPasswordVisible = ref(false)
-    const currentPassword = ref('12345678')
-    const newPassword = ref('')
-    const cPassword = ref('')
-    const dialogConfirm = ref(false)
-    const snackbar = ref({
-      color: '',
-      text: '',
+  data: () => ({
+    valid: false,
+    updating: false,
+    isCurrentPasswordVisible: false,
+    isNewPasswordVisible: false,
+    isCPasswordVisible: false,
+    currentPassword: '',
+    newPassword: '',
+    cPassword: '',
+    dialogConfirm: false,
+    snackbar: {
       status: false,
-    });
+      text: '',
+      color: 'success',
+    },
+    user: null,
+  }),
 
-    return {
-      valid,
-      isCurrentPasswordVisible,
-      isNewPasswordVisible,
-      currentPassword,
-      isCPasswordVisible,
-      newPassword,
-      cPassword,
-      dialogConfirm,
-      snackbar,
-      icons: {
-        mdiKeyOutline,
-        mdiLockOpenOutline,
-        mdiEyeOffOutline,
-        mdiEyeOutline,
-      },
+  computed: {
+    rulesNewPassword() {
+      return [
+        v => !!v || 'Por favor, introduzca su nueva contraseña',
+        v => (v && v.length >= 6) || 'La contraseña debe tener al menos 6 caracteres'
+      ];
+    },
+    rulesConfirmPassword() {
+      return [
+        v => !!v || 'Por favor, confirme su nueva contraseña',
+        v => v === this.newPassword || 'Las contraseñas no coinciden'
+      ];
     }
   },
-  data: () => ({
-    rules_password: [
-      { required: true, message: 'Por favor, introduzca su contraseña', trigger: 'blur' },
-      { min: 8, message: 'La contraseña debe tener al menos 8 caracteres', trigger: 'blur' }
-    ],
-    confirmPassword: [
-      { required: true, message: 'Por favor, confirme su contraseña', trigger: 'blur' },
-      {
-        validator: (rule, value, callback) => {
-          if (value === '') {
-            callback(new Error('Por favor, confirme su contraseña'));
-          } else if (value !== this.newPassword) {
-            callback(new Error('Las contraseñas no coinciden'));
-          } else {
-            callback();
-          }
-        },
-        trigger: 'blur'
-      }
-    ],
-    user: null,
-    accountSettingData: {
-      account: {
-        avatarImg: require('@/assets/images/avatars/1.png').default,
-        username: '',
-        name: '',
-        email: '',
-        email2: '',
-        ci: '',
-        status: 'Active',
-        company: 'EMAPA',
-      },
-      information: {
-        bio: 'The name’s John Deo. I am a tireless seeker of knowledge, occasional purveyor of wisdom and also, coincidentally, a graphic designer. Algolia helps businesses across industries quickly create relevant 😎, scaLabel 😀, and lightning 😍 fast search and discovery experiences.',
-        birthday: 'February 22, 1995',
-        address: '',
-        phone: '',
-        website: '',
-        country: 'USA',
-        languages: ['English', 'Spanish'],
-        sistemas: [],
-        gender: 'male',
-      },
-    },
-  }),
+
+  mounted() {
+    this.getUser();
+  },
+
   methods: {
-    openConfirmationDialog() {
-      this.dialogConfirm = true;
+    getUser() {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        this.user = JSON.parse(stored);
+      }
     },
-    updatePassword() {
-      if (this.newPassword === '') {
-        this.snackbar = {
-          color: 'error',
-          text: 'Por favor, introduzca su nueva contraseña',
-          status: true,
-        }
-        return;
+
+    openConfirmationDialog() {
+      if (this.$refs.form.validate()) {
+        this.dialogConfirm = true;
       }
-      if (this.newPassword !== this.cPassword) {
-        this.snackbar = {
-          color: 'error',
-          text: 'Las contraseñas no coinciden',
-          status: true,
-        }
-        return;
-      }
-      const data = {
-        id: this.user.id,
-        name: this.user.name,
-        usr_usuario: this.user.usr_usuario,
-        email: this.user.email,
-        password: this.newPassword,
-      };
-      axios.post('/api/update_user_password', data)
-        .then(response => {
-          if (response.data.success) {
-            // this.dialogConfirm = false;
-            this.updating = false;
-            // this.getUser();
-            this.resetForm();
-            this.snackbar = {
-              color: 'success',
-              text: 'Contraseña actualizada correctamente',
-              status: true,
-            }
-            this.dialogConfirm = false;
-            setTimeout(() => {
-              this.$store.dispatch('auth/logout')
-              .then(() => {
-                this.$router.push('/pages/login');
-              })
-              .catch(err => console.error(err));
-            }, 2500);
-          } else {
-            // this.dialogConfirm = false;
-            this.snackbar = {
-              color: 'error',
-              text: 'Error al actualizar la contraseña 0',
-              status: true,
-            }
-          }
-        })
-        .catch(_error => {
-          console.error('Error:', error);
-          this.dialogConfirm = false;
-          this.updating = false;
-          this.snackbar = {
-            color: 'error',
-            text: 'Error al actualizar la contraseña',
-            status: true,
-          }
-        });
-      this.getUser();
     },
 
     resetForm() {
-      this.password = ''
-      this.newPassword = ''
+      this.currentPassword = '';
+      this.newPassword = '';
+      this.cPassword = '';
+      if (this.$refs.form) {
+        this.$refs.form.resetValidation();
+      }
     },
-    getUser() {
-      this.user = JSON.parse(localStorage.getItem('user'))
-      this.accountSettingData.account.username = this.user.usr_usuario
-      this.accountSettingData.account.name = this.user.name
-      this.accountSettingData.account.email = this.user.email
-      this.accountSettingData.account.email2 = this.user.email_verified_at
-      this.accountSettingData.account.password = this.user.usr_new_password
-    }
-  },
-  mounted() {
-    this.getUser()
-  },
-  computed: {
-    passwordValidation() {
-    const errors = [];
-    if (this.newPassword.length < 8) {
-      errors.push('La contraseña debe tener al menos 8 caracteres');
-    }
-    if (this.newPassword !== this.cPassword) {
-      errors.push('Las contraseñas no coinciden');
-    }
 
-    return errors;
-  },
-  validate() {
-    return this.passwordValidation.length === 0;
-  }
+    updatePassword() {
+      if (!this.user) return;
+      this.updating = true;
 
+      const data = {
+        id: this.user.id,
+        current_password: this.currentPassword,
+        password: this.newPassword,
+      };
+
+      axios.post('api/update_user_password', data)
+        .then(response => {
+          this.updating = false;
+          if (response.data.success) {
+            this.dialogConfirm = false;
+            this.showSnackbar('Contraseña actualizada correctamente', 'success');
+            setTimeout(() => {
+              this.$store.dispatch('auth/logout')
+                .then(() => {
+                  this.$router.push('/pages/login');
+                })
+                .catch(() => {
+                  this.$router.push('/pages/login');
+                });
+            }, 1800);
+          } else {
+            this.dialogConfirm = false;
+            this.showSnackbar(response.data.mensaje || 'Error al actualizar la contraseña', 'error');
+          }
+        })
+        .catch(error => {
+          this.updating = false;
+          this.dialogConfirm = false;
+          const msg = error.response && error.response.data && error.response.data.mensaje 
+            ? error.response.data.mensaje 
+            : 'Error al cambiar la contraseña';
+          this.showSnackbar(msg, 'error');
+        });
+    },
+
+    showSnackbar(text, color = 'success') {
+      this.snackbar = { status: true, text, color };
+    }
   }
 }
 </script>
-
-<style lang="scss" scoped>
-.two-factor-auth {
-  max-width: 25rem;
-}
-.security-character {
-  position: absolute;
-  bottom: -0.5rem;
-}
-</style>

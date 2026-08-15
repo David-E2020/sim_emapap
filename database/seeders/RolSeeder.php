@@ -14,80 +14,72 @@ class RolSeeder extends Seeder {
 	 * @return void
 	 */
 	public function run() {
+		// Reset cached roles and permissions
+		app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-		$permission = Permission::create(['name' => 'SIGP']);
-		//$permission = Permission::create(['name' => 'SIMON_PRUEBAS']);
-		$permission = Permission::where('name', 'SIGP')->first();
-		$role = Role::create(['name' => 'Administrador General']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Administrador Produccion']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Administrador Acopio']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Administrador Insumos']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Administrador Producto Terminado']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Encargado Almacen Produccion']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Encargado Almacen Acopio']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Encargado Almacen Insumos']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Encargado Almacen Producto Terminado']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Tecnico Produccion']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Tecnico Acopio']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Tecnico Insumos']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Tecnico Producto Terminado']);
-		$role->givePermissionTo($permission);
-		$role = Role::create(['name' => 'Responsable']);
-		$role->givePermissionTo($permission);
-		#Roles usuarios
+		// LISTA DE PERMISOS GRANULARES DE MÓDULOS ACTUALES
+		$permissions = [
+			// Módulo Administración de Usuarios
+			'admin.usuarios.ver',
+			'admin.usuarios.crear',
+			'admin.usuarios.editar',
+			'admin.usuarios.eliminar',
+			'admin.usuarios.acceso',
 
+			// Módulo Administración de Menús
+			'admin.menus.ver',
+			'admin.menus.crear',
+			'admin.menus.editar',
+			'admin.menus.eliminar',
+			'admin.menus.reordenar',
+
+			// Módulo Control de Acceso
+			'admin.control_acceso.ver',
+			'admin.control_acceso.guardar',
+
+			// Módulo Paramétricas y Catálogos
+			'parametricas.ver',
+			'parametricas.crear',
+			'parametricas.editar',
+
+			// Permiso legado de compatibilidad
+			'SIGP',
+		];
+
+		foreach ($permissions as $permissionName) {
+			Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'api']);
+		}
+
+		// ROLES DEL SISTEMA BASE
+		$adminRole = Role::firstOrCreate(['name' => 'Administrador General', 'guard_name' => 'api']);
+		$operadorRole = Role::firstOrCreate(['name' => 'Operador del Sistema', 'guard_name' => 'api']);
+		$consultorRole = Role::firstOrCreate(['name' => 'Consultor', 'guard_name' => 'api']);
+
+		// ASIGNAR TODOS LOS PERMISOS AL ADMINISTRADOR GENERAL
+		$adminRole->syncPermissions(Permission::all());
+
+		// PERMISOS PARA OPERADOR
+		$operadorRole->syncPermissions([
+			'admin.usuarios.ver',
+			'admin.control_acceso.ver',
+			'parametricas.ver',
+			'parametricas.crear',
+			'SIGP'
+		]);
+
+		// PERMISOS PARA CONSULTOR
+		$consultorRole->syncPermissions([
+			'admin.usuarios.ver',
+			'parametricas.ver',
+			'SIGP'
+		]);
+
+		// REGISTRO DE ASOCIACIÓN DE USUARIOS EN LA TABLA HISTÓRICA
+		DB::table('acopio.rol_users')->where('usuario_id', 1)->delete();
 		DB::table('acopio.rol_users')->insert([
 			[
-				'rol_id' => 1,
+				'rol_id' => $adminRole->id,
 				'usuario_id' => 1,
-			],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 131,
-			],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 407,
-			],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 405,
-			],
-			// [
-			// 	'rol_id' => 1,
-			// 	'usuario_id' => 527,
-			// ],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 376,
-			],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 157,
-			],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 351,
-			],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 470,
-			],
-			[
-				'rol_id' => 1,
-				'usuario_id' => 371,
 			],
 		]);
 	}

@@ -1,125 +1,89 @@
 <template>
-  <v-card id="account-setting-card">
-    <!-- tabs -->
-    <v-tabs v-model="tab" show-arrows>
-      <v-tab v-for="tab in tabs" :key="tab.icon">
-        <v-icon size="20" class="me-3">
-          {{ tab.icon }}
-        </v-icon>
-        <span>{{ tab.title }}</span>
-      </v-tab>
-    </v-tabs>
+  <div>
+    <!-- CABECERA DE SECCIÓN -->
+    <v-card class="mb-5 py-2 px-4" elevation="1">
+      <div class="d-flex align-center justify-space-between flex-wrap">
+        <div class="d-flex align-center">
+          <v-avatar color="primary" rounded class="mr-3 text-white" size="44">
+            <v-icon color="white">mdi-account-cog-outline</v-icon>
+          </v-avatar>
+          <div>
+            <h2 class="text-h5 font-weight-bold mb-0">Configuración de Cuenta</h2>
+            <span class="text-caption text-secondary">Ajustes del perfil de usuario y seguridad de contraseña</span>
+          </div>
+        </div>
+      </div>
+    </v-card>
 
-    <!-- tabs item -->
-    <v-tabs-items v-model="tab">
-      <v-tab-item v-if="accountSettingData">
-        <account-settings-account :account-data="accountSettingData.account"></account-settings-account>
-      </v-tab-item>
-      
-      <v-tab-item>
-        <account-settings-security></account-settings-security>
-      </v-tab-item>
+    <v-card elevation="2" id="account-setting-card">
+      <!-- PESTAÑAS DE NAVEGACIÓN -->
+      <v-tabs v-model="tab" show-arrows color="primary" class="border-bottom">
+        <v-tab v-for="t in tabs" :key="t.title" class="font-weight-bold text-capitalize">
+          <v-icon size="20" class="mr-2">
+            {{ t.icon }}
+          </v-icon>
+          <span>{{ t.title }}</span>
+        </v-tab>
+      </v-tabs>
 
-      <v-tab-item v-if="accountSettingData">
-        <account-settings-info :information-data="accountSettingData.information"></account-settings-info>
-      </v-tab-item>
-    </v-tabs-items>
-  </v-card>
+      <!-- CONTENIDO DE PESTAÑAS -->
+      <v-tabs-items v-model="tab">
+        <v-tab-item>
+          <account-settings-account :account-data="accountData"></account-settings-account>
+        </v-tab-item>
+        
+        <v-tab-item>
+          <account-settings-security></account-settings-security>
+        </v-tab-item>
+      </v-tabs-items>
+    </v-card>
+  </div>
 </template>
 
 <script>
-import { mdiAccountOutline, mdiLockOpenOutline, mdiInformationOutline } from '@mdi/js'
-import { ref } from '@vue/composition-api'
-
-// demos
 import AccountSettingsAccount from './AccountSettingsAccount.vue'
 import AccountSettingsSecurity from './AccountSettingsSecurity.vue'
-import AccountSettingsInfo from './AccountSettingsInfo.vue'
 
 export default {
   components: {
     AccountSettingsAccount,
     AccountSettingsSecurity,
-    AccountSettingsInfo,
-  },
-  setup() {
-    const tab = ref('')
-
-    // tabs
-    const tabs = [
-      { title: 'Cuenta', icon: mdiAccountOutline },
-      { title: 'Security', icon: mdiLockOpenOutline },
-      { title: 'Información', icon: mdiInformationOutline },
-    ]
-
-    // account settings data
-
-    return {
-      tab,
-      tabs,
-      // accountSettingData,
-      icons: {
-        mdiAccountOutline,
-        mdiLockOpenOutline,
-        mdiInformationOutline,
-      },
-    }
   },
 
   data: () => ({
-    user: null,
-    accountSettingData: {
-      account: {
-        avatarImg: require('@/assets/images/avatars/1.png').default,
-        username: '',
-        name: '',
-        email: '',
-        email2: '',
-        ci: '',
-        status: 'Active',
-        company: 'EMAPA',
-      },
-      information: {
-        bio: 'The name’s John Deo. I am a tireless seeker of knowledge, occasional purveyor of wisdom and also, coincidentally, a graphic designer. Algolia helps businesses across industries quickly create relevant 😎, scaLabel 😀, and lightning 😍 fast search and discovery experiences.',
-        birthday: 'February 22, 1995',
-        address: '',
-        phone: '',
-        website: '',
-        country: 'USA',
-        languages: ['English', 'Spanish'],
-        sistemas: [],
-        gender: 'male',
-      },
+    tab: 0,
+    tabs: [
+      { title: 'Mi Perfil', icon: 'mdi-account-outline' },
+      { title: 'Seguridad y Contraseña', icon: 'mdi-lock-outline' },
+    ],
+    accountData: {
+      username: '',
+      name: '',
+      email: '',
+      status: 'Activo',
+      role: 'Usuario',
     },
   }),
+
   mounted() {
-    this.getUser()
+    this.getUserData();
   },
 
   methods: {
-    getUser() {
-      this.user = JSON.parse(localStorage.getItem('user'))
-      this.accountSettingData.account.username = this.user.usr_usuario
-      this.accountSettingData.account.name = this.user.name
-      // this.accountSettingData.account.name =
-      //   this.user.employee.first_name +
-      //   ' ' +
-      //   this.user.employee.second_name +
-      //   ' ' +
-      //   this.user.employee.last_name +
-      //   ' ' +
-      //   this.user.employee.mother_last_name
-
-      this.accountSettingData.account.email = this.user.email
-      this.accountSettingData.account.email2 = this.user.email_verified_at
-      // this.accountSettingData.account.ci = this.user.employee.identity_card
-      // this.accountSettingData.information.address = this.user.employee.address
-
-      // this.accountSettingData.information.birthday = this.user.employee.birth_date
-      // this.accountSettingData.information.phone = this.user.employee.cellphone
-      // this.accountSettingData.information.gender = this.user.employee.gender
-
-      // this.accountSettingData.information.sistemas = JSON.parse(this.user.usr_access_sistem)
+    getUserData() {
+      const userStr = localStorage.getItem('user');
+      const roleStr = localStorage.getItem('role') || 'Administrador General';
+      
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        this.accountData = {
+          username: user.usr_usuario || '',
+          name: user.name || '',
+          email: user.email || '',
+          status: user.usr_estado === 'A' ? 'Activo' : 'Inactivo',
+          role: user.roles && user.roles.length > 0 ? user.roles[0].name : roleStr,
+        };
+      }
     },
   },
 }

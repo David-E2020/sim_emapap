@@ -1,370 +1,533 @@
 <template>
   <div>
-    <!--VISTA PARA REPORTES-->
-     <v-dialog persistent v-model="dialog_report" width="990">
-      <v-card>
-        <v-card-title class="grey lighten-2">
-          PRE VISUALIZAR
-          <v-spacer></v-spacer>
-          <v-btn icon @click="dialog_report = false">
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
-        </v-card-title>
-        <v-expand-transition>
-          <div v-if="urlPreVisualizar">
-            <iframe id="ireport" :src="urlPreVisualizar" frameborder="0" allowtransparency="true"
-              style="width: 100%; height: 500px"></iframe>
+    <!-- CABECERA DE SECCIÓN -->
+    <v-card class="mb-5 py-2 px-4" elevation="1">
+      <div class="d-flex align-center justify-space-between flex-wrap">
+        <div class="d-flex align-center">
+          <v-avatar color="primary" rounded class="mr-3 text-white" size="44">
+            <v-icon color="white">mdi-database-cog-outline</v-icon>
+          </v-avatar>
+          <div>
+            <h2 class="text-h5 font-weight-bold mb-0">Tablas Paramétricas</h2>
+            <span class="text-caption text-secondary">Administración de catálogos y listas maestras del sistema</span>
           </div>
-        </v-expand-transition>
-        <div v-if="!urlPreVisualizar">
-          <v-card-text style="width: 100%; height: 500px; padding-top: 200px; padding-bottom: 200px;">
-            <div class="text-center">
-              <v-progress-circular :size="50" color="primary" indeterminate></v-progress-circular>
-            </div>
-          </v-card-text>
         </div>
-      </v-card>
-    </v-dialog>
-    <!--FINALIZACION DE VISTA PARA REPORTE-->
-    <v-card elevation="2" style="padding: 10px">
-      <v-row>
-        <!-- basic -->
-        <v-col cols="5">
-          <v-row>
-            <v-col cols="6">
-              <p class="text-2xl">Datos Registro</p>
-            </v-col>
-            <v-col cols="6 text-end">
-              <v-spacer></v-spacer>
-              <v-btn color="primary" small elevation="24" @click="nuevoRegistro()">Nuevo</v-btn>
-                <v-btn icon color="primary" @click="verDocumentoIngreso()">
-                  <v-icon>mdi-file-document-outline</v-icon>
-                </v-btn>
-            </v-col>
-          </v-row>
-          <template>
-            <v-simple-table fixed-header>
+        <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
+          <v-btn color="primary" @click="nuevoRegistro()" class="text-capitalize font-weight-medium">
+            <v-icon left>mdi-plus</v-icon> Nueva Tabla
+          </v-btn>
+        </div>
+      </div>
+    </v-card>
+
+    <!-- PANEL PRINCIPAL MAESTRO / DETALLE -->
+    <v-row>
+      <!-- TABLAS MAESTRAS (COLUMNA IZQUIERDA) -->
+      <v-col cols="12" md="5">
+        <v-card elevation="2" class="fill-height">
+          <v-card-title class="d-flex align-center justify-space-between pb-2">
+            <span class="text-subtitle-1 font-weight-bold">
+              <v-icon small left color="primary">mdi-table</v-icon> Catálogos Registrados
+            </span>
+            <v-chip size="small" color="primary" label small class="font-weight-bold">
+              {{ registrosFiltrados.length }}
+            </v-chip>
+          </v-card-title>
+          
+          <v-divider></v-divider>
+
+          <v-card-text class="pt-3">
+            <!-- BUSCADOR IZQUIERDO -->
+            <v-text-field
+              v-model="searchTabla"
+              placeholder="Buscar catálogo..."
+              dense
+              outlined
+              hide-details
+              clearable
+              prepend-inner-icon="mdi-magnify"
+              class="mb-3"
+            ></v-text-field>
+
+            <!-- TABLA MAESTRA -->
+            <v-simple-table fixed-header height="500px" class="custom-hover-table">
               <template v-slot:default>
                 <thead>
                   <tr>
-                    <th class="text-left">Acciones</th>
-                    <th class="text-left">Nro.</th>
-                    <th class="text-left">Nombre</th>
-                    <th class="text-left">Valor</th>
-                    <th class="text-left">Codigo</th>
+                    <th class="text-left font-weight-bold">Nombre del Catálogo</th>
+                    <th class="text-center font-weight-bold" style="width: 110px;">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="item in registros" :key="item.id">
+                  <tr
+                    v-for="item in registrosFiltrados"
+                    :key="item.id"
+                    :class="{ 'active-row': tabla_seleccionada.id === item.id }"
+                    @click="detalleRegistro(item)"
+                    style="cursor: pointer;"
+                  >
                     <td>
-                      <v-btn icon color="error" @click="confirmDelete(item, 'n1')">
-                        <v-icon>mdi-delete</v-icon>
-                      </v-btn>
-
-                      <v-btn icon color="success" @click="editarRegistro(item)">
-                        <v-icon>mdi-pencil</v-icon>
-                      </v-btn>
-
-                      <v-btn icon color="primary" @click="detalleRegistro(item)">
-                        <v-icon>mdi-eye</v-icon>
-                      </v-btn>
+                      <div class="d-flex align-center">
+                        <v-icon small color="primary" class="mr-2">mdi-folder-outline</v-icon>
+                        <span class="font-weight-medium text-body-2">{{ item.param_tabla }}</span>
+                      </div>
                     </td>
-                    <td>{{ item.id }}</td>
-                    <td>{{ item.param_tabla }}</td>
-                    <td>{{ item.param_valor }}</td>
-                    <td>{{ item.param_codigo }}</td>
+                    <td class="text-center" @click.stop>
+                      <v-tooltip bottom>
+                        <template v-slot:activator="{ on, attrs }">
+                          <v-btn
+                            icon
+                            x-small
+                            color="primary"
+                            v-bind="attrs"
+                            v-on="on"
+                            @click="detalleRegistro(item)"
+                          >
+                            <v-icon small>mdi-eye-outline</v-icon>
+                          </v-btn>
+                        </template>
+                        <span>Ver Valores</span>
+                      </v-tooltip>
+
+                      <v-tooltip bottom>
+                        <template v-slot:activator="{ on, attrs }">
+                          <v-btn
+                            icon
+                            x-small
+                            color="success"
+                            v-bind="attrs"
+                            v-on="on"
+                            @click="editarRegistro(item)"
+                          >
+                            <v-icon small>mdi-pencil-outline</v-icon>
+                          </v-btn>
+                        </template>
+                        <span>Editar Tabla</span>
+                      </v-tooltip>
+
+                      <v-tooltip bottom>
+                        <template v-slot:activator="{ on, attrs }">
+                          <v-btn
+                            icon
+                            x-small
+                            color="error"
+                            v-bind="attrs"
+                            v-on="on"
+                            @click="confirmDelete(item, 'n1')"
+                          >
+                            <v-icon small>mdi-trash-can-outline</v-icon>
+                          </v-btn>
+                        </template>
+                        <span>Eliminar Tabla</span>
+                      </v-tooltip>
+                    </td>
+                  </tr>
+                  <tr v-if="registrosFiltrados.length === 0">
+                    <td colspan="2" class="text-center text-muted py-6">
+                      <v-icon large color="grey lighten-1" class="d-block mb-1">mdi-database-search-outline</v-icon>
+                      No se encontraron catálogos
+                    </td>
                   </tr>
                 </tbody>
               </template>
             </v-simple-table>
-          </template>
-        </v-col>
-        <v-col cols="7">
-          <div v-if="detalle != null">
-            <v-row>
-              <v-col cols="6">
-                <div class="text-2xl">{{ tabla_seleccionada.param_tabla }}</div>
-              </v-col>
-              <v-col cols="6 text-end">
-                <v-spacer></v-spacer>
-                <v-btn color="primary" small elevation="24" @click="nuevoRegistroN2()">Nuevo</v-btn>
-              </v-col>
-            </v-row>
-            <br>
-            <template>
-              <v-simple-table fixed-header height="450px">
+          </v-card-text>
+        </v-card>
+      </v-col>
+
+      <!-- VALORES DETALLE (COLUMNA DERECHA) -->
+      <v-col cols="12" md="7">
+        <v-card elevation="2" class="fill-height">
+          <!-- CABECERA CUANDO HAY TABLA SELECCIONADA -->
+          <div v-if="tabla_seleccionada && tabla_seleccionada.param_tabla">
+            <v-card-title class="d-flex align-center justify-space-between pb-2">
+              <div class="d-flex align-center">
+                <v-icon color="primary" class="mr-2">mdi-format-list-bulleted-type</v-icon>
+                <div>
+                  <span class="text-subtitle-1 font-weight-bold">{{ tabla_seleccionada.param_tabla }}</span>
+                  <div class="text-caption text-secondary">Valores pertenecientes al catálogo</div>
+                </div>
+              </div>
+              <v-btn color="primary" small elevation="1" @click="nuevoRegistroN2()" class="text-capitalize">
+                <v-icon left small>mdi-plus</v-icon> Nuevo Valor
+              </v-btn>
+            </v-card-title>
+            
+            <v-divider></v-divider>
+
+            <v-card-text class="pt-3">
+              <!-- BUSCADOR DETALLE -->
+              <v-text-field
+                v-model="searchDetalle"
+                placeholder="Buscar valor o código..."
+                dense
+                outlined
+                hide-details
+                clearable
+                prepend-inner-icon="mdi-magnify"
+                class="mb-3"
+              ></v-text-field>
+
+              <!-- TABLA VALORES -->
+              <v-simple-table fixed-header height="490px">
                 <template v-slot:default>
                   <thead>
                     <tr>
-                      <th class="text-left">Acciones</th>
-                      <th class="text-left">Id</th>
-                      <th class="text-left">Valor</th>
-                      <th class="text-left">Nombre</th>
-                      <th class="text-left">Codigo</th>
-                      <th class="text-left">Descripcion</th>
-                    </tr>                  </thead>
+                      <th class="text-left font-weight-bold" style="width: 100px;">Código</th>
+                      <th class="text-left font-weight-bold">Nombre / Valor</th>
+                      <th class="text-left font-weight-bold">Detalle / Descripción</th>
+                      <th class="text-center font-weight-bold" style="width: 90px;">Acciones</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    <tr v-for="item in registrosN2" :key="item.param_valor">
+                    <tr v-for="item in registrosN2Filtrados" :key="item.id || item.param_codigo">
                       <td>
-                        <v-btn icon color="error" @click="confirmDelete(item, 'n2')">
-                          <v-icon>mdi-delete</v-icon>
-                        </v-btn>
-
-                        <v-btn icon color="success" @click="editarRegistroN2(item)">
-                          <v-icon>mdi-pencil</v-icon>
-                        </v-btn>
+                        <v-chip small label color="primary" outlined class="font-weight-bold">
+                          {{ item.param_codigo || item.param_valor || item.id }}
+                        </v-chip>
                       </td>
-                      <td>{{ item.id }}</td>
-                      <td>{{ item.param_valor }}</td>
-                      <td>{{ item.param_nombre }}</td>
-                      <td>{{ item.param_codigo }}</td>
-                      <td>{{ item.param_descripcion }}</td>
+                      <td class="font-weight-medium">
+                        {{ item.param_nombre || item.param_valor || '-' }}
+                      </td>
+                      <td class="text-caption text-secondary">
+                        {{ item.param_descripcion || item.param_detalle || '-' }}
+                      </td>
+                      <td class="text-center">
+                        <v-tooltip bottom>
+                          <template v-slot:activator="{ on, attrs }">
+                            <v-btn
+                              icon
+                              x-small
+                              color="success"
+                              v-bind="attrs"
+                              v-on="on"
+                              @click="editarRegistroN2(item)"
+                            >
+                              <v-icon small>mdi-pencil-outline</v-icon>
+                            </v-btn>
+                          </template>
+                          <span>Editar Valor</span>
+                        </v-tooltip>
+
+                        <v-tooltip bottom>
+                          <template v-slot:activator="{ on, attrs }">
+                            <v-btn
+                              icon
+                              x-small
+                              color="error"
+                              v-bind="attrs"
+                              v-on="on"
+                              @click="confirmDelete(item, 'n2')"
+                            >
+                              <v-icon small>mdi-trash-can-outline</v-icon>
+                            </v-btn>
+                          </template>
+                          <span>Eliminar Valor</span>
+                        </v-tooltip>
+                      </td>
+                    </tr>
+                    <tr v-if="registrosN2Filtrados.length === 0">
+                      <td colspan="4" class="text-center text-muted py-8">
+                        <v-icon large color="grey lighten-1" class="d-block mb-1">mdi-inbox-remove-outline</v-icon>
+                        No hay valores registrados en este catálogo
+                      </td>
                     </tr>
                   </tbody>
                 </template>
               </v-simple-table>
-            </template>
+            </v-card-text>
           </div>
-        </v-col>
-      </v-row>
 
-      <template>
-        <v-row justify="center">
-          <v-dialog v-model="dialog" max-width="490">
-            <v-card>
-              <v-card-title class="text-h5">{{ isEdit ? 'Editar' : 'Nuevo' }}</v-card-title>
+          <!-- ESTADO VACÍO (SIN SELECCIÓN) -->
+          <div v-else class="d-flex flex-column align-center justify-center fill-height py-12 text-center">
+            <v-avatar color="primary lighten-5" size="80" class="mb-3">
+              <v-icon size="40" color="primary">mdi-hand-pointing-left</v-icon>
+            </v-avatar>
+            <h3 class="text-h6 font-weight-bold color-primary">Selecciona un Catálogo</h3>
+            <p class="text-caption text-secondary style-sub max-w-sm px-4">
+              Haz clic en cualquier catálogo de la lista izquierda para visualizar y administrar sus ítems.
+            </p>
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
 
-              <v-card-text>
-                <v-form v-model="valid" @submit.prevent="submit" lazy-validation ref="form">
-                  <v-container>
-                    <v-row>
-                      <v-col cols="12" md="12">
-                        <v-text-field v-model="formRegistro.param_tabla" filled label="Nombres" required
-                          :rules="[(v) => !!v || 'El nombre es requerido']"></v-text-field>
-                      </v-col>
-                    </v-row>
+    <!-- DIÁLOGO: CREAR / EDITAR TABLA MAESTRA -->
+    <v-dialog v-model="dialog" max-width="500" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-table-cog</v-icon>
+          <span>{{ isEdit ? 'Editar Tabla Paramétrica' : 'Nueva Tabla Paramétrica' }}</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialog = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
 
-                    <br />
-                    <br />
-                    <v-row align="end">
-                      <v-spacer></v-spacer>
+        <v-card-text class="pt-4">
+          <v-form v-model="valid" @submit.prevent="submit" ref="form">
+            <v-text-field
+              v-model="formRegistro.param_tabla"
+              label="Nombre del Catálogo / Tabla"
+              outlined
+              dense
+              required
+              hint="Ej: TABLA_TIPO_DOCUMENTO, TABLA_ESTADO_MEDIDOR"
+              persistent-hint
+              prepend-inner-icon="mdi-label-outline"
+              :rules="[(v) => !!v || 'El nombre es requerido']"
+            ></v-text-field>
+          </v-form>
+        </v-card-text>
 
-                      <v-btn color="green darken-1" text @click="dialog = false">Cerrar</v-btn>
+        <v-divider></v-divider>
 
-                      <v-btn depressed color="primary" :loading="loading" :disabled="loading || !valid" type="submit">{{
-                          isEdit ? 'GUARDAR CAMBIOS' : 'GUARDAR'
-                      }}</v-btn>
-                    </v-row>
-                  </v-container>
-                </v-form>
-              </v-card-text>
-            </v-card>
-          </v-dialog>
-        </v-row>
-        <v-row justify="center">
-          <v-dialog v-model="dialogN2" max-width="490">
-            <v-card>
-              <v-card-title class="text-h5">{{ isEditN2 ? 'Editar' : 'Nuevo' }}</v-card-title>
-              <v-card-text>
-                <v-form v-model="validN2" @submit.prevent="submitN2" lazy-validation ref="formn2">
-                  <v-container>
-                    <v-row>
-                      <v-col cols="12" md="12">
-                        <v-text-field v-model="formRegistroN2.param_codigo" filled label="Código" required
-                          :rules="[(v) => !!v || 'El código es requerido']"></v-text-field>
-                        <br />
-                        <v-text-field v-model="formRegistroN2.param_nombre" filled label="Nombre" required
-                          :rules="[(v) => !!v || 'El nombre es requerido']"></v-text-field>
-                        <br />
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" @click="dialog = false" class="text-capitalize">Cancelar</v-btn>
+          <v-btn
+            color="primary"
+            elevation="1"
+            :loading="loading"
+            :disabled="loading || !valid"
+            @click="submit"
+            class="text-capitalize px-4"
+          >
+            {{ isEdit ? 'Guardar Cambios' : 'Guardar Tabla' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-                        <v-textarea v-model="formRegistroN2.param_detalle" filled label="Detalle"></v-textarea>
-                      </v-col>
-                    </v-row>
-                    <br />
-                    <br />
-                    <v-row align="end">
-                      <v-spacer></v-spacer>
-                      <v-btn color="green darken-1" text @click="dialogN2 = false">Cerrar</v-btn>
-                      <v-btn depressed color="primary" :loading="loadingN2" :disabled="loadingN2 || !validN2"
-                        type="submit">{{ isEditN2 ? 'GUARDAR CAMBIOS' : 'GUARDAR' }}</v-btn>
-                    </v-row>
-                  </v-container>
-                </v-form>
-              </v-card-text>
-            </v-card>
-          </v-dialog>
-        </v-row>
-        <template>
-          <v-row justify="center">
-            <v-dialog v-model="dialogConfirm" persistent max-width="360">
-              <v-card>
-                <v-card-title class="text-h5">¿Esta seguro de eliminar?</v-card-title>
-                <v-card-text></v-card-text>
-                <v-card-actions>
-                  <v-spacer></v-spacer>
-                  <v-btn color="green darken-1" text @click="dialogConfirm = false">Cancelar</v-btn>
-                  <v-btn color="error darken-1" text @click="btnDialogConfirm()">SI</v-btn>
-                </v-card-actions>
-              </v-card>
-            </v-dialog>
-          </v-row>
-        </template>
-        <v-snackbar v-model="snackbar.status" bottom :color="snackbar.color" :timeout="1500">
-          {{ snackbar.text }}
-          <template v-slot:action="{ attrs }">
-            <v-btn color="blue" text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
-          </template>
-        </v-snackbar>
+    <!-- DIÁLOGO: CREAR / EDITAR VALOR DETALLE -->
+    <v-dialog v-model="dialogN2" max-width="520" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-format-list-checks</v-icon>
+          <span>{{ isEditN2 ? 'Editar Valor de ' + (tabla_seleccionada.param_tabla || '') : 'Nuevo Valor para ' + (tabla_seleccionada.param_tabla || '') }}</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogN2 = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-4">
+          <v-form v-model="validN2" @submit.prevent="submitN2" ref="formn2">
+            <v-row dense>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="formRegistroN2.param_codigo"
+                  label="Código"
+                  outlined
+                  dense
+                  required
+                  prepend-inner-icon="mdi-pound"
+                  :rules="[(v) => !!v || 'El código es requerido']"
+                ></v-text-field>
+              </v-col>
+
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="formRegistroN2.param_nombre"
+                  label="Nombre / Valor"
+                  outlined
+                  dense
+                  required
+                  prepend-inner-icon="mdi-rename-box"
+                  :rules="[(v) => !!v || 'El nombre es requerido']"
+                ></v-text-field>
+              </v-col>
+
+              <v-col cols="12">
+                <v-textarea
+                  v-model="formRegistroN2.param_detalle"
+                  label="Descripción / Detalle Adicional"
+                  outlined
+                  dense
+                  rows="3"
+                  prepend-inner-icon="mdi-text-short"
+                ></v-textarea>
+              </v-col>
+            </v-row>
+          </v-form>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" @click="dialogN2 = false" class="text-capitalize">Cancelar</v-btn>
+          <v-btn
+            color="primary"
+            elevation="1"
+            :loading="loadingN2"
+            :disabled="loadingN2 || !validN2"
+            @click="submitN2"
+            class="text-capitalize px-4"
+          >
+            {{ isEditN2 ? 'Guardar Cambios' : 'Guardar Valor' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIÁLOGO CONFIRMACIÓN DE ELIMINACIÓN -->
+    <v-dialog v-model="dialogConfirm" max-width="400" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="error white--text py-3">
+          <v-icon left color="white">mdi-alert-circle-outline</v-icon>
+          <span>Confirmar Eliminación</span>
+        </v-card-title>
+        <v-card-text class="pt-4 text-body-1">
+          ¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.
+        </v-card-text>
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" @click="dialogConfirm = false" class="text-capitalize">Cancelar</v-btn>
+          <v-btn color="error" elevation="1" @click="btnDialogConfirm()" class="text-capitalize px-4">
+            Sí, Eliminar
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- SNACKBAR DE NOTIFICACIÓN -->
+    <v-snackbar v-model="snackbar.status" bottom right :color="snackbar.color" :timeout="2500" rounded="pill">
+      <div class="d-flex align-center">
+        <v-icon left color="white">mdi-check-circle-outline</v-icon>
+        <span>{{ snackbar.text }}</span>
+      </div>
+      <template v-slot:action="{ attrs }">
+        <v-btn icon dark v-bind="attrs" @click="snackbar.status = false">
+          <v-icon small>mdi-close</v-icon>
+        </v-btn>
       </template>
-    </v-card>
+    </v-snackbar>
   </div>
 </template>
 
 <script>
-
-import {
-  mdiPencilOutline,
-
-} from '@mdi/js'
 export default {
-  setup() {
-    return {
-      icons: {
-        mdiPencilOutline,
-      },
-    }
-  },
   data: () => ({
+    searchTabla: '',
+    searchDetalle: '',
     dataDialogConfirm: {
       item: {},
       tipo: ''
     },
     snackbar: {
       status: false,
-      text: ""
+      text: "",
+      color: "success"
     },
     registros: [],
     registrosN2: [],
     isEditN2: false,
-    dialog_report: false,
-    itemEdit: null,
-    detalle: null,
     valid: false,
     validN2: false,
     isEdit: false,
     dialog: false,
     dialogN2: false,
     dialogConfirm: false,
-    urlPreVisualizar: null,
     formRegistro: {
       param_tabla: ''
     },
-
     formRegistroN2: {
       param_foranea: '',
       param_codigo: '',
       param_nombre: '',
       param_detalle: ''
     },
-
     loading: false,
     loadingN2: false,
-    tabla_seleccionada:{},
+    tabla_seleccionada: {},
   }),
-  computed: {
 
+  computed: {
+    registrosFiltrados() {
+      if (!this.searchTabla) return this.registros;
+      const search = this.searchTabla.toLowerCase();
+      return this.registros.filter(item =>
+        item.param_tabla && item.param_tabla.toLowerCase().includes(search)
+      );
+    },
+    registrosN2Filtrados() {
+      if (!this.searchDetalle) return this.registrosN2;
+      const search = this.searchDetalle.toLowerCase();
+      return this.registrosN2.filter(item => {
+        const codigo = (item.param_codigo || item.param_valor || '').toString().toLowerCase();
+        const nombre = (item.param_nombre || item.param_valor || '').toString().toLowerCase();
+        const desc = (item.param_descripcion || item.param_detalle || '').toString().toLowerCase();
+        return codigo.includes(search) || nombre.includes(search) || desc.includes(search);
+      });
+    }
   },
+
   mounted() {
     this.getParametrica();
   },
-  watch: {
 
-  },
-
-  created() {
-
-  },
   methods: {
     getParametrica() {
-      this.userCreating = true;
       this.registros = [];
       axios.get(`api/parametrica-api`)
         .then((response) => {
           this.registros = response.data;
-          this.userCreating = false;
+          if (this.registros.length > 0 && !this.tabla_seleccionada.id) {
+            this.detalleRegistro(this.registros[0]);
+          }
+        })
+        .catch((error) => {
+          this.showSnackbar('Error al cargar paramétricas', 'error');
         });
     },
-    confirmDelete(item, tipo) {
-      this.dataDialogConfirm = {
-        item,
-        tipo
-      };
-      this.dialogConfirm = true;
 
+    confirmDelete(item, tipo) {
+      this.dataDialogConfirm = { item, tipo };
+      this.dialogConfirm = true;
     },
+
     btnDialogConfirm() {
-      if (this.dataDialogConfirm.tipo == 'n1') {
+      if (this.dataDialogConfirm.tipo === 'n1') {
         this.eliminarRegistro(this.dataDialogConfirm.item);
-      }
-      if (this.dataDialogConfirm.tipo == 'n2') {
+      } else if (this.dataDialogConfirm.tipo === 'n2') {
         this.eliminarRegistroN2(this.dataDialogConfirm.item);
       }
       this.dialogConfirm = false;
     },
 
     eliminarRegistroN2(item) {
-      var url_ = "api/parametrica-api/" + item.id;
-      axios.delete(url_).then((response) => {
-        this.detalleRegistro(this.detalle);
-        if (response.success=='true') {
-          this.snackbar = {
-            status: true,
-            text: response.data.mensaje,
-            color: "success"
-          };
-        }else{
-          this.snackbar = {
-            status: true,
-            text: response.data.mensaje,
-            color: "error"
-          };
-        }
-      })
+      const url = "api/parametrica-api/" + item.id;
+      axios.delete(url).then((response) => {
+        this.detalleRegistro(this.tabla_seleccionada);
+        this.showSnackbar(response.data.mensaje || 'Registro eliminado con éxito', 'success');
+      }).catch(() => {
+        this.showSnackbar('Error al eliminar el registro', 'error');
+      });
     },
 
     eliminarRegistro(item) {
-      var url_ = "api/parametrica-api/" + item.id;
-      axios.delete(url_).then((response) => {
-        if (response.data.success=='true') {
-          this.snackbar = {
-            status: true,
-            text: response.data.mensaje,
-            color: "primary"
-          };
-        }else{
-          this.snackbar = {
-            status: true,
-            text: response.data.mensaje,
-            color: "error"
-          };
+      const url = "api/parametrica-api/" + item.id;
+      axios.delete(url).then((response) => {
+        this.showSnackbar(response.data.mensaje || 'Catálogo eliminado con éxito', 'success');
+        if (this.tabla_seleccionada.id === item.id) {
+          this.tabla_seleccionada = {};
+          this.registrosN2 = [];
         }
         this.getParametrica();
-      })
-      .catch((error) => {
-        this.snackbar = {
-          status: true,
-          text: error,
-          color: 'error',
-        }
+      }).catch((error) => {
+        this.showSnackbar('Error al eliminar catálogo', 'error');
       });
     },
-    detalleRegistro(item) { 
-      this.tabla_seleccionada=item;
+
+    detalleRegistro(item) {
+      this.tabla_seleccionada = item;
       axios.get('api/parametrica-api/' + item.param_tabla)
         .then((response) => {
-          var data = response.data;
-          this.detalle = data;
-          this.registrosN2 = data;
+          this.registrosN2 = response.data;
+        })
+        .catch(() => {
+          this.registrosN2 = [];
         });
     },
 
@@ -375,14 +538,18 @@ export default {
         id: item.id,
         param_tabla: item.param_tabla
       };
-      
     },
 
     editarRegistroN2(item) {
       this.isEditN2 = true;
       this.dialogN2 = true;
-      this.formRegistroN2 = item;
-
+      this.formRegistroN2 = {
+        id: item.id,
+        param_codigo: item.param_codigo || item.param_valor || '',
+        param_nombre: item.param_nombre || item.param_valor || '',
+        param_detalle: item.param_descripcion || item.param_detalle || '',
+        param_tabla: this.tabla_seleccionada.param_tabla
+      };
     },
 
     nuevoRegistroN2() {
@@ -390,139 +557,71 @@ export default {
       this.dialogN2 = true;
       this.formRegistroN2 = {
         id: "",
-        param_foranea: "",
         param_codigo: "",
         param_nombre: "",
-        param_detalle: ""
+        param_detalle: "",
+        param_tabla: this.tabla_seleccionada.param_tabla
       };
-      
     },
 
     nuevoRegistro() {
       this.isEdit = false;
       this.dialog = true;
-      this.formRegistro = {
-        param_tabla: ''
-      };
+      this.formRegistro = { param_tabla: '' };
     },
 
-    submitN2: function () {
-      var validateForm = this.$refs.formn2.validate();
-      if (!validateForm) {
-        return false;
-      }
+    submitN2() {
+      if (!this.$refs.formn2.validate()) return;
       this.loadingN2 = true;
-      if (this.isEditN2) {
-        axios
-          .post("api/registrar_campo", this.formRegistroN2)
-          .then((response) => {
-            this.formRegistroN2 = {
-              id: "",
-              param_foranea: "",
-              param_codigo: "",
-              param_nombre: "",
-              param_detalle: ""
-            };
-            this.dialogN2 = false;
-            this.loadingN2 = false;
-            this.snackbar = {
-              status: true,
-              text: "Registro Editado",
-              color: "primary"
-            };
-            this.detalleRegistro(this.tabla_seleccionada);
-          })
-          .catch((error) => {
-            this.loadingN2 = false;
-          });
-      } else {
-        this.formRegistroN2.param_tabla = this.tabla_seleccionada.param_tabla;
-          axios
-            .post("api/registrar_campo", this.formRegistroN2)
-            .then((response) => {
-              this.detalleRegistro(this.tabla_seleccionada);
-              this.dialogN2 = false;
-              this.loadingN2 = false;
-              this.snackbar = {
-                status: true,
-                text: "Nuevo Registro",
-                color: "primary"
-              };
-            })
-            .catch((error) => {
-              this.loadingN2 = false;
-            });
-
-      }
+      this.formRegistroN2.param_tabla = this.tabla_seleccionada.param_tabla;
+      
+      axios.post("api/registrar_campo", this.formRegistroN2)
+        .then((response) => {
+          this.detalleRegistro(this.tabla_seleccionada);
+          this.dialogN2 = false;
+          this.loadingN2 = false;
+          this.showSnackbar(this.isEditN2 ? "Valor actualizado correctamente" : "Nuevo valor registrado", "success");
+        })
+        .catch(() => {
+          this.loadingN2 = false;
+          this.showSnackbar("Error al guardar el valor", "error");
+        });
     },
 
-    submit: function () {
-      var validateForm = this.$refs.form.validate();
-      if (!validateForm) {
-        return false;
-      }
+    submit() {
+      if (!this.$refs.form.validate()) return;
       this.loading = true;
-      if (this.isEdit) {
-        axios
-          .post("api/parametrica-api", this.formRegistro)
-          .then((response) => {
-            this.getParametrica();
-            this.formRegistro = {
-              param_tabla: ''
-            };
-            this.dialog = false;
-            this.loading = false;
-            this.snackbar = {
-              status: true,
-              text: "Registro Actualizado",
-              color: "warning"
-            }
-          })
-          .catch((error) => {
-            this.loading = false;
-
-          });
-      } else {
-        axios
-          .post("api/parametrica-api", this.formRegistro)
-          .then((response) => {
-            this.getParametrica();
-            this.formRegistro = {
-              param_tabla: ''
-            };
-            this.dialog = false;
-            this.loading = false;
-            this.snackbar = {
-              status: true,
-              text: "Nuevo Registro",
-              color: "primary"
-            }
-          })
-          .catch((error) => {
-            this.loading = false;
-
-          });
-      }
-    },
-    verDocumentoIngreso() {
-      this.urlPreVisualizar = null;
-      this.dialog_report = true;
-      var url_ = '/api/nota_ingreso_almacen';
-      axios
-        .get(url_)
-        .then(response => {
-          var dataBase64 = response.data.data;
-          this.urlPreVisualizar = 'data:application/pdf;base64,' + dataBase64;
-
+      axios.post("api/parametrica-api", this.formRegistro)
+        .then((response) => {
+          this.getParametrica();
+          this.dialog = false;
+          this.loading = false;
+          this.showSnackbar(this.isEdit ? "Catálogo actualizado" : "Nuevo catálogo creado", "success");
         })
-        .catch(error => {
-
-        })
-
+        .catch(() => {
+          this.loading = false;
+          this.showSnackbar("Error al guardar catálogo", "error");
+        });
     },
-  },
-  components: {
 
-  },
-}
+    showSnackbar(text, color = 'success') {
+      this.snackbar = { status: true, text, color };
+    }
+  }
+};
 </script>
+
+<style scoped>
+.active-row {
+  background-color: rgba(var(--v-theme-primary), 0.08) !important;
+  border-left: 4px solid var(--v-primary-base);
+}
+
+.custom-hover-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.style-sub {
+  line-height: 1.4;
+}
+</style>
