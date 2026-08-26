@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Administracion;
 
 use App\Http\Controllers\Controller;
@@ -8,105 +10,101 @@ use App\Models\MenuRol;
 use App\Models\Rol;
 use App\Models\RolUser;
 use App\Models\User;
+use App\Services\Administracion\UserAccessService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response;
 
 class UsuarioController extends Controller
 {
+    public function __construct(
+        private readonly UserAccessService $userAccessService
+    ) {}
+
     /**
      * Listado de usuarios activos con sus roles y permisos.
-     *
-     * @return \Illuminate\Http\JsonResponse
      */
-    public function index()
+    public function index(): JsonResponse
     {
-        $users = User::with('roles', 'permissions', 'rolPersmisos.rol')
+        $users = User::with(['roles', 'permissions', 'rolPersmisos.rol'])
             ->where('usr_estado', 'A')
             ->orderBy('id', 'asc')
             ->get()
             ->makeHidden(['deleted_at', 'usr_archivo', 'usr_modificado', 'usr_registrado']);
 
-        return response()->json($users, 200);
+        return response()->json($users, Response::HTTP_OK);
     }
 
     /**
-     * Deshabilitar/quitar acceso de un usuario al sistema.
-     *
-     * @param int $id
-     * @return \Illuminate\Http\JsonResponse
+     * Deshabilitar/quitar acceso de un usuario al sistema (Transaccional).
      */
-    public function quitarSistema($id)
+    public function quitarSistema(int|string $id): JsonResponse
     {
         try {
-            $user = User::find($id);
-            if ($user) {
-                $user->syncPermissions([]);
-                $user->syncRoles([]);
-                RolUser::where('usuario_id', $id)->delete();
-            }
+            $this->userAccessService->revokeAccess((int)$id);
 
             return response()->json([
-                'code' => 200,
+                'code' => Response::HTTP_OK,
                 'status' => 'success',
-                'message' => 'Se quitó el acceso al sistema',
-            ], 200);
-        } catch (\Exception $ex) {
+                'message' => 'Se quitó el acceso al sistema correctamente',
+            ], Response::HTTP_OK);
+        } catch (ModelNotFoundException) {
             return response()->json([
                 'status' => 'error',
-                'mensaje' => $ex->getMessage(),
-            ], 500);
+                'mensaje' => 'Usuario no encontrado.',
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\Throwable $ex) {
+            Log::error('Error al revocar acceso al sistema', [
+                'user_id' => $id,
+                'exception' => $ex->getMessage()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'mensaje' => 'No se pudo revocar el acceso. Intente nuevamente.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
-     * Habilitar/asignar acceso de un usuario al sistema con rol predeterminado.
-     *
-     * @param int $id
-     * @return \Illuminate\Http\JsonResponse
+     * Habilitar/asignar acceso de un usuario al sistema con rol predeterminado (Transaccional).
      */
-    public function agregarSistema($id)
+    public function agregarSistema(int|string $id): JsonResponse
     {
         try {
-            $user = User::find($id);
-            if ($user) {
-                // Permiso de acceso base
-                $permission = Permission::firstOrCreate(['name' => 'SIGP', 'guard_name' => 'api']);
-                $user->givePermissionTo($permission);
-
-                // Asignar rol predeterminado
-                $role = Role::where('guard_name', 'api')->first() ?: Role::first();
-                if ($role) {
-                    $user->assignRole($role);
-                    RolUser::updateOrCreate(
-                        ['usuario_id' => $user->id],
-                        ['rol_id' => $role->id, 'estado' => true]
-                    );
-                }
-            }
+            $this->userAccessService->enableAccess((int)$id);
 
             return response()->json([
-                'code' => 200,
+                'code' => Response::HTTP_OK,
                 'status' => 'success',
                 'message' => 'Se asignó el acceso al sistema correctamente',
-            ], 200);
-        } catch (\Exception $ex) {
+            ], Response::HTTP_OK);
+        } catch (ModelNotFoundException) {
             return response()->json([
                 'status' => 'error',
-                'mensaje' => $ex->getMessage(),
-            ], 500);
+                'mensaje' => 'Usuario no encontrado.',
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\Throwable $ex) {
+            Log::error('Error al agregar acceso al sistema', [
+                'user_id' => $id,
+                'exception' => $ex->getMessage()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'mensaje' => 'No se pudo asignar el acceso. Intente nuevamente.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
      * Obtener roles disponibles y rol actual de un usuario.
-     *
-     * @param int $userId
-     * @return array
      */
-    public function rolUser($userId)
+    public function rolUser(int|string $userId): array
     {
-        $rolUser_ = RolUser::where('usuario_id', $userId)->first();
+        $rolUser_ = RolUser::where('usuario_id', (int)$userId)->first();
         $usuarioRolId = $rolUser_ ? $rolUser_->rol_id : null;
         $roles_ = Rol::all();
 
@@ -118,13 +116,10 @@ class UsuarioController extends Controller
 
     /**
      * Obtener estructura de menú del usuario según su rol asignado.
-     *
-     * @param int $usuarioId
-     * @return array
      */
-    public function menuUsuario($usuarioId)
+    public function menuUsuario(int|string $usuarioId): array
     {
-        $rolUser_ = RolUser::where('usuario_id', $usuarioId)->first();
+        $rolUser_ = RolUser::where('usuario_id', (int)$usuarioId)->first();
 
         if ($rolUser_) {
             $rolId = $rolUser_->rol_id;
@@ -154,20 +149,17 @@ class UsuarioController extends Controller
     /**
      * Alias de compatibilidad para menú de usuario.
      */
-    public function menuAcopio($usuarioId)
+    public function menuAcopio(int|string $usuarioId): array
     {
         return $this->menuUsuario($usuarioId);
     }
 
     /**
      * Obtener todos los menús y su estado de activación para un rol específico.
-     *
-     * @param int $rolId
-     * @return array
      */
-    public function menuRol($rolId)
+    public function menuRol(int|string $rolId): array
     {
-        $menuRol_ = MenuRol::where('rol_id', $rolId)->where('check', true)->pluck('menu_id');
+        $menuRol_ = MenuRol::where('rol_id', (int)$rolId)->where('check', true)->pluck('menu_id');
         $menus_ = Menu::with('subMenuN1')->whereNull('menu_id')->orderBy('order', 'asc')->get();
 
         $menusResp = [];
@@ -182,7 +174,7 @@ class UsuarioController extends Controller
         return ['menus' => $menusResp];
     }
 
-    public function progresoMenu($menus)
+    public function progresoMenu(array|Collection|\Illuminate\Support\Collection $menus): array
     {
         $total = count($menus);
         $countActive = 0;
@@ -193,7 +185,7 @@ class UsuarioController extends Controller
             }
         }
 
-        if ($total == 0 || $countActive == 0) {
+        if ($total === 0 || $countActive === 0) {
             return ['porcentaje' => 0, 'countActive' => 0, 'total' => $total];
         }
 
@@ -201,26 +193,26 @@ class UsuarioController extends Controller
         return ['porcentaje' => round($resp, 2), 'countActive' => $countActive, 'total' => $total];
     }
 
-    public function verificaEstadoSubmenu($subMenus, $arrayMenuUser)
+    public function verificaEstadoSubmenu(mixed $subMenus, mixed $arrayMenuUser): array
     {
         $resp = [];
         if (!is_array($subMenus)) {
             $menuArray = $arrayMenuUser->toArray();
             foreach ($subMenus as $value) {
-                $value->active = in_array($value->id, $menuArray);
+                $value->active = in_array($value->id, $menuArray, true);
                 $resp[] = $value;
             }
         }
         return $resp;
     }
 
-    public function filtrarSubmenusActivos($subMenus, $arrayMenuUser)
+    public function filtrarSubmenusActivos(mixed $subMenus, mixed $arrayMenuUser): array
     {
         $resp = [];
         if (!is_array($subMenus)) {
             $menuArray = $arrayMenuUser->toArray();
             foreach ($subMenus as $value) {
-                if (in_array($value->id, $menuArray)) {
+                if (in_array($value->id, $menuArray, true)) {
                     $value->active = null;
                     $resp[] = $value;
                 }
@@ -229,17 +221,18 @@ class UsuarioController extends Controller
         return $resp;
     }
 
-    public function usuario_rol()
+    public function usuario_rol(): JsonResponse
     {
         try {
-            $users = User::with('roles', 'rolPersmisos')->get();
+            $users = User::with(['roles', 'rolPersmisos'])->get();
             return response()->json([
                 'success' => true,
                 'mensaje' => 'Listado de usuarios',
                 'data' => $users,
-            ]);
-        } catch (\Exception $ex) {
-            return response()->json(['success' => false, 'mensaje' => $ex->getMessage()], 500);
+            ], Response::HTTP_OK);
+        } catch (\Throwable $ex) {
+            Log::error('Error al listar usuario_rol', ['exception' => $ex->getMessage()]);
+            return response()->json(['success' => false, 'mensaje' => 'Error al obtener usuarios.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 }

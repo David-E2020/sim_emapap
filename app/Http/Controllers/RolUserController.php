@@ -1,127 +1,148 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
-use App\Models\RolUser;
 use App\Models\User;
+use App\Services\Administracion\UserAccessService;
+use App\Services\Audit\AuditService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpFoundation\Response;
 
-class RolUserController extends Controller {
-	/**
-	 * Display a listing of the resource.
-	 *
-	 * @return \Illuminate\Http\Response
-	 */
-	public function index() {
-		//
-	}
+class RolUserController extends Controller
+{
+    public function __construct(
+        private readonly UserAccessService $userAccessService,
+        private readonly AuditService $auditService
+    ) {}
 
-	/**
-	 * Store a newly created resource in storage.
-	 *
-	 * @param  \Illuminate\Http\Request  $request
-	 * @return \Illuminate\Http\Response
-	 */
-	public function store(Request $request) {
-		$validator = Validator::make($request->all(), [
-			'rol_id' => 'required|integer',
-			'usuario_id' => 'required|integer',
-		]);
+    /**
+     * Asigna un rol a un usuario de forma atómica y auditada.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'rol_id' => 'required|integer',
+            'usuario_id' => 'required|integer',
+        ]);
 
-		if ($validator->fails()) {
-			return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
-		}
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
-		$rolId = $request->input('rol_id');
-		$usuarioId = $request->input('usuario_id');
+        $rolId = (int)$request->input('rol_id');
+        $usuarioId = (int)$request->input('usuario_id');
 
-		$rolUser = RolUser::where('usuario_id', $usuarioId)->first();
+        try {
+            $rolUser = $this->userAccessService->assignRole($usuarioId, $rolId);
 
-		if ($rolUser != null) {
-			$rolUser_ = RolUser::find($rolUser->id);
-			$rolUser_->rol_id = $rolId;
-			$rolUser_->save();
-			$resp = $rolUser_;
-		} else {
-			$resp = RolUser::create([
-				'rol_id' => $rolId,
-				'usuario_id' => $usuarioId,
-			]);
-		}
+            return response()->json($rolUser, Response::HTTP_OK);
+        } catch (\Throwable $ex) {
+            Log::error('Error al asignar rol a usuario', [
+                'usuario_id' => $usuarioId,
+                'rol_id' => $rolId,
+                'exception' => $ex->getMessage()
+            ]);
 
-		// Sincronizar Spatie roles y permisos en backend
-		$targetUser = User::find($usuarioId);
-		if ($targetUser) {
-			$permission = Permission::firstOrCreate(['name' => 'SIGP', 'guard_name' => 'api']);
-			$targetUser->givePermissionTo($permission);
-			$role = Role::find($rolId);
-			if ($role) {
-				$targetUser->syncRoles([$role]);
-			}
-		}
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo asignar el rol. Intente nuevamente.'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 
-		return response()->json($resp, 200);
-	}
+    /**
+     * Actualización segura de contraseña de usuario con validación IDOR y auditoría inmutable.
+     */
+    public function update_user_password(Request $request): JsonResponse
+    {
+        $authUser = Auth::guard('api')->user();
 
-	/**
-	 * Actualización segura de contraseña de usuario.
-	 * Corrige la vulnerabilidad IDOR / BOLA.
-	 */
-	public function update_user_password(Request $request) {
-		$authUser = Auth::guard('api')->user();
+        if (!$authUser) {
+            return response()->json([
+                'success' => false,
+                'mensaje' => 'No autenticado.'
+            ], Response::HTTP_UNAUTHORIZED);
+        }
 
-		if (!$authUser) {
-			return response()->json(["success" => false, "mensaje" => "No autorizado"], 401);
-		}
+        $validator = Validator::make($request->all(), [
+            'password' => 'required|string|min:6',
+            'current_password' => 'nullable|string',
+            'id' => 'nullable|integer',
+        ]);
 
-		$validator = Validator::make($request->all(), [
-			'password' => 'required|string|min:6',
-			'current_password' => 'nullable|string',
-			'id' => 'nullable|integer',
-		]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'mensaje' => $validator->errors()->first()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
-		if ($validator->fails()) {
-			return response()->json(["success" => false, "mensaje" => $validator->errors()->first()], 422);
-		}
+        $targetUserId = $request->input('id');
 
-		$targetUserId = $request->input('id');
+        // REGLA DE SEGURIDAD IDOR/BOLA:
+        if (!$targetUserId || (int)$targetUserId === (int)$authUser->id) {
+            $userToUpdate = User::findOrFail($authUser->id);
 
-		// REGLA DE SEGURIDAD IDOR:
-		// Si no se envía ID o el ID es igual al usuario autenticado, cambia su propia clave.
-		if (!$targetUserId || (int)$targetUserId === (int)$authUser->id) {
-			$userToUpdate = User::find($authUser->id);
+            // Verificar contraseña actual si fue provista
+            if ($request->has('current_password') && !Hash::check($request->current_password, $userToUpdate->password)) {
+                return response()->json([
+                    'success' => false,
+                    'mensaje' => 'La contraseña actual es incorrecta'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+        } else {
+            // Si intenta cambiar la clave de OTRO usuario, debe ser Administrador
+            if (!$authUser->hasRole('Administrador General')) {
+                return response()->json([
+                    'success' => false,
+                    'mensaje' => 'Acceso denegado: No tiene permisos para modificar este usuario'
+                ], Response::HTTP_FORBIDDEN);
+            }
 
-			// Verificar contraseña actual si fue provista
-			if ($request->has('current_password') && !Hash::check($request->current_password, $userToUpdate->password)) {
-				return response()->json(["success" => false, "mensaje" => "La contraseña actual es incorrecta"], 400);
-			}
-		} else {
-			// Si intenta cambiar la clave de OTRO usuario, debe ser Administrador
-			if (!$authUser->hasRole('Administrador General')) {
-				return response()->json(["success" => false, "mensaje" => "Acceso denegado: No tiene permisos para modificar este usuario"], 403);
-			}
+            $userToUpdate = User::find($targetUserId);
+            if (!$userToUpdate) {
+                return response()->json([
+                    'success' => false,
+                    'mensaje' => 'Usuario no encontrado'
+                ], Response::HTTP_NOT_FOUND);
+            }
+        }
 
-			$userToUpdate = User::find($targetUserId);
-			if (!$userToUpdate) {
-				return response()->json(["success" => false, "mensaje" => "Usuario no encontrado"], 404);
-			}
-		}
+        try {
+            $userToUpdate->password = Hash::make($request->password);
+            $userToUpdate->save();
 
-		try {
-			$userToUpdate->password = bcrypt($request->password);
-			$userToUpdate->save();
+            // Auditoría inmutable de cambio de credencial
+            $this->auditService->log(
+                event: 'user_password_changed',
+                model: $userToUpdate,
+                newValues: ['changed_by' => $authUser->id, 'timestamp' => (string)now()]
+            );
 
-			return response()->json([
-				"success" => true,
-				"mensaje" => "Contraseña actualizada de forma segura",
-			], 200);
-		} catch (\Exception $ex) {
-			return response()->json(["success" => false, "mensaje" => "Error al actualizar la contraseña"], 500);
-		}
-	}
+            return response()->json([
+                'success' => true,
+                'mensaje' => 'Contraseña actualizada de forma segura',
+            ], Response::HTTP_OK);
+        } catch (\Throwable $ex) {
+            Log::error('Error al actualizar contraseña', [
+                'user_id' => $userToUpdate->id,
+                'exception' => $ex->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'mensaje' => 'Error interno al actualizar la contraseña'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 }
