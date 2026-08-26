@@ -28,8 +28,8 @@ class RolController extends Controller
     public function store(Request $request)
     {
         $input = $request->all();
-        $input['guard_name']='web';
-      return  Rol::create($input);
+        $input['guard_name'] = 'api';
+        return Rol::create($input);
     }
 
     /**

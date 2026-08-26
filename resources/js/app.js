@@ -98,6 +98,7 @@ router.beforeEach((to, from, next) => {
   });
 
 Vue.config.productionTip = false;
+Vue.config.devtools = false;
 Vue.directive('decimal', {
     inserted: function (el) {
         Inputmask({

@@ -20,109 +20,36 @@
 <template>
   <div>
     <!-- CABECERA DE SECCIÓN -->
-    <v-card class="mb-5 py-2 px-4" elevation="1">
+    <v-card class="mb-5 py-3 px-4 erp-card-elevated" rounded="lg">
       <div class="d-flex align-center justify-space-between flex-wrap">
         <div class="d-flex align-center">
-          <v-avatar color="primary" rounded class="mr-3 text-white" size="44">
+          <v-avatar color="primary" rounded="lg" class="mr-3 text-white elevation-2" size="46">
             <v-icon color="white">mdi-sitemap</v-icon>
           </v-avatar>
           <div>
-            <h2 class="text-h5 font-weight-bold mb-0">Gestión de Menús y Roles</h2>
-            <span class="text-caption text-secondary">Organización jerárquica de la navegación y roles de acceso</span>
+            <h2 class="text-h5 font-weight-bold mb-0">Diseñador de Menús del Sistema</h2>
+            <span class="text-caption text-secondary">Organización jerárquica de menús principales, submódulos, rutas y orden de navegación</span>
           </div>
         </div>
         <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
-          <v-btn color="primary" small class="text-capitalize" @click="btnChipNuevoRol()">
-            <v-icon left small>mdi-shield-plus-outline</v-icon> Nuevo Rol
-          </v-btn>
-          <v-btn color="secondary" small class="text-capitalize" @click="btnNuevoMenu(0)">
+          <v-btn color="primary" class="text-capitalize font-weight-medium rounded-pill" @click="btnNuevoMenu(0)">
             <v-icon left small>mdi-folder-plus-outline</v-icon> Nuevo Menú Principal
           </v-btn>
         </div>
       </div>
     </v-card>
 
-    <!-- SECCIÓN ROLES (CON EFECTO V-HOVER & EXPAND-X-TRANSITION ORIGINAL) -->
-    <v-card elevation="2" class="mb-5">
-      <v-card-title class="d-flex align-center justify-space-between py-3">
-        <div class="d-flex align-center">
-          <v-icon color="primary" left>mdi-shield-account-outline</v-icon>
-          <span class="text-subtitle-1 font-weight-bold">Roles de Usuario Registrados</span>
-        </div>
-        <v-chip color="primary" label small class="font-weight-bold" v-if="roles">
-          {{ roles.length }} Roles
-        </v-chip>
-      </v-card-title>
-      
-      <v-divider></v-divider>
-
-      <v-card-text class="pt-4">
-        <div class="d-flex align-center flex-wrap gap-2" v-if="roles">
-          <div v-for="(item, i) in roles" :key="i">
-            <v-hover v-slot="{ hover }">
-              <v-chip
-                class="ma-1 font-weight-medium transition-fast-in-fast-out"
-                :elevation="hover ? 12 : 1"
-                :color="hover ? 'primary' : ''"
-                :class="{ 'white--text': hover }"
-              >
-                <v-icon small left :color="hover ? 'white' : 'primary'">mdi-account-badge-outline</v-icon>
-                {{ item.name }}
-                
-                <v-expand-x-transition>
-                  <div v-if="hover" class="d-inline-flex ml-2 align-center transition-fast-in-fast-out">
-                    <v-btn
-                      icon
-                      color="error"
-                      x-small
-                      class="show-btns mr-1"
-                      @click.stop="btnChipDeleteRol(item)"
-                    >
-                      <v-icon x-small>mdi-delete</v-icon>
-                    </v-btn>
-                    <v-btn
-                      icon
-                      color="white"
-                      x-small
-                      class="show-btns"
-                      @click.stop="btnChipEditRol(item)"
-                    >
-                      <v-icon x-small>mdi-pencil</v-icon>
-                    </v-btn>
-                  </div>
-                </v-expand-x-transition>
-              </v-chip>
-            </v-hover>
-          </div>
-
-          <v-chip
-            class="ma-1 font-weight-medium"
-            color="primary"
-            filter-icon="mdi-plus"
-            :input-value="'active'"
-            @click="btnChipNuevoRol()"
-          >
-            Nuevo Rol
-          </v-chip>
-        </div>
-
-        <div v-else class="py-4 text-center">
-          <v-progress-circular indeterminate color="primary" size="28"></v-progress-circular>
-        </div>
-      </v-card-text>
-    </v-card>
-
-    <!-- SECCIÓN ESTRUCTURA DE MENÚS (CON TRANSICIÓN FLIP-LIST & DRAG-AND-DROP ORIGINAL) -->
+    <!-- SECCIÓN ESTRUCTURA DE MENÚS (DRAG-AND-DROP) -->
     <v-row>
       <!-- MENÚS PRINCIPALES (NIVEL 0) -->
       <v-col cols="12" md="6">
-        <v-card elevation="2" class="fill-height">
+        <v-card elevation="2" rounded="lg" class="fill-height erp-card-elevated">
           <v-card-title class="d-flex align-center justify-space-between py-3">
             <div class="d-flex align-center">
               <v-icon color="primary" left>mdi-folder-navigation-outline</v-icon>
               <span class="text-subtitle-1 font-weight-bold">Menús Principales</span>
             </div>
-            <v-btn color="primary" x-small elevation="1" @click="btnNuevoMenu(0)" class="text-capitalize">
+            <v-btn color="primary" x-small elevation="1" @click="btnNuevoMenu(0)" class="text-capitalize rounded-pill">
               <v-icon x-small left>mdi-plus</v-icon> Añadir Menú
             </v-btn>
           </v-card-title>
@@ -151,7 +78,7 @@
                       :key="item.id || item.order"
                       :input-value="itemSelectMenu && itemSelectMenu.id === item.id"
                       @click="btnItemMenu(item)"
-                      class="mb-1"
+                      class="mb-1 rounded-lg"
                     >
                       <v-list-item-icon class="handle mr-2 my-auto">
                         <v-icon color="primary">mdi-drag-horizontal-variant</v-icon>
@@ -195,7 +122,7 @@
 
       <!-- SUBMENÚS (NIVEL 1) -->
       <v-col cols="12" md="6">
-        <v-card elevation="2" class="fill-height">
+        <v-card elevation="2" rounded="lg" class="fill-height erp-card-elevated">
           <div v-if="itemSelectMenu">
             <v-card-title class="d-flex align-center justify-space-between py-3">
               <div class="d-flex align-center">

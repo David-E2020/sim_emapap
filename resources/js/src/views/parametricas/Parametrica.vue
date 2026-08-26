@@ -1,10 +1,10 @@
 <template>
   <div>
     <!-- CABECERA DE SECCIÓN -->
-    <v-card class="mb-5 py-2 px-4" elevation="1">
+    <v-card class="mb-5 py-3 px-4 erp-card-elevated" rounded="lg">
       <div class="d-flex align-center justify-space-between flex-wrap">
         <div class="d-flex align-center">
-          <v-avatar color="primary" rounded class="mr-3 text-white" size="44">
+          <v-avatar color="primary" rounded="lg" class="mr-3 text-white elevation-2" size="46">
             <v-icon color="white">mdi-database-cog-outline</v-icon>
           </v-avatar>
           <div>
@@ -13,8 +13,8 @@
           </div>
         </div>
         <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
-          <v-btn color="primary" @click="nuevoRegistro()" class="text-capitalize font-weight-medium">
-            <v-icon left>mdi-plus</v-icon> Nueva Tabla
+          <v-btn color="primary" @click="nuevoRegistro()" class="text-capitalize font-weight-medium rounded-pill">
+            <v-icon left small>mdi-plus</v-icon> Nueva Tabla
           </v-btn>
         </div>
       </div>
@@ -24,7 +24,7 @@
     <v-row>
       <!-- TABLAS MAESTRAS (COLUMNA IZQUIERDA) -->
       <v-col cols="12" md="5">
-        <v-card elevation="2" class="fill-height">
+        <v-card elevation="2" rounded="lg" class="fill-height erp-card-elevated">
           <v-card-title class="d-flex align-center justify-space-between pb-2">
             <span class="text-subtitle-1 font-weight-bold">
               <v-icon small left color="primary">mdi-table</v-icon> Catálogos Registrados
@@ -43,6 +43,7 @@
               placeholder="Buscar catálogo..."
               dense
               outlined
+              rounded
               hide-details
               clearable
               prepend-inner-icon="mdi-magnify"
@@ -137,7 +138,7 @@
 
       <!-- VALORES DETALLE (COLUMNA DERECHA) -->
       <v-col cols="12" md="7">
-        <v-card elevation="2" class="fill-height">
+        <v-card elevation="2" rounded="lg" class="fill-height erp-card-elevated">
           <!-- CABECERA CUANDO HAY TABLA SELECCIONADA -->
           <div v-if="tabla_seleccionada && tabla_seleccionada.param_tabla">
             <v-card-title class="d-flex align-center justify-space-between pb-2">
@@ -148,7 +149,7 @@
                   <div class="text-caption text-secondary">Valores pertenecientes al catálogo</div>
                 </div>
               </div>
-              <v-btn color="primary" small elevation="1" @click="nuevoRegistroN2()" class="text-capitalize">
+              <v-btn color="primary" small elevation="1" @click="nuevoRegistroN2()" class="text-capitalize rounded-pill">
                 <v-icon left small>mdi-plus</v-icon> Nuevo Valor
               </v-btn>
             </v-card-title>
@@ -162,6 +163,7 @@
                 placeholder="Buscar valor o código..."
                 dense
                 outlined
+                rounded
                 hide-details
                 clearable
                 prepend-inner-icon="mdi-magnify"

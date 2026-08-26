@@ -5,22 +5,27 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Administracion;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Menu;
 use App\Models\MenuRol;
 use App\Models\Rol;
 use App\Models\RolUser;
 use App\Models\User;
 use App\Services\Administracion\UserAccessService;
+use App\Services\Audit\AuditService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response;
 
 class UsuarioController extends Controller
 {
     public function __construct(
-        private readonly UserAccessService $userAccessService
+        private readonly UserAccessService $userAccessService,
+        private readonly AuditService $auditService
     ) {}
 
     /**
@@ -35,6 +40,164 @@ class UsuarioController extends Controller
             ->makeHidden(['deleted_at', 'usr_archivo', 'usr_modificado', 'usr_registrado']);
 
         return response()->json($users, Response::HTTP_OK);
+    }
+
+    /**
+     * Crear un nuevo usuario en el sistema con rol inicial opcional.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'usr_usuario' => 'required|string|max:50|unique:users,usr_usuario',
+            'name' => 'required|string|max:150',
+            'email' => 'required|email|max:150|unique:users,email',
+            'password' => 'required|string|min:6',
+            'rol_id' => 'nullable|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $user = new User();
+            $user->usr_usuario = trim($request->input('usr_usuario'));
+            $user->name = trim($request->input('name'));
+            $user->email = strtolower(trim($request->input('email')));
+            $user->password = Hash::make($request->input('password'));
+            $user->usr_estado = 'A';
+            $user->usr_registrado = auth()->id();
+            $user->save();
+
+            // Si se seleccionó rol, asignar accesos de inmediato
+            if ($request->filled('rol_id')) {
+                $this->userAccessService->enableAccess($user->id, (int)$request->input('rol_id'));
+            }
+
+            // Auditoría inmutable
+            $this->auditService->log(
+                event: 'user_created',
+                model: $user,
+                newValues: [
+                    'usr_usuario' => $user->usr_usuario,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'rol_id' => $request->input('rol_id')
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Usuario registrado exitosamente.',
+                'data' => $user->load(['roles', 'permissions', 'rolPersmisos.rol'])
+            ], Response::HTTP_CREATED);
+        } catch (\Throwable $ex) {
+            Log::error('Error al registrar usuario', [
+                'request' => $request->except(['password']),
+                'exception' => $ex->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo registrar el usuario. Intente nuevamente.'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Ver el detalle completo de un usuario (Perfil, roles, permisos y actividad).
+     */
+    public function show(int|string $id): JsonResponse
+    {
+        try {
+            $user = User::with(['roles.permissions', 'permissions', 'rolPersmisos.rol'])
+                ->findOrFail((int)$id);
+
+            // Últimos eventos de auditoría relacionados con este usuario
+            $recentAuditLogs = AuditLog::where('auditable_type', User::class)
+                ->where('auditable_id', $user->id)
+                ->orWhere('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'user' => $user,
+                'recent_logs' => $recentAuditLogs
+            ], Response::HTTP_OK);
+        } catch (ModelNotFoundException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuario no encontrado.'
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\Throwable $ex) {
+            Log::error('Error al consultar detalle de usuario', ['id' => $id, 'exception' => $ex->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno al consultar el usuario.'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Actualizar datos generales de un usuario.
+     */
+    public function update(Request $request, int|string $id): JsonResponse
+    {
+        $user = User::findOrFail((int)$id);
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:150',
+            'email' => 'required|email|max:150|unique:users,email,' . $user->id,
+            'password' => 'nullable|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $oldValues = $user->only(['name', 'email']);
+
+            $user->name = trim($request->input('name'));
+            $user->email = strtolower(trim($request->input('email')));
+            $user->usr_modificado = auth()->id();
+
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->input('password'));
+            }
+
+            $user->save();
+
+            $this->auditService->log(
+                event: 'user_profile_updated',
+                model: $user,
+                oldValues: $oldValues,
+                newValues: $user->only(['name', 'email'])
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Usuario actualizado correctamente.',
+                'data' => $user->load(['roles', 'permissions'])
+            ], Response::HTTP_OK);
+        } catch (\Throwable $ex) {
+            Log::error('Error al actualizar usuario', ['id' => $id, 'exception' => $ex->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno al actualizar usuario.'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**

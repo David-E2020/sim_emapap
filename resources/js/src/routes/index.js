@@ -43,17 +43,29 @@ export const routes = [
     },
   },
   {
-    path: '/control_acceso',
-    name: 'control_acceso',
-    component: () => import('@/views/administrar/ControlAcceso.vue'),
+    path: '/roles-permisos',
+    name: 'roles_permisos',
+    component: () => import('@/views/administrar/RolesPermisos.vue'),
     meta: {
       requiresAuth: true,
     },
   },
   {
+    path: '/control_acceso',
+    redirect: '/roles-permisos',
+  },
+  {
     path: '/admin-menu',
-    name: 'admin_menu',
-    component: () => import('@/views/administrar/AdminMenu.vue'),
+    redirect: '/roles-permisos',
+  },
+  {
+    path: '/admin_menu',
+    redirect: '/roles-permisos',
+  },
+  {
+    path: '/auditoria',
+    name: 'auditoria',
+    component: () => import('@/views/administrar/Auditoria.vue'),
     meta: {
       requiresAuth: true,
     },

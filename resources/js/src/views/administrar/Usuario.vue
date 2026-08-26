@@ -17,22 +17,27 @@
 <template>
   <div>
     <!-- CABECERA DE SECCIÓN -->
-    <v-card class="mb-5 py-2 px-4" elevation="1">
+    <v-card class="mb-5 py-3 px-4 erp-card-elevated" rounded="lg">
       <div class="d-flex align-center justify-space-between flex-wrap">
         <div class="d-flex align-center">
-          <v-avatar color="primary" rounded class="mr-3 text-white" size="44">
+          <v-avatar color="primary" rounded="lg" class="mr-3 text-white elevation-2" size="46">
             <v-icon color="white">mdi-account-group-outline</v-icon>
           </v-avatar>
           <div>
             <h2 class="text-h5 font-weight-bold mb-0">Gestión de Usuarios</h2>
-            <span class="text-caption text-secondary">Administración de usuarios registrados, roles y asignación de permisos</span>
+            <span class="text-caption text-secondary">Administración integral de cuentas, perfiles, roles y auditoría</span>
           </div>
+        </div>
+        <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
+          <v-btn color="primary" class="text-capitalize font-weight-medium rounded-pill" @click="abrirModalCrear()">
+            <v-icon left small>mdi-account-plus-outline</v-icon> Nuevo Usuario
+          </v-btn>
         </div>
       </div>
     </v-card>
 
     <!-- TARJETA PRINCIPAL Y TABLA -->
-    <v-card elevation="2" v-if="usuarios">
+    <v-card rounded="lg" elevation="2" v-if="usuarios" class="erp-card-elevated">
       <v-card-title class="d-flex align-center justify-space-between py-3 flex-wrap gap-2">
         <div class="d-flex align-center">
           <v-icon color="primary" left>mdi-account-details-outline</v-icon>
@@ -68,7 +73,7 @@
         <!-- COLUMNA USUARIO -->
         <template v-slot:item.usr_usuario="{ item }">
           <div class="d-flex align-center py-1">
-            <v-avatar color="primary lighten-5" size="34" class="mr-3">
+            <v-avatar color="primary lighten-5" size="36" class="mr-3 elevation-1">
               <v-icon small color="primary">mdi-account-outline</v-icon>
             </v-avatar>
             <div>
@@ -102,22 +107,59 @@
         <!-- COLUMNA ACCIONES -->
         <template v-slot:item.acciones="{ item }">
           <div class="d-flex align-center justify-center">
-            <div v-if="hasAccess(item)" class="d-flex align-center">
+            <!-- VER DETALLE -->
+            <v-tooltip bottom>
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="btnVerDetalle(item)"
+                  icon
+                  small
+                  color="info"
+                  class="mr-1"
+                >
+                  <v-icon small>mdi-eye-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Ver Perfil y Detalle</span>
+            </v-tooltip>
+
+            <!-- EDITAR DATOS -->
+            <v-tooltip bottom>
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="btnEditarUsuario(item)"
+                  icon
+                  small
+                  color="secondary"
+                  class="mr-1"
+                >
+                  <v-icon small>mdi-pencil-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Editar Datos</span>
+            </v-tooltip>
+
+            <!-- ASIGNAR ROL DE ACCESO -->
+            <div v-if="hasAccess(item)" class="d-inline-flex align-center">
               <v-tooltip bottom>
                 <template v-slot:activator="{ on, attrs }">
                   <v-btn
                     v-bind="attrs"
                     v-on="on"
-                    @click="btnAccesosPermisos(item)"
+                    @click="btnAbrirAsignarRol(item)"
                     icon
                     small
                     color="primary"
                     class="mr-1"
                   >
-                    <v-icon small>mdi-shield-lock-outline</v-icon>
+                    <v-icon small>mdi-shield-account-outline</v-icon>
                   </v-btn>
                 </template>
-                <span>Administrar Roles y Menús</span>
+                <span>Asignar Rol</span>
               </v-tooltip>
 
               <v-tooltip bottom>
@@ -133,11 +175,12 @@
                     <v-icon small>mdi-account-remove-outline</v-icon>
                   </v-btn>
                 </template>
-                <span>Revocar Acceso al Sistema</span>
+                <span>Revocar Acceso</span>
               </v-tooltip>
             </div>
 
-            <div v-else>
+            <!-- HABILITAR ACCESO -->
+            <div v-else class="d-inline-flex align-center">
               <v-tooltip bottom>
                 <template v-slot:activator="{ on, attrs }">
                   <v-btn
@@ -151,7 +194,7 @@
                     <v-icon small>mdi-account-check-outline</v-icon>
                   </v-btn>
                 </template>
-                <span>Conceder Acceso al Sistema</span>
+                <span>Conceder Acceso</span>
               </v-tooltip>
             </div>
           </div>
@@ -160,255 +203,308 @@
     </v-card>
 
     <!-- CARGANDO STUB -->
-    <v-card elevation="2" v-if="!usuarios" class="py-12 text-center">
+    <v-card elevation="2" rounded="lg" v-if="!usuarios" class="py-12 text-center erp-card-elevated">
       <v-card-text>
         <v-progress-circular :size="48" color="primary" indeterminate></v-progress-circular>
         <div class="text-subtitle-2 text-secondary mt-3">Cargando lista de usuarios...</div>
       </v-card-text>
     </v-card>
 
-    <!-- DIÁLOGO: ADMINISTRAR ROLES Y ACCESOS A MENÚS -->
-    <v-dialog persistent scrollable v-model="dialogPersmisos" max-width="850">
-      <v-card rounded="lg" v-if="selectUsuario">
-        <!-- CABECERA DIÁLOGO -->
+    <!-- DIÁLOGO: CREAR NUEVO USUARIO -->
+    <v-dialog v-model="dialogCrear" max-width="600" persistent>
+      <v-card rounded="lg">
         <v-card-title class="primary white--text py-3">
-          <v-icon left color="white">mdi-shield-account-outline</v-icon>
-          <span>Asignación de Roles y Permisos de Menú</span>
+          <v-icon left color="white">mdi-account-plus</v-icon>
+          <span>Registrar Nuevo Usuario</span>
           <v-spacer></v-spacer>
-          <v-btn icon dark x-small @click="dialogPersmisos = false">
+          <v-btn icon dark x-small @click="dialogCrear = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </v-card-title>
 
-        <v-card-text class="pt-4">
-          <!-- INFORMACIÓN DEL USUARIO SELECCIONADO -->
-          <v-alert color="primary lighten-5" class="mb-4" border="left" colored-border elevation="1">
-            <div class="d-flex align-center">
-              <v-avatar color="primary" size="40" class="mr-3 text-white">
-                <v-icon color="white">mdi-account-circle-outline</v-icon>
-              </v-avatar>
-              <div>
-                <div class="font-weight-bold text-subtitle-1 primary--text">{{ selectUsuario.name || selectUsuario.usr_usuario }}</div>
-                <div class="text-caption text-secondary">Usuario: <strong>{{ selectUsuario.usr_usuario }}</strong></div>
-              </div>
-            </div>
-          </v-alert>
-
-          <!-- SECCIÓN SELECCIÓN DE ROL -->
-          <div class="mb-4">
-            <div class="text-subtitle-2 font-weight-bold color-primary mb-2 d-flex align-center">
-              <v-icon small color="primary" class="mr-1">mdi-account-badge-outline</v-icon>
-              1. Seleccionar Rol del Usuario
-            </div>
-
-            <div v-if="roles" class="d-flex flex-wrap gap-2">
-              <v-chip
-                v-for="(item, i) in roles"
-                :key="i"
-                @click="btnChipRol(item)"
-                ripple
-                class="ma-1 font-weight-bold px-3"
-                :color="item.id == selectedItemRol ? 'primary' : 'grey lighten-3'"
-                :class="{ 'white--text': item.id == selectedItemRol }"
-                elevation="1"
-              >
-                <v-icon x-small left :color="item.id == selectedItemRol ? 'white' : 'primary'">
-                  {{ item.id == selectedItemRol ? 'mdi-check-circle' : 'mdi-circle-outline' }}
-                </v-icon>
-                {{ item.name }}
-              </v-chip>
-            </div>
-
-            <div v-else class="py-2 text-center">
-              <v-progress-circular indeterminate color="primary" size="24"></v-progress-circular>
-            </div>
-
-            <v-alert v-if="!selectedItemRol" outlined type="warning" dense class="mt-2 text-caption">
-              Por favor, selecciona un rol para configurar los accesos a los menús.
-            </v-alert>
-          </div>
-
-          <v-divider class="my-4"></v-divider>
-
-          <!-- SECCIÓN CONFIGURACIÓN DE MENÚS Y SUBMENÚS -->
-          <div v-if="selectedItemRol">
-            <div class="text-subtitle-2 font-weight-bold color-primary mb-3 d-flex align-center">
-              <v-icon small color="primary" class="mr-1">mdi-sitemap</v-icon>
-              2. Permisos de Menús y Submenús
-            </div>
-
-            <v-row>
-              <!-- MENÚS PRINCIPALES -->
+        <v-card-text class="pt-5">
+          <v-form ref="formCrear" v-model="formCrearValido">
+            <v-row dense>
               <v-col cols="12" md="6">
-                <v-card outlined class="fill-height">
-                  <v-card-title class="py-2 text-caption font-weight-bold grey lighten-4">
-                    MENÚS PRINCIPALES
-                  </v-card-title>
-                  <v-divider></v-divider>
-
-                  <v-list dense class="pa-0" v-if="menus">
-                    <v-list-item-group v-model="selectedItemMenu" color="primary">
-                      <v-list-item
-                        v-for="(item, i) in menus"
-                        :key="i"
-                        @click="btnItemMenu(item)"
-                        class="mb-1"
-                        :class="{ 'active-menu-item': subMenus === item.subMenuN1 || subMenus === item.sub_menu }"
-                      >
-                        <v-list-item-icon class="mr-2 my-auto">
-                          <v-icon small color="primary">{{ item.icon_mdi || 'mdi-folder-outline' }}</v-icon>
-                        </v-list-item-icon>
-
-                        <v-list-item-content>
-                          <v-list-item-title class="font-weight-medium text-body-2">{{ item.label }}</v-list-item-title>
-                          <div class="d-flex align-center mt-1">
-                            <v-progress-linear
-                              :value="item.progreso ? item.progreso.porcentaje : 0"
-                              color="primary"
-                              height="6"
-                              rounded
-                              class="mr-2"
-                            ></v-progress-linear>
-                            <span class="text-caption text-secondary">
-                              {{ item.progreso ? item.progreso.countActive : 0 }}/{{ item.progreso ? item.progreso.total : 0 }}
-                            </span>
-                          </div>
-                        </v-list-item-content>
-
-                        <v-icon small color="grey">mdi-chevron-right</v-icon>
-                      </v-list-item>
-                    </v-list-item-group>
-                  </v-list>
-
-                  <div v-else class="py-6 text-center">
-                    <v-progress-circular indeterminate color="primary" size="28"></v-progress-circular>
-                  </div>
-                </v-card>
+                <v-text-field
+                  v-model="nuevoUsuario.usr_usuario"
+                  label="Nombre de Usuario"
+                  outlined
+                  dense
+                  required
+                  prepend-inner-icon="mdi-account"
+                  placeholder="Ej. jperez"
+                  :rules="[v => !!v || 'El nombre de usuario es requerido']"
+                ></v-text-field>
               </v-col>
 
-              <!-- SUBMENÚS CON CHECKBOX DE ACCESO -->
               <v-col cols="12" md="6">
-                <v-card outlined class="fill-height">
-                  <v-card-title class="py-2 text-caption font-weight-bold grey lighten-4">
-                    SUBMENÚS & PERMISOS
-                  </v-card-title>
-                  <v-divider></v-divider>
+                <v-text-field
+                  v-model="nuevoUsuario.name"
+                  label="Nombre Completo"
+                  outlined
+                  dense
+                  required
+                  prepend-inner-icon="mdi-card-account-details-outline"
+                  placeholder="Ej. Juan Carlos Pérez"
+                  :rules="[v => !!v || 'El nombre completo es requerido']"
+                ></v-text-field>
+              </v-col>
 
-                  <div v-if="subMenus" class="scroll-submenu">
-                    <v-list class="pa-0" flat>
-                      <v-list-item v-for="item in subMenus" :key="item.id" class="border-bottom py-1">
-                        <v-list-item-avatar size="28" color="primary lighten-5" class="mr-2 my-auto">
-                          <v-icon x-small color="primary">{{ item.icon_mdi || 'mdi-file-outline' }}</v-icon>
-                        </v-list-item-avatar>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="nuevoUsuario.email"
+                  label="Correo Electrónico"
+                  outlined
+                  dense
+                  required
+                  prepend-inner-icon="mdi-email-outline"
+                  placeholder="Ej. juan.perez@emapa.gob.bo"
+                  type="email"
+                  :rules="[
+                    v => !!v || 'El correo electrónico es requerido',
+                    v => /.+@.+\..+/.test(v) || 'Ingrese un correo electrónico válido'
+                  ]"
+                ></v-text-field>
+              </v-col>
 
-                        <v-list-item-content>
-                          <v-list-item-title class="font-weight-medium text-body-2">{{ item.label }}</v-list-item-title>
-                        </v-list-item-content>
+              <v-col cols="12" md="6">
+                <v-text-field
+                  v-model="nuevoUsuario.password"
+                  label="Contraseña"
+                  outlined
+                  dense
+                  required
+                  prepend-inner-icon="mdi-lock-outline"
+                  placeholder="Mínimo 6 caracteres"
+                  type="password"
+                  :rules="[
+                    v => !!v || 'La contraseña es requerida',
+                    v => (v && v.length >= 6) || 'La contraseña debe tener al menos 6 caracteres'
+                  ]"
+                ></v-text-field>
+              </v-col>
 
-                        <v-list-item-action class="my-auto d-flex align-center flex-row">
-                          <v-tooltip bottom>
-                            <template v-slot:activator="{ on, attrs }">
-                              <v-btn
-                                icon
-                                small
-                                color="info"
-                                class="mr-1"
-                                v-bind="attrs"
-                                v-on="on"
-                                @click.stop="openAccionesSubmenu(item)"
-                              >
-                                <v-icon small>mdi-shield-lock-outline</v-icon>
-                              </v-btn>
-                            </template>
-                            <span>Configurar Acciones Granulares Anidadas</span>
-                          </v-tooltip>
-
-                          <v-checkbox
-                            @click="btnItemSubMenu(item)"
-                            :input-value="item.active"
-                            color="primary"
-                            hide-details
-                            dense
-                          ></v-checkbox>
-                        </v-list-item-action>
-                      </v-list-item>
-                    </v-list>
-                  </div>
-
-                  <div v-else class="d-flex flex-column align-center justify-center fill-height py-8 text-center text-secondary">
-                    <v-icon small color="grey lighten-1" class="mb-1">mdi-hand-pointing-left</v-icon>
-                    <span class="text-caption">Selecciona un menú principal para configurar accesos a sus submenús.</span>
-                  </div>
-                </v-card>
+              <v-col cols="12" md="6">
+                <v-select
+                  v-model="nuevoUsuario.rol_id"
+                  :items="listaRolesDisponibles"
+                  item-text="name"
+                  item-value="id"
+                  label="Rol del Usuario"
+                  outlined
+                  dense
+                  prepend-inner-icon="mdi-shield-account-outline"
+                  placeholder="Seleccionar rol de acceso"
+                  clearable
+                ></v-select>
               </v-col>
             </v-row>
-          </div>
+          </v-form>
         </v-card-text>
 
         <v-divider></v-divider>
 
         <v-card-actions class="px-4 py-3">
           <v-spacer></v-spacer>
-          <v-btn color="primary" elevation="1" @click="dialogPersmisos = false" class="text-capitalize px-4">
-            Aceptar y Cerrar
+          <v-btn text color="grey darken-1" class="text-capitalize" @click="dialogCrear = false">Cancelar</v-btn>
+          <v-btn color="primary" elevation="1" class="text-capitalize" :loading="guardandoUsuario" @click="guardarNuevoUsuario()">
+            Guardar Usuario
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- SUB-DIÁLOGO EMERGENTE: PERMISOS GRANULARES POR SUBMENÚ Y ROL -->
-    <v-dialog v-model="dialogAccionesSubmenu" max-width="480" persistent>
-      <v-card rounded="lg" v-if="selectedSubmenuAcciones">
+    <!-- DIÁLOGO: EDITAR USUARIO -->
+    <v-dialog v-model="dialogEditar" max-width="550" persistent>
+      <v-card rounded="lg" v-if="usuarioEditando">
         <v-card-title class="primary white--text py-3">
-          <v-icon left color="white">mdi-shield-check-outline</v-icon>
-          <span>Acciones Granulares de Submenú</span>
+          <v-icon left color="white">mdi-account-edit</v-icon>
+          <span>Editar Usuario: {{ usuarioEditando.usr_usuario }}</span>
           <v-spacer></v-spacer>
-          <v-btn icon dark x-small @click="dialogAccionesSubmenu = false">
+          <v-btn icon dark x-small @click="dialogEditar = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-5">
+          <v-form ref="formEditar" v-model="formEditarValido">
+            <v-text-field
+              v-model="usuarioEditando.name"
+              label="Nombre Completo"
+              outlined
+              dense
+              required
+              prepend-inner-icon="mdi-card-account-details-outline"
+              placeholder="Ej. Juan Carlos Pérez"
+              :rules="[v => !!v || 'El nombre es requerido']"
+            ></v-text-field>
+
+            <v-text-field
+              v-model="usuarioEditando.email"
+              label="Correo Electrónico"
+              outlined
+              dense
+              required
+              prepend-inner-icon="mdi-email-outline"
+              placeholder="Ej. juan.perez@emapa.gob.bo"
+              type="email"
+              :rules="[
+                v => !!v || 'El correo es requerido',
+                v => /.+@.+\..+/.test(v) || 'Ingrese un correo electrónico válido'
+              ]"
+            ></v-text-field>
+
+            <v-text-field
+              v-model="usuarioEditando.new_password"
+              label="Nueva Contraseña (Opcional)"
+              outlined
+              dense
+              prepend-inner-icon="mdi-lock-reset"
+              placeholder="Dejar en blanco para mantener la actual"
+              type="password"
+            ></v-text-field>
+          </v-form>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" class="text-capitalize" @click="dialogEditar = false">Cancelar</v-btn>
+          <v-btn color="primary" elevation="1" class="text-capitalize" :loading="guardandoUsuario" @click="actualizarUsuario()">
+            Actualizar Datos
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIÁLOGO: VER DETALLE COMPLETO DEL USUARIO -->
+    <v-dialog v-model="dialogDetalle" max-width="650">
+      <v-card rounded="lg" v-if="detalleUsuario">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-card-account-details-outline</v-icon>
+          <span>Perfil y Detalle del Usuario</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogDetalle = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </v-card-title>
 
         <v-card-text class="pt-4">
-          <v-alert color="primary lighten-5" border="left" colored-border dense class="mb-3">
-            <div class="d-flex align-center">
-              <v-icon small color="primary" class="mr-2">{{ selectedSubmenuAcciones.icon_mdi || 'mdi-file-outline' }}</v-icon>
-              <div>
-                <span class="font-weight-bold text-body-2 primary--text">{{ selectedSubmenuAcciones.label }}</span>
-                <div class="text-caption text-secondary">Configuración de acciones por rol de Spatie</div>
-              </div>
+          <div class="d-flex align-center mb-4">
+            <v-avatar color="primary" size="64" class="mr-4 elevation-2 text-white">
+              <v-icon size="36" color="white">mdi-account</v-icon>
+            </v-avatar>
+            <div>
+              <h3 class="text-h6 font-weight-bold mb-0">{{ detalleUsuario.name || detalleUsuario.usr_usuario }}</h3>
+              <div class="text-subtitle-2 primary--text">@{{ detalleUsuario.usr_usuario }}</div>
+              <div class="text-caption text-secondary">{{ detalleUsuario.email }}</div>
             </div>
-          </v-alert>
-
-          <div class="text-subtitle-2 font-weight-bold color-primary mb-2 d-flex align-center">
-            <v-icon small color="primary" class="mr-1">mdi-checkbox-marked-circle-outline</v-icon>
-            Seleccionar Acciones Habilitadas
           </div>
 
-          <div v-if="loadingAcciones" class="py-6 text-center">
-            <v-progress-circular indeterminate color="primary" size="30"></v-progress-circular>
+          <v-divider class="my-3"></v-divider>
+
+          <v-row dense class="text-body-2">
+            <v-col cols="6">
+              <strong>Estado de Cuenta:</strong>
+              <v-chip x-small label :color="detalleUsuario.usr_estado === 'A' ? 'success' : 'error'" class="ml-2 font-weight-bold">
+                {{ detalleUsuario.usr_estado === 'A' ? 'Activo' : 'Inactivo' }}
+              </v-chip>
+            </v-col>
+            <v-col cols="6">
+              <strong>Fecha de Creación:</strong> {{ formatDate(detalleUsuario.created_at) }}
+            </v-col>
+          </v-row>
+
+          <div class="mt-4">
+            <div class="text-subtitle-2 font-weight-bold mb-2">
+              <v-icon small color="primary">mdi-shield-check</v-icon> Roles Asignados:
+            </div>
+            <div v-if="detalleUsuario.roles && detalleUsuario.roles.length > 0">
+              <v-chip v-for="r in detalleUsuario.roles" :key="r.id" small color="primary" outlined class="mr-2 mb-1 font-weight-bold">
+                {{ r.name }}
+              </v-chip>
+            </div>
+            <div v-else class="text-caption text-secondary font-italic">Sin roles asignados</div>
           </div>
 
-          <div v-else-if="accionesSubmenuList && accionesSubmenuList.length > 0">
-            <v-list dense class="pa-0">
-              <v-list-item v-for="act in accionesSubmenuList" :key="act.id" class="px-0 py-1 border-bottom">
+          <div class="mt-4" v-if="detalleLogs && detalleLogs.length > 0">
+            <div class="text-subtitle-2 font-weight-bold mb-2">
+              <v-icon small color="primary">mdi-history</v-icon> Actividad Reciente de Auditoría:
+            </div>
+            <v-list dense class="grey lighten-5 rounded">
+              <v-list-item v-for="l in detalleLogs" :key="l.id" class="px-2">
                 <v-list-item-content>
-                  <v-list-item-title class="font-weight-medium text-body-2">{{ act.name }}</v-list-item-title>
+                  <v-list-item-title class="text-caption font-weight-bold">{{ l.event }}</v-list-item-title>
+                  <v-list-item-subtitle class="text-caption" style="font-size: 0.7rem !important;">
+                    {{ formatDate(l.created_at) }} • IP: {{ l.ip_address }}
+                  </v-list-item-subtitle>
                 </v-list-item-content>
-                <v-list-item-action>
-                  <v-switch
-                    v-model="act.active"
-                    color="primary"
-                    hide-details
-                    dense
-                    @change="toggleAccionPermiso(act)"
-                  ></v-switch>
-                </v-list-item-action>
               </v-list-item>
             </v-list>
           </div>
+        </v-card-text>
 
-          <div v-else class="py-4 text-center text-caption text-secondary">
-            No existen acciones granulares registradas para este submenú.
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn color="primary" class="rounded-pill" @click="dialogDetalle = false">Cerrar</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIÁLOGO: ASIGNAR ROL AL USUARIO -->
+    <v-dialog v-model="dialogAsignarRol" max-width="500" persistent>
+      <v-card rounded="lg" v-if="selectUsuario">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-shield-account</v-icon>
+          <span>Asignar Rol de Acceso</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogAsignarRol = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-5">
+          <v-alert color="primary lighten-5" border="left" colored-border elevation="1" class="mb-4">
+            <div class="d-flex align-center">
+              <v-avatar color="primary" size="36" class="mr-3 text-white">
+                <v-icon small color="white">mdi-account</v-icon>
+              </v-avatar>
+              <div>
+                <div class="font-weight-bold primary--text">{{ selectUsuario.name || selectUsuario.usr_usuario }}</div>
+                <div class="text-caption text-secondary">Usuario: <strong>@{{ selectUsuario.usr_usuario }}</strong></div>
+              </div>
+            </div>
+          </v-alert>
+
+          <div class="text-subtitle-2 font-weight-bold mb-2">Selecciona el Rol para este usuario:</div>
+
+          <div v-if="roles" class="d-flex flex-wrap gap-2 mb-3">
+            <v-chip
+              v-for="item in roles"
+              :key="item.id"
+              @click="btnChipRol(item)"
+              ripple
+              class="ma-1 font-weight-bold px-3"
+              :color="item.id == selectedItemRol ? 'primary' : 'grey lighten-3'"
+              :class="{ 'white--text': item.id == selectedItemRol }"
+              elevation="1"
+            >
+              <v-icon x-small left :color="item.id == selectedItemRol ? 'white' : 'primary'">
+                {{ item.id == selectedItemRol ? 'mdi-check-circle' : 'mdi-circle-outline' }}
+              </v-icon>
+              {{ item.name }}
+            </v-chip>
+          </div>
+
+          <div v-else class="py-4 text-center">
+            <v-progress-circular indeterminate color="primary" size="24"></v-progress-circular>
+          </div>
+
+          <div class="text-caption text-secondary mt-3 d-flex align-center">
+            <v-icon x-small color="info" class="mr-1">mdi-information-outline</v-icon>
+            Para configurar los menús y privilegios que incluye cada rol, ingresa a <strong>Roles y Permisos</strong>.
           </div>
         </v-card-text>
 
@@ -416,23 +512,18 @@
 
         <v-card-actions class="px-4 py-3">
           <v-spacer></v-spacer>
-          <v-btn color="primary" elevation="1" @click="dialogAccionesSubmenu = false" class="text-capitalize px-4">
-            Listo y Guardar
+          <v-btn color="primary" elevation="1" class="text-capitalize px-4" @click="dialogAsignarRol = false">
+            Listo
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- NOTIFICACIONES SNACKBAR -->
-    <v-snackbar v-model="snackbar.status" bottom right :color="snackbar.color" :timeout="2200" rounded="pill">
-      <div class="d-flex align-center">
-        <v-icon left color="white">mdi-check-circle-outline</v-icon>
-        <span>{{ snackbar.text }}</span>
-      </div>
+    <!-- SNACKBAR DE NOTIFICACIÓN -->
+    <v-snackbar v-model="snackbar.status" :color="snackbar.color" timeout="3000" top right>
+      {{ snackbar.text }}
       <template v-slot:action="{ attrs }">
-        <v-btn icon dark v-bind="attrs" @click="snackbar.status = false">
-          <v-icon small>mdi-close</v-icon>
-        </v-btn>
+        <v-btn text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
       </template>
     </v-snackbar>
   </div>
@@ -440,46 +531,57 @@
 
 <script>
 export default {
-  data: () => ({
-    usuarios: null,
-    roles: null,
-    menus: [],
-    subMenus: null,
-    selectedItemRol: null,
-    selectedItemMenu: null,
-    selectUsuario: null,
-    snackbar: {
-      status: false,
-      text: '',
-      color: 'success'
-    },
-    search: '',
-    headers: [
-      { text: 'Usuario', value: 'usr_usuario', sortable: true },
-      { text: 'Nombre', value: 'nombre', sortable: true },
-      { text: 'Estado', value: 'estado', sortable: true, align: 'center' },
-      { text: 'Acciones', value: 'acciones', sortable: false, align: 'center' },
-    ],
-    dialogPersmisos: false,
-    dialogAccionesSubmenu: false,
-    selectedSubmenuAcciones: null,
-    accionesSubmenuList: [],
-    loadingAcciones: false,
-  }),
+  data() {
+    return {
+      search: '',
+      usuarios: null,
+      headers: [
+        { text: 'Usuario', value: 'usr_usuario', sortable: true },
+        { text: 'Nombre Completo', value: 'nombre', sortable: true },
+        { text: 'Estado Acceso', value: 'estado', sortable: false, align: 'center' },
+        { text: 'Acciones', value: 'acciones', sortable: false, align: 'center' },
+      ],
+      // Creación
+      dialogCrear: false,
+      formCrearValido: false,
+      guardandoUsuario: false,
+      nuevoUsuario: {
+        usr_usuario: '',
+        name: '',
+        email: '',
+        password: '',
+        rol_id: null,
+      },
+      listaRolesDisponibles: [],
 
+      // Edición
+      dialogEditar: false,
+      formEditarValido: false,
+      usuarioEditando: null,
+
+      // Detalle
+      dialogDetalle: false,
+      detalleUsuario: null,
+      detalleLogs: [],
+
+      // Rol de Acceso
+      dialogAsignarRol: false,
+      selectUsuario: null,
+      selectedItemRol: null,
+      roles: null,
+
+      snackbar: {
+        status: false,
+        text: '',
+        color: 'success',
+      },
+    }
+  },
   mounted() {
     this.getUsuarios();
+    this.cargarRoles();
   },
-
   methods: {
-    hasAccess(item) {
-      if (!item) return false;
-      return (item.permissions && item.permissions.length > 0) ||
-             (item.roles && item.roles.length > 0) ||
-             !!item.rol_persmisos ||
-             !!item.rolPersmisos;
-    },
-
     getUsuarios() {
       axios
         .get('api/usuario')
@@ -487,7 +589,100 @@ export default {
           this.usuarios = response.data;
         })
         .catch(error => {
-          this.showSnackbar('Error al cargar la lista de usuarios', 'error');
+          this.showSnackbar('Error al obtener la lista de usuarios', 'error');
+        });
+    },
+
+    cargarRoles() {
+      axios.get('api/rol').then(res => {
+        this.listaRolesDisponibles = res.data || [];
+      }).catch(() => {});
+    },
+
+    hasAccess(item) {
+      const hasRol = item.roles && item.roles.length > 0;
+      const hasPerm = item.permissions && item.permissions.length > 0;
+      const hasRolPerm = item.rol_persmisos && item.rol_persmisos.length > 0;
+      return hasRol || hasPerm || hasRolPerm;
+    },
+
+    abrirModalCrear() {
+      this.nuevoUsuario = {
+        usr_usuario: '',
+        name: '',
+        email: '',
+        password: '',
+        rol_id: null,
+      };
+      this.dialogCrear = true;
+    },
+
+    guardarNuevoUsuario() {
+      if (!this.$refs.formCrear.validate()) return;
+      this.guardandoUsuario = true;
+
+      axios.post('api/usuario', this.nuevoUsuario)
+        .then(res => {
+          this.guardandoUsuario = false;
+          this.dialogCrear = false;
+          this.showSnackbar('Usuario registrado exitosamente', 'success');
+          this.getUsuarios();
+        })
+        .catch(err => {
+          this.guardandoUsuario = false;
+          const msg = err.response && err.response.data && err.response.data.message 
+            ? err.response.data.message 
+            : 'Error al registrar usuario';
+          this.showSnackbar(msg, 'error');
+        });
+    },
+
+    btnVerDetalle(item) {
+      axios.get('api/usuario/' + item.id)
+        .then(res => {
+          this.detalleUsuario = res.data.user;
+          this.detalleLogs = res.data.recent_logs || [];
+          this.dialogDetalle = true;
+        })
+        .catch(() => {
+          this.showSnackbar('Error al consultar detalle del usuario', 'error');
+        });
+    },
+
+    btnEditarUsuario(item) {
+      this.usuarioEditando = {
+        id: item.id,
+        usr_usuario: item.usr_usuario,
+        name: item.name,
+        email: item.email,
+        new_password: '',
+      };
+      this.dialogEditar = true;
+    },
+
+    actualizarUsuario() {
+      if (!this.$refs.formEditar.validate()) return;
+      this.guardandoUsuario = true;
+
+      const data = {
+        name: this.usuarioEditando.name,
+        email: this.usuarioEditando.email,
+        password: this.usuarioEditando.new_password || undefined,
+      };
+
+      axios.put('api/usuario/' + this.usuarioEditando.id, data)
+        .then(res => {
+          this.guardandoUsuario = false;
+          this.dialogEditar = false;
+          this.showSnackbar('Usuario actualizado correctamente', 'success');
+          this.getUsuarios();
+        })
+        .catch(err => {
+          this.guardandoUsuario = false;
+          const msg = err.response && err.response.data && err.response.data.message 
+            ? err.response.data.message 
+            : 'Error al actualizar usuario';
+          this.showSnackbar(msg, 'error');
         });
     },
 
@@ -519,60 +714,22 @@ export default {
         });
     },
 
-    btnItemMenu(item) {
-      this.subMenus = item.sub_menu || item.subMenuN1 || item.sub_menu_n1 || [];
-    },
+    btnAbrirAsignarRol(item) {
+      this.dialogAsignarRol = true;
+      this.selectUsuario = item;
+      this.roles = null;
+      this.selectedItemRol = null;
 
-    btnItemSubMenu(item) {
-      const estadoOriginal = item.active;
-      if (this.selectedItemRol != null) {
-        const data = {
-          menu_id: item.id,
-          rol_id: this.selectedItemRol,
-        };
-
-        axios
-          .post('api/menu-rol', data)
-          .then(response => {
-            item.active = !estadoOriginal;
-            this.getMenuUser(this.selectedItemRol);
-            this.showSnackbar('Permiso de menú actualizado', 'success');
-          })
-          .catch(error => {
-            item.active = estadoOriginal;
-            this.showSnackbar('Error al cambiar el permiso del submenú', 'error');
-          });
-      }
-    },
-
-    openAccionesSubmenu(item) {
-      this.selectedSubmenuAcciones = item;
-      this.dialogAccionesSubmenu = true;
-      this.loadingAcciones = true;
-      this.accionesSubmenuList = [];
-
-      axios.get('api/menu/permisos-submenu/' + item.id)
+      axios
+        .get('api/usuario/rol-user/' + item.id)
         .then(response => {
-          this.loadingAcciones = false;
-          if (response.data && response.data.permisos) {
-            const userPerms = (this.selectUsuario && this.selectUsuario.permissions)
-              ? this.selectUsuario.permissions.map(p => p.name)
-              : [];
-
-            this.accionesSubmenuList = response.data.permisos.map(p => ({
-              ...p,
-              active: userPerms.includes(p.name) || userPerms.includes('SIGP')
-            }));
-          }
+          const data = response.data;
+          this.roles = data.roles;
+          this.selectedItemRol = data.rolUser;
         })
-        .catch(error => {
-          this.loadingAcciones = false;
-          this.showSnackbar('Error al obtener acciones del submenú', 'error');
+        .catch(() => {
+          this.showSnackbar('Error al cargar roles del usuario', 'error');
         });
-    },
-
-    toggleAccionPermiso(act) {
-      this.showSnackbar('Estado de acción granular actualizado', 'success');
     },
 
     btnChipRol(item) {
@@ -581,16 +738,13 @@ export default {
           rol_id: item.id,
           usuario_id: this.selectUsuario.id,
         };
-        this.selectedItemMenu = null;
-        this.subMenus = null;
 
         axios
           .post('api/rol-user', data)
           .then(response => {
             this.selectedItemRol = item.id;
-            this.getMenuUser(item.id);
             this.getUsuarios();
-            this.showSnackbar('Rol asignado correctamente', 'success');
+            this.showSnackbar('Rol asignado correctamente a ' + this.selectUsuario.usr_usuario, 'success');
           })
           .catch(error => {
             this.showSnackbar('Error al asignar el rol', 'error');
@@ -598,35 +752,9 @@ export default {
       }
     },
 
-    btnAccesosPermisos(item) {
-      this.dialogPersmisos = true;
-      this.selectUsuario = item;
-      this.subMenus = null;
-      this.selectedItemMenu = null;
-      this.menus = [];
-
-      axios
-        .get('api/usuario/rol-user/' + item.id)
-        .then(response => {
-          const data = response.data;
-          this.roles = data.roles;
-          this.selectedItemRol = data.rolUser;
-          if (this.selectedItemRol != null) {
-            this.getMenuUser(this.selectedItemRol);
-          }
-        })
-        .catch(error => {
-          this.showSnackbar('Error al cargar permisos del usuario', 'error');
-        });
-    },
-
-    getMenuUser(rolId) {
-      axios
-        .get('api/usuario/menu-rol/' + rolId)
-        .then(response => {
-          this.menus = response.data.menus;
-        })
-        .catch(error => {});
+    formatDate(dateStr) {
+      if (!dateStr) return '-';
+      return window.moment ? window.moment(dateStr).format('DD/MM/YYYY HH:mm') : dateStr;
     },
 
     showSnackbar(text, color = 'success') {
