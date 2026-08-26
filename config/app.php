@@ -180,7 +180,6 @@ return [
 		SimpleSoftwareIO\QrCode\QrCodeServiceProvider::class,
 		Maatwebsite\Excel\ExcelServiceProvider::class,
 		Yajra\DataTables\DataTablesServiceProvider::class,
-		Jenssegers\Date\DateServiceProvider::class,
 	],
 
 	/*
@@ -237,7 +236,7 @@ return [
 		// 'XmlDigitalSignature' => Iwalpola\XmlDigitalSignature\XmlDigitalSignatureFacade::class,
 		'QrCode' => SimpleSoftwareIO\QrCode\Facades\QrCode::class,
 		'Excel' => Maatwebsite\Excel\Facades\Excel::class,
-		'Date' => Jenssegers\Date\Date::class,
+		'Date' => Illuminate\Support\Facades\Date::class,
 
 	],
 

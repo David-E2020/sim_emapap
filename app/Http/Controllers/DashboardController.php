@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Jenssegers\Date\Date;
+use Carbon\Carbon;
 
 class DashboardController extends Controller {
 	public function total_acopio_general() {
-		$fecha_actual = Date::now();
+		$fecha_actual = Carbon::now();
 		$gestion = $fecha_actual->format('Y');
 		try {
 			$totales = \DB::select('select * from acopio.total_acopio_general(?)', array($gestion));
