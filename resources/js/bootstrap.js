@@ -23,6 +23,7 @@ try {
 
 window.axios = require('axios');
 
+window.axios.defaults.baseURL = '/';
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
 /**
@@ -38,6 +39,20 @@ if (token) {
 } else {
     console.error('CSRF token not found: https://laravel.com/docs/csrf#csrf-x-csrf-token');
 }
+
+/**
+ * Automatic JWT Bearer Token injector on every request
+ */
+window.axios.interceptors.request.use(
+    config => {
+        const tokenJWT = localStorage.getItem('token');
+        if (tokenJWT) {
+            config.headers['Authorization'] = tokenJWT.startsWith('Bearer ') ? tokenJWT : `Bearer ${tokenJWT}`;
+        }
+        return config;
+    },
+    error => Promise.reject(error)
+);
 
 /**
  * Global HTTP Response Interceptor

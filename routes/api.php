@@ -64,6 +64,71 @@ Route::group(['middleware' => ['jwt.auth']], function () {
         Route::apiResource('menu-rol', MenuRolController::class);
     });
 
+    // ==========================================
+    // MÓDULO RECURSOS HUMANOS (CAPIBARA INTEGRADO)
+    // ==========================================
+    Route::get('rrhh/personal', [\App\Http\Controllers\Rrhh\PersonalController::class, 'index']);
+    Route::post('rrhh/personal', [\App\Http\Controllers\Rrhh\PersonalController::class, 'store']);
+    Route::get('rrhh/personal/mi-ficha', [\App\Http\Controllers\Rrhh\PersonalController::class, 'miFichaPersonal']);
+    Route::get('rrhh/personal/{id}', [\App\Http\Controllers\Rrhh\PersonalController::class, 'show']);
+    Route::post('rrhh/personal/{id}/estudios', [\App\Http\Controllers\Rrhh\PersonalController::class, 'storeEstudio']);
+    Route::post('rrhh/personal/{id}/experiencia', [\App\Http\Controllers\Rrhh\PersonalController::class, 'storeExperiencia']);
+    Route::post('rrhh/personal/{id}/cas', [\App\Http\Controllers\Rrhh\PersonalController::class, 'storeCas']);
+
+    Route::get('rrhh/organigrama', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'organigrama']);
+    Route::post('rrhh/unidades-organizacionales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeUnidad']);
+    Route::post('rrhh/puestos', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storePuesto']);
+    Route::post('rrhh/asignar-puesto', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'asignarPuesto']);
+    Route::get('rrhh/escalas-salariales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'listarEscalasSalariales']);
+    Route::post('rrhh/escalas-salariales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeEscalaSalarial']);
+    Route::get('rrhh/regionales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'listarRegionales']);
+    Route::post('rrhh/regionales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeRegional']);
+    Route::get('rrhh/gestiones', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'listarGestiones']);
+    Route::post('rrhh/gestiones', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeGestion']);
+
+    Route::get('rrhh/biometricos', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'listarBiometricos']);
+    Route::post('rrhh/biometricos/{id}/probar-conexion', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'probarConexion']);
+    Route::post('rrhh/biometricos/{id}/sincronizar', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'sincronizar']);
+    Route::get('rrhh/asistencias', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'listarAsistencias']);
+    Route::post('rrhh/asistencias/calcular', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'calcularAsistencia']);
+
+    Route::get('rrhh/permisos/catalogo', [\App\Http\Controllers\Rrhh\SolicitudSalidaController::class, 'catalogoPermisos']);
+    Route::get('rrhh/solicitudes', [\App\Http\Controllers\Rrhh\SolicitudSalidaController::class, 'index']);
+    Route::post('rrhh/solicitudes', [\App\Http\Controllers\Rrhh\SolicitudSalidaController::class, 'store']);
+
+    // Horarios y Turnos
+    Route::get('rrhh/horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'index']);
+    Route::post('rrhh/horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'store']);
+    Route::get('rrhh/asignaciones-horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'listarAsignaciones']);
+    Route::post('rrhh/asignaciones-horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'asignarHorario']);
+
+    // Comisiones, Omisiones y Aprobaciones
+    Route::get('rrhh/comisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'listarComisiones']);
+    Route::post('rrhh/comisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'storeComision']);
+    Route::get('rrhh/omisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'listarOmisiones']);
+    Route::post('rrhh/omisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'storeOmision']);
+    Route::get('rrhh/bandeja-aprobaciones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'bandejaAprobaciones']);
+    Route::put('rrhh/bandeja-aprobaciones/{id}/resolver', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'resolverSolicitud']);
+
+    // Feriados y Fechas de Corte
+    Route::get('rrhh/feriados', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'listarFeriados']);
+    Route::post('rrhh/feriados', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'storeFeriado']);
+    Route::get('rrhh/fechas-corte', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'listarFechasCorte']);
+    Route::post('rrhh/fechas-corte', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'storeFechaCorte']);
+
+    // Reportes Oficiales y Planillas
+    Route::get('rrhh/reportes/boleta-salida/{id}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'boletaSalidaHtml']);
+    Route::get('rrhh/reportes/asistencia-mensual', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'asistenciaMensual']);
+    Route::get('rrhh/reportes/refrigerio-mensual', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'refrigerioMensual']);
+    Route::get('rrhh/reportes/saldo-vacaciones', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'saldoVacaciones']);
+    Route::get('rrhh/reportes/planilla-sueldos', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'planillaSueldosMensual']);
+    Route::post('rrhh/reportes/cerrar-declarar-planilla', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'cerrarYDeclararPlanilla']);
+    Route::get('rrhh/reportes/boleta-pago/{personaId}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'boletaPagoHtml']);
+    Route::get('rrhh/reportes/padron-personal', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'padronPersonal']);
+    Route::get('rrhh/reportes/kardex-funcionario/{personaId}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'kardexFuncionarioHtml']);
+    Route::post('rrhh/reportes/generar-personalizado', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'generarReportePersonalizado']);
+    Route::get('rrhh/reportes/certificado-trabajo/{personaId}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'certificadoTrabajoHtml']);
+
     // Rutas para Obtener Estructura de Menú (Según Usuario/Rol Autenticado)
     Route::get('usuario/menu-rol/{rolId}', [UsuarioController::class, 'menuRol']);
     Route::get('usuario/menu-usuario/{usuarioId}', [UsuarioController::class, 'menuUsuario']);

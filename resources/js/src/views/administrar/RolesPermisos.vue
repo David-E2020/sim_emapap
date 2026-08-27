@@ -1486,6 +1486,43 @@ export default {
 
         'admin.auditoria.ver': 'Inspeccionar Bitácora de Auditoría',
         'SIGP': 'Superadministrador (Acceso Maestro)',
+
+        // Recursos Humanos (Capibara)
+        'rrhh.personal.ver': 'Ver Listado de Personal',
+        'rrhh.personal.crear': 'Registrar Nuevos Funcionarios',
+        'rrhh.personal.editar': 'Editar Datos de Personal',
+        'rrhh.personal.legajo': 'Administrar Legajos (Estudios, Experiencia, CAS)',
+
+        'rrhh.organigrama.ver': 'Consultar Organigrama y Unidades',
+        'rrhh.organigrama.crear_unidad': 'Crear / Reorganizar Unidades',
+        'rrhh.organigrama.crear_puesto': 'Crear Puestos y Cargos',
+        'rrhh.organigrama.asignar_puesto': 'Asignar Ítems a Personal',
+
+        'rrhh.asistencias.ver': 'Ver Marcaciones y Asistencias',
+        'rrhh.asistencias.sincronizar_biometrico': 'Sincronizar Relojes Biométricos',
+        'rrhh.asistencias.calcular_asistencia': 'Calcular Atrasos y Refrigerios',
+        'rrhh.biometricos.administrar': 'Configurar Relojes en Red',
+
+        'rrhh.solicitudes.ver': 'Ver Boletas y Solicitudes de Salida',
+        'rrhh.solicitudes.crear': 'Registrar Solicitudes y Permisos',
+        'rrhh.solicitudes.aprobar': 'Aprobar / Rechazar Boletas de Salida',
+
+        'rrhh.horarios.ver': 'Ver Horarios y Asignaciones',
+        'rrhh.horarios.crear': 'Crear Nuevos Horarios y Turnos',
+        'rrhh.horarios.asignar': 'Asignar Horarios a Funcionarios',
+
+        'rrhh.comisiones.ver': 'Ver Comisiones de Viaje',
+        'rrhh.comisiones.crear': 'Registrar Comisiones con Viáticos',
+        'rrhh.omisiones.crear': 'Solicitar Regularización de Marcado',
+        'rrhh.omisiones.aprobar': 'Aprobar / Rechazar Omisiones',
+
+        'rrhh.feriados.ver': 'Ver Calendario de Feriados',
+        'rrhh.feriados.crear': 'Registrar Feriados y Cortes',
+
+        'rrhh.reportes.asistencia': 'Consolidado Mensual de Asistencias',
+        'rrhh.reportes.refrigerio': 'Planilla Mensual de Refrigerios',
+        'rrhh.reportes.vacaciones': 'Kardex y Saldo de Vacaciones',
+        'rrhh.reportes.boleta_imprimir': 'Imprimir Boletas de Salida',
       };
       return map[name] || name;
     },

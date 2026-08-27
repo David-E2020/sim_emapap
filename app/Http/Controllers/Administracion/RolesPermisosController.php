@@ -32,6 +32,14 @@ class RolesPermisosController extends Controller
         'admin_menu' => 'Diseñador de Menús',
         'parametrica' => 'Tablas Paramétricas',
         'auditoria' => 'Auditoría y Seguridad',
+        'rrhh_personal' => 'Personal y Legajos',
+        'rrhh_organigrama' => 'Estructura Organizacional',
+        'rrhh_asistencias' => 'Control de Asistencia',
+        'rrhh_solicitudes' => 'Boletas y Permisos',
+        'rrhh_horarios' => 'Gestión de Horarios',
+        'rrhh_comisiones_omisiones' => 'Comisiones y Omisiones',
+        'rrhh_feriados_cortes' => 'Feriados y Cortes',
+        'rrhh_reportes' => 'Reportes de Personal',
     ];
 
     /**

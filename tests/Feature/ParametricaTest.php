@@ -72,7 +72,7 @@ class ParametricaTest extends TestCase
         $responseShow->assertStatus(200);
         $this->assertGreaterThanOrEqual(1, count($responseShow->json()));
 
-        // 4. Limpieza lógica
+        // 4. Limpieza lógica y física
         $campoHijo = Parametrica::where('param_tabla', $tablaNombre)->where('param_valor', '>', 0)->first();
         if ($campoHijo) {
             $responseDelete = $this->withHeader('Authorization', 'Bearer ' . $this->token)
@@ -83,5 +83,6 @@ class ParametricaTest extends TestCase
                     'success' => 'true',
                 ]);
         }
+        Parametrica::where('param_tabla', $tablaNombre)->forceDelete();
     }
 }

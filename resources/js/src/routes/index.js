@@ -71,6 +71,72 @@ export const routes = [
     },
   },
 
+  // MODULO RECURSOS HUMANOS (CAPIBARA)
+  {
+    path: '/rrhh/personal',
+    name: 'rrhh_personal',
+    component: () => import('@/views/rrhh/Personal.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/organigrama',
+    name: 'rrhh_organigrama',
+    component: () => import('@/views/rrhh/Organigrama.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/asistencias',
+    name: 'rrhh_asistencias',
+    component: () => import('@/views/rrhh/ControlAsistencia.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/solicitudes',
+    name: 'rrhh_solicitudes',
+    component: () => import('@/views/rrhh/BoletasPermisos.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/horarios',
+    name: 'rrhh_horarios',
+    component: () => import('@/views/rrhh/Horarios.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/comisiones-omisiones',
+    name: 'rrhh_comisiones_omisiones',
+    component: () => import('@/views/rrhh/ComisionesOmisiones.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/feriados-cortes',
+    name: 'rrhh_feriados_cortes',
+    component: () => import('@/views/rrhh/FeriadosCortes.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/reportes',
+    name: 'rrhh_reportes',
+    component: () => import('@/views/rrhh/Reportes.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+
   // PAGES
   {
     path: '/pages/login',
