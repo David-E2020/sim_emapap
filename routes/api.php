@@ -138,4 +138,73 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     // Paramétricas y Datos Maestros
     Route::apiResource('parametrica-api', ParametricaController::class);
     Route::post('registrar_campo', [ParametricaController::class, 'registrar_campo']);
+
+    // ==========================================
+    // MÓDULO DE CORRESPONDENCIA Y HOJAS DE RUTA (LONDRA)
+    // ==========================================
+    // 1. Hojas de Ruta
+    Route::get('correspondencia/hojas-ruta', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'index']);
+    Route::post('correspondencia/hojas-ruta', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'store']);
+    Route::get('correspondencia/hojas-ruta/{id}', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'show']);
+    Route::get('correspondencia/hojas-ruta/{id}/caratula', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'caratula']);
+    Route::post('correspondencia/hojas-ruta/{id}/cerrar', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'cerrar']);
+    Route::post('correspondencia/hojas-ruta/{id}/reabrir', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'reabrir']);
+    Route::post('correspondencia/hojas-ruta/agrupar', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'agrupar']);
+
+    // 2. Derivaciones y Workflow
+    Route::post('correspondencia/derivaciones', [\App\Http\Controllers\Correspondencia\DerivacionController::class, 'derivar']);
+    Route::post('correspondencia/derivaciones/{id}/recibir', [\App\Http\Controllers\Correspondencia\DerivacionController::class, 'recibir']);
+    Route::post('correspondencia/derivaciones/{id}/devolver', [\App\Http\Controllers\Correspondencia\DerivacionController::class, 'devolver']);
+
+    // 3. Documentos Oficiales
+    Route::get('correspondencia/documentos', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'index']);
+    Route::post('correspondencia/documentos', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'store']);
+    Route::get('correspondencia/documentos/{id}', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'show']);
+    Route::get('correspondencia/documentos/{id}/preview', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'previewHtml']);
+    Route::post('correspondencia/documentos/{id}/adjuntos', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'adjuntarArchivo']);
+
+    // 4. Firmas y Aprobaciones
+    Route::get('correspondencia/firmas/pendientes', [\App\Http\Controllers\Correspondencia\FirmaAprobacionController::class, 'pendientes']);
+    Route::post('correspondencia/firmas/firmar', [\App\Http\Controllers\Correspondencia\FirmaAprobacionController::class, 'firmar']);
+    Route::post('correspondencia/firmas/rechazar', [\App\Http\Controllers\Correspondencia\FirmaAprobacionController::class, 'rechazar']);
+
+    // 5. Seguimiento y Trazabilidad
+    Route::get('correspondencia/seguimiento/{id}/timeline', [\App\Http\Controllers\Correspondencia\SeguimientoController::class, 'timeline']);
+
+    // 6. Ventanilla Única
+    Route::get('correspondencia/ventanillas', [\App\Http\Controllers\Correspondencia\VentanillaController::class, 'index']);
+    Route::post('correspondencia/ventanillas/entrada', [\App\Http\Controllers\Correspondencia\VentanillaController::class, 'registrarEntrada']);
+
+    // 7. Configuración
+    Route::get('correspondencia/configuracion/plantillas', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'plantillas']);
+    Route::get('correspondencia/configuracion/correlativos', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'correlativos']);
+    Route::get('correspondencia/configuracion/proveidos', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'proveidos']);
+    Route::get('correspondencia/configuracion/secretarios', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'secretarios']);
+    Route::post('correspondencia/configuracion/secretarios', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'storeSecretario']);
+
+    // 8. Despacho y Bandeja de Salida Externa (Gestor de Salida)
+    Route::get('correspondencia/despachos', [\App\Http\Controllers\Correspondencia\DespachoSalidaController::class, 'index']);
+    Route::post('correspondencia/despachos', [\App\Http\Controllers\Correspondencia\DespachoSalidaController::class, 'store']);
+    Route::post('correspondencia/despachos/{id}/entregar', [\App\Http\Controllers\Correspondencia\DespachoSalidaController::class, 'entregar']);
+
+    // 9. Etiquetas y Carpetas Virtuales
+    Route::get('correspondencia/etiquetas', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'index']);
+    Route::post('correspondencia/etiquetas', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'store']);
+    Route::post('correspondencia/etiquetas/asignar', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'asignar']);
+    Route::post('correspondencia/etiquetas/desasignar', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'desasignar']);
+
+    // 10. Accesos Compartidos
+    Route::get('correspondencia/compartidos', [\App\Http\Controllers\Correspondencia\AccesoCompartidoController::class, 'index']);
+    Route::post('correspondencia/compartidos/compartir', [\App\Http\Controllers\Correspondencia\AccesoCompartidoController::class, 'compartir']);
+
+    // 11. Solicitudes Ciudadanas y Trámites Digitales
+    Route::get('correspondencia/solicitudes-ciudadanas', [\App\Http\Controllers\Correspondencia\SolicitudCiudadanaController::class, 'index']);
+    Route::post('correspondencia/solicitudes-ciudadanas/{id}/convertir-hoja-ruta', [\App\Http\Controllers\Correspondencia\SolicitudCiudadanaController::class, 'convertirEnHojaRuta']);
 });
+
+// Rutas Públicas (Sin Autenticación Requerida)
+Route::get('correspondencia/publico/verificar-documento/{codigo}', [\App\Http\Controllers\Correspondencia\VerificacionPublicaController::class, 'verificarDocumento']);
+Route::get('correspondencia/publico/verificar-hoja-ruta', [\App\Http\Controllers\Correspondencia\VerificacionPublicaController::class, 'verificarHojaRuta']);
+Route::post('correspondencia/publico/solicitud-ciudadana', [\App\Http\Controllers\Correspondencia\SolicitudCiudadanaController::class, 'registrarPublico']);
+
+

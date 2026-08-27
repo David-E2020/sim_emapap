@@ -137,6 +137,106 @@ export const routes = [
     },
   },
 
+  // MODULO CORRESPONDENCIA Y HOJAS DE RUTA (LONDRA)
+  {
+    path: '/correspondencia/hojas-ruta',
+    name: 'correspondencia_hojas_ruta',
+    component: () => import('@/views/correspondencia/BandejaHojasRuta.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/documentos',
+    name: 'correspondencia_documentos',
+    component: () => import('@/views/correspondencia/GestionDocumentos.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/firmas',
+    name: 'correspondencia_firmas',
+    component: () => import('@/views/correspondencia/BandejaFirmas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/seguimiento',
+    name: 'correspondencia_seguimiento',
+    component: () => import('@/views/correspondencia/SeguimientoHojaRuta.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/ventanilla',
+    name: 'correspondencia_ventanilla',
+    component: () => import('@/views/correspondencia/VentanillaExterna.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/despacho-salida',
+    name: 'correspondencia_despacho_salida',
+    component: () => import('@/views/correspondencia/BandejaSalidaExterna.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/solicitudes-ciudadanas',
+    name: 'correspondencia_solicitudes_ciudadanas',
+    component: () => import('@/views/correspondencia/SolicitudesCiudadanas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/visor-expediente',
+    name: 'correspondencia_visor_expediente',
+    component: () => import('@/views/correspondencia/VisorExpedienteDigital.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/etiquetas',
+    name: 'correspondencia_etiquetas',
+    component: () => import('@/views/correspondencia/GestionEtiquetas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/configuracion',
+    name: 'correspondencia_configuracion',
+    component: () => import('@/views/correspondencia/ConfiguracionCorrespondencia.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+
+  // VALIDACIÓN PÚBLICA QR
+  {
+    path: '/verificar-documento/:codigo?',
+    name: 'verificar_documento_publico',
+    component: () => import('@/views/correspondencia/VerificarDocumentoPublico.vue'),
+    meta: {
+      layout: 'blank',
+    },
+  },
+  {
+    path: '/verificar-hoja-ruta',
+    name: 'verificar_hoja_ruta_publico',
+    component: () => import('@/views/correspondencia/VerificarDocumentoPublico.vue'),
+    meta: {
+      layout: 'blank',
+    },
+  },
+
   // PAGES
   {
     path: '/pages/login',
@@ -159,3 +259,4 @@ export const routes = [
     redirect: 'error-404',
   },
 ];
+
