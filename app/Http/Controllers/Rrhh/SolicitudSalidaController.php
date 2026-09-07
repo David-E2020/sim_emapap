@@ -38,7 +38,7 @@ class SolicitudSalidaController extends Controller
     {
         $solicitudes = SolicitudSalida::with(['permiso'])
             ->orderBy('id', 'desc')
-            ->paginate((int)$request->query('per_page', 15));
+            ->paginate((int) $request->query('per_page', 15));
 
         return response()->json([
             'success' => true,
@@ -71,7 +71,7 @@ class SolicitudSalidaController extends Controller
         try {
             $solicitud = DB::transaction(function () use ($request) {
                 $solicitud = SolicitudSalida::create([
-                    'id_permiso' => (int)$request->input('id_permiso'),
+                    'id_permiso' => (int) $request->input('id_permiso'),
                     'id_justificacion' => $request->input('id_justificacion'),
                     'motivo' => $request->input('motivo'),
                     'lugar' => $request->input('lugar'),
@@ -79,15 +79,15 @@ class SolicitudSalidaController extends Controller
                     'fecha_fin' => $request->input('fecha_fin'),
                     'hora_inicio' => $request->input('hora_inicio'),
                     'hora_fin' => $request->input('hora_fin'),
-                    'horas_solicitadas' => (float)$request->input('horas_solicitadas', 0),
-                    'cite' => 'CITE-RRHH-' . date('Y') . '-' . strtoupper(uniqid()),
+                    'horas_solicitadas' => (float) $request->input('horas_solicitadas', 0),
+                    'cite' => 'CITE-RRHH-'.date('Y').'-'.strtoupper(uniqid()),
                     '_usuario_creacion' => auth()->id() ?? 1,
                     '_fecha_creacion' => now(),
                 ]);
 
                 DB::table('rrhh.usuarios_solicitudes_salidas')->insert([
                     'id_solicitud_salida' => $solicitud->id,
-                    'id_persona' => (int)$request->input('id_persona'),
+                    'id_persona' => (int) $request->input('id_persona'),
                     'estado_aprobacion' => 'PENDIENTE',
                     '_estado' => 'ACTIVO',
                     '_transaccion' => 'CREAR',
@@ -111,6 +111,7 @@ class SolicitudSalidaController extends Controller
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar solicitud de salida', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error interno al registrar solicitud.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

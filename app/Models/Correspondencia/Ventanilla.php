@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Ventanilla extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.ventanillas';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

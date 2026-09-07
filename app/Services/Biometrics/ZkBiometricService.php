@@ -29,8 +29,10 @@ class ZkBiometricService
         $socket = @fsockopen($deviceIp, $port, $errorCode, $errorMessage, $timeoutSeconds);
         if (is_resource($socket)) {
             fclose($socket);
+
             return true;
         }
+
         return false;
     }
 
@@ -39,13 +41,13 @@ class ZkBiometricService
      */
     public function getAttendanceLogs(string $deviceIp, int $port = 4370, float $socketTimeout = 3.0): Collection
     {
-        if (!$this->pingDevice($deviceIp, $port, $socketTimeout)) {
+        if (! $this->pingDevice($deviceIp, $port, $socketTimeout)) {
             throw new RuntimeException("El reloj biométrico en {$deviceIp}:{$port} no responde en la red local.");
         }
 
         $zk = new ZKTeco($deviceIp, $port);
 
-        if (!$zk->connect()) {
+        if (! $zk->connect()) {
             throw new RuntimeException("Fallo en la negociación del protocolo ZKTeco con el dispositivo en {$deviceIp}:{$port}.");
         }
 
@@ -53,15 +55,15 @@ class ZkBiometricService
             $rawAttendance = $zk->getAttendance();
             $zk->disconnect();
 
-            if (!is_array($rawAttendance)) {
+            if (! is_array($rawAttendance)) {
                 return collect([]);
             }
 
             return collect($rawAttendance)->map(function ($record) use ($deviceIp) {
-                $userId = (string)($record['id'] ?? $record['uid'] ?? '');
-                $timestamp = (string)($record['timestamp'] ?? '');
-                $state = (int)($record['state'] ?? 0);
-                $type = (int)($record['type'] ?? 0);
+                $userId = (string) ($record['id'] ?? $record['uid'] ?? '');
+                $timestamp = (string) ($record['timestamp'] ?? '');
+                $state = (int) ($record['state'] ?? 0);
+                $type = (int) ($record['type'] ?? 0);
 
                 return [
                     'device_ip' => $deviceIp,
@@ -74,7 +76,7 @@ class ZkBiometricService
             });
         } catch (\Throwable $e) {
             @$zk->disconnect();
-            throw new RuntimeException("Error durante la extracción de datos biométricos: " . $e->getMessage(), (int)$e->getCode(), $e);
+            throw new RuntimeException('Error durante la extracción de datos biométricos: '.$e->getMessage(), (int) $e->getCode(), $e);
         }
     }
 
@@ -83,7 +85,7 @@ class ZkBiometricService
      */
     public function syncBiometricoToDatabase(Biometrico $biometrico): array
     {
-        $logs = $this->getAttendanceLogs($biometrico->url, (int)$biometrico->puerto);
+        $logs = $this->getAttendanceLogs($biometrico->url, (int) $biometrico->puerto);
         $insertadas = 0;
         $omitidas = 0;
 
@@ -97,6 +99,7 @@ class ZkBiometricService
                 $exists = Marcacion::where('hash', $hash)->exists();
                 if ($exists) {
                     $omitidas++;
+
                     continue;
                 }
 
@@ -162,7 +165,7 @@ class ZkBiometricService
             $horaEntrada = Carbon::parse("{$fecha} {$primeraMarcacion}");
             $horaLimite = Carbon::parse("{$fecha} 08:30:00");
             $minutosAtraso = $horaEntrada->greaterThan($horaLimite)
-                ? (int)$horaLimite->diffInMinutes($horaEntrada)
+                ? (int) $horaLimite->diffInMinutes($horaEntrada)
                 : 0;
 
             $asistencia = Asistencia::updateOrCreate(

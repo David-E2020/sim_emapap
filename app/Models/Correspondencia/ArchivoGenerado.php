@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ArchivoGenerado extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.archivos_generados';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

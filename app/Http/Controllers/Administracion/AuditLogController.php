@@ -27,7 +27,7 @@ class AuditLogController extends Controller
 
         // Filtro por usuario ejecutor
         if ($request->filled('user_id')) {
-            $query->where('user_id', (int)$request->input('user_id'));
+            $query->where('user_id', (int) $request->input('user_id'));
         }
 
         // Filtro por rango de fechas
@@ -40,20 +40,20 @@ class AuditLogController extends Controller
 
         // Búsqueda por texto (IP o tipo de modelo)
         if ($request->filled('search')) {
-            $search = '%' . trim($request->input('search')) . '%';
+            $search = '%'.trim($request->input('search')).'%';
             $query->where(function ($q) use ($search) {
                 $q->where('event', 'ILIKE', $search)
-                  ->orWhere('ip_address', 'ILIKE', $search)
-                  ->orWhere('auditable_type', 'ILIKE', $search);
+                    ->orWhere('ip_address', 'ILIKE', $search)
+                    ->orWhere('auditable_type', 'ILIKE', $search);
             });
         }
 
-        $perPage = (int)$request->input('per_page', 20);
+        $perPage = (int) $request->input('per_page', 20);
         $logs = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
-            'data' => $logs
+            'data' => $logs,
         ], Response::HTTP_OK);
     }
 }

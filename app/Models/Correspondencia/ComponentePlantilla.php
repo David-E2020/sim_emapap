@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ComponentePlantilla extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.componentes_plantillas';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

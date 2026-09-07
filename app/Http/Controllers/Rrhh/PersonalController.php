@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Rrhh;
 
 use App\Http\Controllers\Controller;
+use App\Models\Rrhh\Cas;
+use App\Models\Rrhh\EstudioAcademico;
+use App\Models\Rrhh\ExperienciaLaboral;
 use App\Models\Rrhh\FichaPersonal;
 use App\Models\Rrhh\Persona;
 use App\Models\User;
@@ -29,16 +32,16 @@ class PersonalController extends Controller
         $query = Persona::with(['user', 'asignacionesPuestos.puesto.unidadOrganizacional', 'fichaPersonal']);
 
         if ($search) {
-            $s = strtolower(trim((string)$search));
+            $s = strtolower(trim((string) $search));
             $query->where(function ($q) use ($s) {
                 $q->whereRaw('LOWER(nombres) LIKE ?', ["%{$s}%"])
-                  ->orWhereRaw('LOWER(primer_apellido) LIKE ?', ["%{$s}%"])
-                  ->orWhereRaw('LOWER(segundo_apellido) LIKE ?', ["%{$s}%"])
-                  ->orWhereRaw('LOWER(nro_documento) LIKE ?', ["%{$s}%"]);
+                    ->orWhereRaw('LOWER(primer_apellido) LIKE ?', ["%{$s}%"])
+                    ->orWhereRaw('LOWER(segundo_apellido) LIKE ?', ["%{$s}%"])
+                    ->orWhereRaw('LOWER(nro_documento) LIKE ?', ["%{$s}%"]);
             });
         }
 
-        $personas = $query->orderBy('id', 'desc')->paginate((int)$request->query('per_page', 15));
+        $personas = $query->orderBy('id', 'desc')->paginate((int) $request->query('per_page', 15));
 
         return response()->json([
             'success' => true,
@@ -73,11 +76,11 @@ class PersonalController extends Controller
         try {
             $persona = DB::transaction(function () use ($request) {
                 $persona = Persona::create([
-                    'nombres' => strtoupper(trim((string)$request->input('nombres'))),
-                    'primer_apellido' => $request->input('primer_apellido') ? strtoupper(trim((string)$request->input('primer_apellido'))) : null,
-                    'segundo_apellido' => $request->input('segundo_apellido') ? strtoupper(trim((string)$request->input('segundo_apellido'))) : null,
+                    'nombres' => strtoupper(trim((string) $request->input('nombres'))),
+                    'primer_apellido' => $request->input('primer_apellido') ? strtoupper(trim((string) $request->input('primer_apellido'))) : null,
+                    'segundo_apellido' => $request->input('segundo_apellido') ? strtoupper(trim((string) $request->input('segundo_apellido'))) : null,
                     'tipo_documento' => $request->input('tipo_documento', 'CI'),
-                    'nro_documento' => trim((string)$request->input('nro_documento')),
+                    'nro_documento' => trim((string) $request->input('nro_documento')),
                     'fecha_nacimiento' => $request->input('fecha_nacimiento'),
                     'correo_electronico_personal' => $request->input('correo_electronico_personal'),
                     'telefono_celular' => $request->input('telefono_celular'),
@@ -96,7 +99,7 @@ class PersonalController extends Controller
 
                 // Crear usuario ERP si fue solicitado
                 if ($request->input('crear_usuario')) {
-                    $login = $request->input('usuario_login') ?: strtolower(substr((string)$persona->nombres, 0, 1) . $persona->primer_apellido);
+                    $login = $request->input('usuario_login') ?: strtolower(substr((string) $persona->nombres, 0, 1).$persona->primer_apellido);
                     User::create([
                         'name' => $persona->nombre_completo,
                         'usr_usuario' => $login,
@@ -123,6 +126,7 @@ class PersonalController extends Controller
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar funcionario', ['exception' => $ex->getMessage()]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error interno al registrar funcionario.',
@@ -154,7 +158,7 @@ class PersonalController extends Controller
         $user = auth()->user();
         $personaId = $user ? $user->usr_externo_id : null;
 
-        if (!$personaId) {
+        if (! $personaId) {
             $persona = Persona::with(['fichaPersonal.datosLaborales', 'fichaPersonal.estudiosAcademicos', 'fichaPersonal.experienciasLaborales', 'fichaPersonal.cas', 'asignacionesPuestos.puesto.unidadOrganizacional'])->first();
         } else {
             $persona = Persona::with(['fichaPersonal.datosLaborales', 'fichaPersonal.estudiosAcademicos', 'fichaPersonal.experienciasLaborales', 'fichaPersonal.cas', 'asignacionesPuestos.puesto.unidadOrganizacional'])->find($personaId);
@@ -171,10 +175,10 @@ class PersonalController extends Controller
         $persona = Persona::with('fichaPersonal')->findOrFail($id);
         $fichaId = $persona->fichaPersonal ? $persona->fichaPersonal->id : FichaPersonal::create(['id_persona' => $id])->id;
 
-        $estudio = \App\Models\Rrhh\EstudioAcademico::create([
+        $estudio = EstudioAcademico::create([
             'id_ficha_personal' => $fichaId,
-            'institucion' => strtoupper(trim((string)$request->input('institucion'))),
-            'carrera' => strtoupper(trim((string)$request->input('carrera'))),
+            'institucion' => strtoupper(trim((string) $request->input('institucion'))),
+            'carrera' => strtoupper(trim((string) $request->input('carrera'))),
             'nivel_instruccion' => $request->input('nivel_instruccion', 'LICENCIATURA'),
             'fecha_emision' => $request->input('fecha_emision'),
             '_usuario_creacion' => auth()->id() ?? 1,
@@ -189,10 +193,10 @@ class PersonalController extends Controller
         $persona = Persona::with('fichaPersonal')->findOrFail($id);
         $fichaId = $persona->fichaPersonal ? $persona->fichaPersonal->id : FichaPersonal::create(['id_persona' => $id])->id;
 
-        $exp = \App\Models\Rrhh\ExperienciaLaboral::create([
+        $exp = ExperienciaLaboral::create([
             'id_ficha_personal' => $fichaId,
-            'empresa_institucion' => strtoupper(trim((string)$request->input('empresa_institucion'))),
-            'cargo' => strtoupper(trim((string)$request->input('cargo'))),
+            'empresa_institucion' => strtoupper(trim((string) $request->input('empresa_institucion'))),
+            'cargo' => strtoupper(trim((string) $request->input('cargo'))),
             'fecha_inicio' => $request->input('fecha_inicio'),
             'fecha_fin' => $request->input('fecha_fin'),
             'motivo_retiro' => $request->input('motivo_retiro'),
@@ -208,12 +212,12 @@ class PersonalController extends Controller
         $persona = Persona::with('fichaPersonal')->findOrFail($id);
         $fichaId = $persona->fichaPersonal ? $persona->fichaPersonal->id : FichaPersonal::create(['id_persona' => $id])->id;
 
-        $cas = \App\Models\Rrhh\Cas::create([
+        $cas = Cas::create([
             'id_ficha_personal' => $fichaId,
-            'nro_resolucion' => trim((string)$request->input('nro_resolucion')),
-            'anios' => (int)$request->input('anios', 0),
-            'meses' => (int)$request->input('meses', 0),
-            'dias' => (int)$request->input('dias', 0),
+            'nro_resolucion' => trim((string) $request->input('nro_resolucion')),
+            'anios' => (int) $request->input('anios', 0),
+            'meses' => (int) $request->input('meses', 0),
+            'dias' => (int) $request->input('dias', 0),
             'fecha_emision' => $request->input('fecha_emision'),
             '_usuario_creacion' => auth()->id() ?? 1,
             '_fecha_creacion' => now(),

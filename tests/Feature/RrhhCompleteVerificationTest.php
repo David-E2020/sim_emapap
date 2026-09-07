@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\Rrhh\Persona;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 

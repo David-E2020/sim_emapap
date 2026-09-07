@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class PlantillaDocumento extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.plantillas_documentos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

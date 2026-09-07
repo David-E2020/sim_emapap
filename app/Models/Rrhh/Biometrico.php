@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Biometrico extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.biometricos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

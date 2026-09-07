@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AgrupacionHojaRuta extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.agrupaciones_hojas_ruta';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

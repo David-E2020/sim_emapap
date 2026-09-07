@@ -53,7 +53,7 @@ class ParametricaController extends Controller
         } catch (\Throwable $ex) {
             Log::error('Error al guardar paramétrica base', [
                 'request' => $request->all(),
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
@@ -73,7 +73,7 @@ class ParametricaController extends Controller
         } catch (\Throwable $ex) {
             Log::error('Error al obtener campos de paramétrica', [
                 'param_tabla' => $param_tabla,
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
@@ -89,7 +89,7 @@ class ParametricaController extends Controller
     public function destroy(int|string $id): JsonResponse
     {
         try {
-            $parametrica = $this->parametricaService->delete((int)$id, auth()->id());
+            $parametrica = $this->parametricaService->delete((int) $id, auth()->id());
 
             return response()->json([
                 'success' => true,
@@ -109,7 +109,7 @@ class ParametricaController extends Controller
         } catch (\Throwable $ex) {
             Log::error('Error al eliminar paramétrica', [
                 'id' => $id,
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
@@ -145,7 +145,7 @@ class ParametricaController extends Controller
         } catch (\Throwable $ex) {
             Log::error('Error al registrar subcampo de paramétrica', [
                 'request' => $request->all(),
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([

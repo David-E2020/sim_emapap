@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Rrhh;
 use App\Http\Controllers\Controller;
 use App\Models\Rrhh\Persona;
 use App\Models\Rrhh\SolicitudSalida;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,8 +57,8 @@ class ReporteRrhhController extends Controller
      */
     public function asistenciaMensual(Request $request): JsonResponse
     {
-        $mes = (int)$request->query('mes', date('m'));
-        $anio = (int)$request->query('anio', date('Y'));
+        $mes = (int) $request->query('mes', date('m'));
+        $anio = (int) $request->query('anio', date('Y'));
 
         $personas = Persona::with([
             'asignacionesPuestos.puesto.unidadOrganizacional',
@@ -100,9 +99,9 @@ class ReporteRrhhController extends Controller
      */
     public function refrigerioMensual(Request $request): JsonResponse
     {
-        $mes = (int)$request->query('mes', date('m'));
-        $anio = (int)$request->query('anio', date('Y'));
-        $tarifaDiaria = (float)$request->query('tarifa', 18.0); // Tarifa oficial estándar Bs. 18
+        $mes = (int) $request->query('mes', date('m'));
+        $anio = (int) $request->query('anio', date('Y'));
+        $tarifaDiaria = (float) $request->query('tarifa', 18.0); // Tarifa oficial estándar Bs. 18
 
         $personas = Persona::with([
             'asignacionesPuestos.puesto.unidadOrganizacional',
@@ -146,7 +145,7 @@ class ReporteRrhhController extends Controller
 
         $kardex = $personas->map(function ($p) {
             $cas = $p->fichaPersonal?->cas?->first();
-            $aniosServicio = $cas ? (int)$cas->anios : 1;
+            $aniosServicio = $cas ? (int) $cas->anios : 1;
 
             // Escala Legal Bolivia
             $diasDerecho = 15;
@@ -173,7 +172,7 @@ class ReporteRrhhController extends Controller
                 'ci' => $p->nro_documento,
                 'anios_antiguedad' => $aniosServicio,
                 'dias_derecho_anual' => $diasDerecho,
-                'dias_utilizados' => round((float)$diasTomados, 1),
+                'dias_utilizados' => round((float) $diasTomados, 1),
                 'saldo_disponible' => round($saldoDisponible, 1),
             ];
         });
@@ -191,8 +190,8 @@ class ReporteRrhhController extends Controller
      */
     public function planillaSueldosMensual(Request $request): JsonResponse
     {
-        $mes = (int)$request->query('mes', date('m'));
-        $anio = (int)$request->query('anio', date('Y'));
+        $mes = (int) $request->query('mes', date('m'));
+        $anio = (int) $request->query('anio', date('Y'));
 
         // 1. Verificar si ya existe una planilla CONSOLIDADA / DECLARADA (Snapshot Inmutable)
         $planillaExistente = DB::table('rrhh.planillas_consolidadas')
@@ -215,10 +214,10 @@ class ReporteRrhhController extends Controller
                 'estado_planilla' => $planillaExistente->estado,
                 'cite_oficial' => $planillaExistente->cite_oficial,
                 'fecha_cierre' => $planillaExistente->fecha_cierre,
-                'smn_aplicado' => (float)$planillaExistente->smn_aplicado,
-                'total_planilla_bs' => (float)$planillaExistente->total_liquido_pagable_bs,
-                'total_ganado_bs' => (float)$planillaExistente->total_ganado_bs,
-                'total_descuentos_bs' => (float)$planillaExistente->total_descuentos_bs,
+                'smn_aplicado' => (float) $planillaExistente->smn_aplicado,
+                'total_planilla_bs' => (float) $planillaExistente->total_liquido_pagable_bs,
+                'total_ganado_bs' => (float) $planillaExistente->total_ganado_bs,
+                'total_descuentos_bs' => (float) $planillaExistente->total_descuentos_bs,
                 'data' => $detalles,
             ], Response::HTTP_OK);
         }
@@ -230,9 +229,9 @@ class ReporteRrhhController extends Controller
             ->where('param_valor', '>', 0)
             ->pluck('param_descripcion', 'param_codigo');
 
-        $smn = (float)($request->query('smn') ?: ($configSalarial['SMN_BOLIVIA'] ?? 2500.0));
-        $porcentajeGestora = (float)($configSalarial['APORTE_GESTORA'] ?? 12.71) / 100.0;
-        $tarifaRefrigerio = (float)($configSalarial['TARIFA_REFRIGERIO'] ?? 18.0);
+        $smn = (float) ($request->query('smn') ?: ($configSalarial['SMN_BOLIVIA'] ?? 2500.0));
+        $porcentajeGestora = (float) ($configSalarial['APORTE_GESTORA'] ?? 12.71) / 100.0;
+        $tarifaRefrigerio = (float) ($configSalarial['TARIFA_REFRIGERIO'] ?? 18.0);
 
         // Cargar rangos de Bono de Antigüedad desde TABLA_RRHH_BONO_ANTIGUEDAD
         $escalasParam = DB::table('parametricas')
@@ -243,7 +242,7 @@ class ReporteRrhhController extends Controller
 
         $escalasBono = [];
         foreach ($escalasParam as $ep) {
-            $meta = json_decode((string)$ep->param_descripcion, true);
+            $meta = json_decode((string) $ep->param_descripcion, true);
             if ($meta && isset($meta['min'], $meta['max'], $meta['porcentaje'])) {
                 $escalasBono[] = $meta;
             }
@@ -265,32 +264,40 @@ class ReporteRrhhController extends Controller
             if ($puesto && $puesto->id_escala_salarial) {
                 $escala = DB::table('rrhh.escalas_salariales')->where('id', $puesto->id_escala_salarial)->first();
                 if ($escala) {
-                    $haberBasico = (float)($escala->salario ?? $escala->salario_mensual ?? 5200.0);
+                    $haberBasico = (float) ($escala->salario ?? $escala->salario_mensual ?? 5200.0);
                 }
             }
 
             // Antigüedad CAS del funcionario
             $cas = $p->fichaPersonal?->cas?->first();
-            $anios = $cas ? (int)$cas->anios : 0;
+            $anios = $cas ? (int) $cas->anios : 0;
 
             // Porcentaje dinámico desde la tabla Paramétricas
             $porcentajeBono = 0.0;
-            if (!empty($escalasBono)) {
+            if (! empty($escalasBono)) {
                 foreach ($escalasBono as $rango) {
                     if ($anios >= $rango['min'] && $anios <= $rango['max']) {
-                        $porcentajeBono = (float)$rango['porcentaje'];
+                        $porcentajeBono = (float) $rango['porcentaje'];
                         break;
                     }
                 }
             } else {
                 // Fallback legal oficial DS 21060
-                if ($anios >= 2 && $anios <= 4) $porcentajeBono = 0.05;
-                elseif ($anios >= 5 && $anios <= 7) $porcentajeBono = 0.11;
-                elseif ($anios >= 8 && $anios <= 10) $porcentajeBono = 0.18;
-                elseif ($anios >= 11 && $anios <= 14) $porcentajeBono = 0.26;
-                elseif ($anios >= 15 && $anios <= 19) $porcentajeBono = 0.34;
-                elseif ($anios >= 20 && $anios <= 24) $porcentajeBono = 0.42;
-                elseif ($anios >= 25) $porcentajeBono = 0.50;
+                if ($anios >= 2 && $anios <= 4) {
+                    $porcentajeBono = 0.05;
+                } elseif ($anios >= 5 && $anios <= 7) {
+                    $porcentajeBono = 0.11;
+                } elseif ($anios >= 8 && $anios <= 10) {
+                    $porcentajeBono = 0.18;
+                } elseif ($anios >= 11 && $anios <= 14) {
+                    $porcentajeBono = 0.26;
+                } elseif ($anios >= 15 && $anios <= 19) {
+                    $porcentajeBono = 0.34;
+                } elseif ($anios >= 20 && $anios <= 24) {
+                    $porcentajeBono = 0.42;
+                } elseif ($anios >= 25) {
+                    $porcentajeBono = 0.50;
+                }
             }
 
             $bonoAntiguedad = (3 * $smn) * $porcentajeBono;
@@ -355,8 +362,8 @@ class ReporteRrhhController extends Controller
      */
     public function cerrarYDeclararPlanilla(Request $request): JsonResponse
     {
-        $mes = (int)$request->input('mes', date('m'));
-        $anio = (int)$request->input('anio', date('Y'));
+        $mes = (int) $request->input('mes', date('m'));
+        $anio = (int) $request->input('anio', date('Y'));
         $tipo = $request->input('tipo_planilla', 'SUELDOS_Y_SALARIOS');
 
         $existe = DB::table('rrhh.planillas_consolidadas')
@@ -380,7 +387,7 @@ class ReporteRrhhController extends Controller
             return response()->json(['success' => false, 'message' => 'No hay funcionarios para consolidar en la planilla.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $cite = 'PLA-EMAPA-' . str_pad((string)$mes, 2, '0', STR_PAD_LEFT) . '-' . $anio;
+        $cite = 'PLA-EMAPA-'.str_pad((string) $mes, 2, '0', STR_PAD_LEFT).'-'.$anio;
 
         $idPlanilla = DB::table('rrhh.planillas_consolidadas')->insertGetId([
             'gestion' => $anio,
@@ -407,7 +414,7 @@ class ReporteRrhhController extends Controller
                 'funcionario' => $it['funcionario'],
                 'ci' => $it['ci'],
                 'cargo' => $it['cargo'],
-                'item' => (string)($it['item'] ?? '-'),
+                'item' => (string) ($it['item'] ?? '-'),
                 'haber_basico' => $it['haber_basico'],
                 'anios_antiguedad' => $it['anios_antiguedad'],
                 'porcentaje_bono' => $it['porcentaje_bono'],
@@ -438,8 +445,8 @@ class ReporteRrhhController extends Controller
      */
     public function boletaPagoHtml(int $personaId, Request $request): JsonResponse
     {
-        $mes = (int)$request->query('mes', date('m'));
-        $anio = (int)$request->query('anio', date('Y'));
+        $mes = (int) $request->query('mes', date('m'));
+        $anio = (int) $request->query('anio', date('Y'));
 
         $persona = Persona::with([
             'fichaPersonal.cas',
@@ -465,7 +472,7 @@ class ReporteRrhhController extends Controller
         }
 
         if ($detalleConsolidado) {
-            $data = (array)$detalleConsolidado;
+            $data = (array) $detalleConsolidado;
             $cite = $planillaExistente->cite_oficial;
             $esCerrada = true;
         } else {
@@ -491,7 +498,7 @@ class ReporteRrhhController extends Controller
                 'refrigerio_bs' => 360.0,
                 'liquido_pagable_total' => 4899.08,
             ];
-            $cite = 'BORRADOR-' . str_pad((string)$mes, 2, '0', STR_PAD_LEFT) . '/' . $anio;
+            $cite = 'BORRADOR-'.str_pad((string) $mes, 2, '0', STR_PAD_LEFT).'/'.$anio;
             $esCerrada = false;
         }
 
@@ -518,20 +525,20 @@ class ReporteRrhhController extends Controller
                     'antiguedad_anios' => $data['anios_antiguedad'] ?? 0,
                 ],
                 'ingresos' => [
-                    'haber_basico' => (float)($data['haber_basico'] ?? 0),
-                    'bono_antiguedad' => (float)($data['bono_antiguedad'] ?? 0),
-                    'porcentaje_antiguedad' => (float)($data['porcentaje_bono'] ?? 0),
-                    'total_ganado' => (float)($data['total_ganado'] ?? 0),
-                    'refrigerios_bs' => (float)($data['refrigerio_bs'] ?? 0),
-                    'dias_refrigerio' => (int)($data['dias_refrigerio'] ?? 0),
+                    'haber_basico' => (float) ($data['haber_basico'] ?? 0),
+                    'bono_antiguedad' => (float) ($data['bono_antiguedad'] ?? 0),
+                    'porcentaje_antiguedad' => (float) ($data['porcentaje_bono'] ?? 0),
+                    'total_ganado' => (float) ($data['total_ganado'] ?? 0),
+                    'refrigerios_bs' => (float) ($data['refrigerio_bs'] ?? 0),
+                    'dias_refrigerio' => (int) ($data['dias_refrigerio'] ?? 0),
                 ],
                 'descuentos' => [
-                    'gestora_12_71' => (float)($data['gestora_12_71'] ?? 0),
-                    'minutos_atraso' => (int)($data['minutos_atraso'] ?? 0),
-                    'descuento_atraso' => (float)($data['descuento_atraso'] ?? 0),
-                    'total_descuentos' => (float)($data['total_descuentos'] ?? 0),
+                    'gestora_12_71' => (float) ($data['gestora_12_71'] ?? 0),
+                    'minutos_atraso' => (int) ($data['minutos_atraso'] ?? 0),
+                    'descuento_atraso' => (float) ($data['descuento_atraso'] ?? 0),
+                    'total_descuentos' => (float) ($data['total_descuentos'] ?? 0),
                 ],
-                'liquido_pagable' => (float)($data['liquido_pagable_total'] ?? 0),
+                'liquido_pagable' => (float) ($data['liquido_pagable_total'] ?? 0),
                 'fecha_emision' => now()->format('d/m/Y H:i'),
             ],
         ], Response::HTTP_OK);
@@ -551,7 +558,7 @@ class ReporteRrhhController extends Controller
             'fichaPersonal.datosLaborales',
             'fichaPersonal.cas',
             'asignacionesPuestos.puesto.unidadOrganizacional',
-            'user'
+            'user',
         ]);
 
         if ($search) {
@@ -584,13 +591,13 @@ class ReporteRrhhController extends Controller
                 'unidad_organizacional' => $unidad?->nombre ?? 'Sin Unidad',
                 'tipo_contrato' => $dl?->tipo_funcionario ?? 'PLANTA',
                 'fecha_ingreso' => $dl?->fecha_ingreso ?? ($p->created_at?->format('Y-m-d') ?? ($p->_fecha_creacion ?? date('Y-m-d'))),
-                'anios_cas' => $cas ? (int)$cas->anios : 0,
+                'anios_cas' => $cas ? (int) $cas->anios : 0,
                 'tiene_acceso_erp' => $p->user ? 'SI' : 'NO',
             ];
         });
 
         if ($unidadId) {
-            $padron = $padron->filter(fn($item) => str_contains(strtolower($item['unidad_organizacional']), strtolower((string)$unidadId)));
+            $padron = $padron->filter(fn ($item) => str_contains(strtolower($item['unidad_organizacional']), strtolower((string) $unidadId)));
         }
 
         return response()->json([
@@ -660,18 +667,42 @@ class ReporteRrhhController extends Controller
 
             $fila = ['id' => $p->id];
 
-            if (in_array('nombres', $columnas)) $fila['nombres'] = $p->nombre_completo;
-            if (in_array('ci', $columnas)) $fila['ci'] = $p->nro_documento;
-            if (in_array('genero', $columnas)) $fila['genero'] = $p->genero ?? 'MASCULINO';
-            if (in_array('celular', $columnas)) $fila['celular'] = $p->telefono_celular ?? '-';
-            if (in_array('correo', $columnas)) $fila['correo'] = $p->correo_electronico_personal ?? '-';
-            if (in_array('cargo', $columnas)) $fila['cargo'] = $puesto?->nombre ?? 'Sin Asignar';
-            if (in_array('item', $columnas)) $fila['item'] = $puestoAsig?->nro_item ?? '-';
-            if (in_array('unidad', $columnas)) $fila['unidad'] = $unidad?->nombre ?? 'Sin Unidad';
-            if (in_array('tipo_contrato', $columnas)) $fila['tipo_contrato'] = $dl?->tipo_funcionario ?? 'PLANTA';
-            if (in_array('fecha_ingreso', $columnas)) $fila['fecha_ingreso'] = $dl?->fecha_ingreso ?? '-';
-            if (in_array('anios_cas', $columnas)) $fila['anios_cas'] = $cas ? (int)$cas->anios : 0;
-            if (in_array('formacion', $columnas)) $fila['formacion'] = $estudio ? "{$estudio->nivel_instruccion} ({$estudio->carrera})" : 'No registrada';
+            if (in_array('nombres', $columnas)) {
+                $fila['nombres'] = $p->nombre_completo;
+            }
+            if (in_array('ci', $columnas)) {
+                $fila['ci'] = $p->nro_documento;
+            }
+            if (in_array('genero', $columnas)) {
+                $fila['genero'] = $p->genero ?? 'MASCULINO';
+            }
+            if (in_array('celular', $columnas)) {
+                $fila['celular'] = $p->telefono_celular ?? '-';
+            }
+            if (in_array('correo', $columnas)) {
+                $fila['correo'] = $p->correo_electronico_personal ?? '-';
+            }
+            if (in_array('cargo', $columnas)) {
+                $fila['cargo'] = $puesto?->nombre ?? 'Sin Asignar';
+            }
+            if (in_array('item', $columnas)) {
+                $fila['item'] = $puestoAsig?->nro_item ?? '-';
+            }
+            if (in_array('unidad', $columnas)) {
+                $fila['unidad'] = $unidad?->nombre ?? 'Sin Unidad';
+            }
+            if (in_array('tipo_contrato', $columnas)) {
+                $fila['tipo_contrato'] = $dl?->tipo_funcionario ?? 'PLANTA';
+            }
+            if (in_array('fecha_ingreso', $columnas)) {
+                $fila['fecha_ingreso'] = $dl?->fecha_ingreso ?? '-';
+            }
+            if (in_array('anios_cas', $columnas)) {
+                $fila['anios_cas'] = $cas ? (int) $cas->anios : 0;
+            }
+            if (in_array('formacion', $columnas)) {
+                $fila['formacion'] = $estudio ? "{$estudio->nivel_instruccion} ({$estudio->carrera})" : 'No registrada';
+            }
 
             return $fila;
         });
@@ -706,7 +737,7 @@ class ReporteRrhhController extends Controller
         $unidad = $puesto?->unidadOrganizacional;
         $dl = $persona->fichaPersonal?->datosLaborales?->first();
 
-        $cite = 'CERT-RRHH-' . str_pad((string)$persona->id, 4, '0', STR_PAD_LEFT) . '-' . date('Y');
+        $cite = 'CERT-RRHH-'.str_pad((string) $persona->id, 4, '0', STR_PAD_LEFT).'-'.date('Y');
 
         return response()->json([
             'success' => true,
@@ -724,4 +755,3 @@ class ReporteRrhhController extends Controller
         ], Response::HTTP_OK);
     }
 }
-

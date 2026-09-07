@@ -1,0 +1,111 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Facturacion;
+
+use Carbon\CarbonInterface;
+
+class CufService
+{
+    /**
+     * Algoritmo Módulo 11 oficial del SIN.
+     * Añade el dígito verificador calculado al final de la cadena de entrada.
+     */
+    public function calcularModulo11(string $cadena): string
+    {
+        $mult = 2;
+        $suma = 0;
+        for ($i = strlen($cadena) - 1; $i >= 0; $i--) {
+            $suma += ($mult * (int) $cadena[$i]);
+            if (++$mult > 9) {
+                $mult = 2;
+            }
+        }
+        $dig = $suma % 11;
+        switch ($dig) {
+            case 10:
+                $cadena .= '1';
+                break;
+            case 11:
+                $cadena .= '0';
+                break;
+            default:
+                $cadena .= (string) $dig;
+        }
+        return $cadena;
+    }
+
+    /**
+     * Convierte un número decimal de longitud arbitraria a Hexadecimal en mayúsculas
+     * sin desbordamiento de enteros (reproducción exacta del algoritmo de la ADSIB).
+     */
+    public function dec2hex(string $cadenaDecimal): string
+    {
+        $dec = str_split($cadenaDecimal);
+        $sum = [];
+        $hex = [];
+        while (count($dec) > 0) {
+            $s = 1 * (int) array_shift($dec);
+            for ($i = 0; $s || $i < count($sum); $i++) {
+                $s += (($sum[$i] ?? 0) * 10);
+                $sum[$i] = $s % 16;
+                $s = (int) (($s - $sum[$i]) / 16);
+            }
+        }
+        while (count($sum) > 0) {
+            $hex[] = dechex(array_pop($sum));
+        }
+        return strtoupper(implode('', $hex));
+    }
+
+    /**
+     * Genera el Código Único de Facturación (CUF).
+     *
+     * @param string|int $nitEmisor NIT del emisor (rellenado a 13 dígitos)
+     * @param CarbonInterface|string $fechaHora Timestamp con milisegundos (YYYYMMDDHHmmssSSS)
+     * @param int $sucursal Código de sucursal (rellenado a 4 dígitos)
+     * @param int $modalidad 1 = Electrónica, 2 = Computarizada
+     * @param int $tipoEmision 1 = En Línea, 2 = Fuera de Línea
+     * @param int $tipoFactura 1 = Con Crédito Fiscal
+     * @param int $documentoSector 1 = Compra Venta estándar (rellenado a 2 dígitos)
+     * @param int|string $numeroFactura Número consecutivo de factura (rellenado a 10 dígitos)
+     * @param int $puntoVenta Código de punto de venta (rellenado a 4 dígitos)
+     * @param string $codigoControl Código de control provisto por el CUFD vigente
+     */
+    public function generarCuf(
+        string|int $nitEmisor,
+        $fechaHora,
+        int $sucursal,
+        int $modalidad,
+        int $tipoEmision,
+        int $tipoFactura,
+        int $documentoSector,
+        int|string $numeroFactura,
+        int $puntoVenta,
+        string $codigoControl
+    ): string {
+        $strNit = str_pad((string) $nitEmisor, 13, '0', STR_PAD_LEFT);
+
+        if ($fechaHora instanceof CarbonInterface) {
+            $strFecha = $fechaHora->format('YmdHisv');
+        } else {
+            $strFecha = (string) $fechaHora;
+        }
+
+        $strSucursal = str_pad((string) $sucursal, 4, '0', STR_PAD_LEFT);
+        $strModalidad = (string) $modalidad;
+        $strTipoEmision = (string) $tipoEmision;
+        $strTipoFactura = (string) $tipoFactura;
+        $strDocumentoSector = str_pad((string) $documentoSector, 2, '0', STR_PAD_LEFT);
+        $strNumeroFactura = str_pad((string) $numeroFactura, 10, '0', STR_PAD_LEFT);
+        $strPuntoVenta = str_pad((string) $puntoVenta, 4, '0', STR_PAD_LEFT);
+
+        $cadenaCompleta = "{$strNit}{$strFecha}{$strSucursal}{$strModalidad}{$strTipoEmision}{$strTipoFactura}{$strDocumentoSector}{$strNumeroFactura}{$strPuntoVenta}";
+
+        $cadenaMod11 = $this->calcularModulo11($cadenaCompleta);
+        $hex = $this->dec2hex($cadenaMod11);
+
+        return "{$hex}{$codigoControl}";
+    }
+}

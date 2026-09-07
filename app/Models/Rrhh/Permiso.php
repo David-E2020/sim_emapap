@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 class Permiso extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.permisos';
+
     protected $primaryKey = 'id';
 
     protected $casts = [

@@ -52,10 +52,10 @@ class HorarioController extends Controller
         try {
             $horario = DB::transaction(function () use ($request) {
                 $horario = Horario::create([
-                    'nombre' => strtoupper(trim((string)$request->input('nombre'))),
+                    'nombre' => strtoupper(trim((string) $request->input('nombre'))),
                     'tipo' => $request->input('tipo'),
                     'dias_laborales' => $request->input('dias_laborales', '1,2,3,4,5'),
-                    'tolerancia_minutos' => (int)$request->input('tolerancia_minutos', 10),
+                    'tolerancia_minutos' => (int) $request->input('tolerancia_minutos', 10),
                     '_usuario_creacion' => auth()->id() ?? 1,
                     '_fecha_creacion' => now(),
                 ]);
@@ -74,6 +74,7 @@ class HorarioController extends Controller
                 }
 
                 $this->auditService->log('horario_created', $horario, $horario->toArray());
+
                 return $horario->load('periodos');
             });
 
@@ -84,6 +85,7 @@ class HorarioController extends Controller
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar horario', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al registrar horario.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -135,10 +137,10 @@ class HorarioController extends Controller
 
         try {
             DB::transaction(function () use ($request) {
-                $idHorario = (int)$request->input('id_horario');
+                $idHorario = (int) $request->input('id_horario');
                 $fechaInicio = $request->input('fecha_inicio');
                 $fechaFin = $request->input('fecha_fin');
-                $permanente = (bool)$request->input('permanente', true);
+                $permanente = (bool) $request->input('permanente', true);
 
                 foreach ($request->input('personas_ids') as $idPersona) {
                     // Desactivar asignación anterior activa si existe
@@ -167,6 +169,7 @@ class HorarioController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al asignar horario', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al asignar horario.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

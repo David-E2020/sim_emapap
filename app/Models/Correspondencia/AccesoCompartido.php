@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AccesoCompartido extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.accesos_compartidos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

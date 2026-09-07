@@ -28,64 +28,82 @@ class CorrespondenciaMenuAndPermissionsSeeder extends Seeder
         // 2. Submódulos de Correspondencia (100% Cobertura Londra)
         $submodulos = [
             [
+                'label' => 'Dashboard y Métricas',
+                'route' => 'correspondencia_dashboard',
+                'icon' => 'mdi-view-dashboard-outline',
+                'order' => 1,
+            ],
+            [
                 'label' => 'Bandeja de Hojas de Ruta',
                 'route' => 'correspondencia_hojas_ruta',
                 'icon' => 'mdi-inbox-multiple',
-                'order' => 1,
+                'order' => 2,
             ],
             [
                 'label' => 'Redacción de Documentos',
                 'route' => 'correspondencia_documentos',
                 'icon' => 'mdi-file-document-edit-outline',
-                'order' => 2,
+                'order' => 3,
             ],
             [
                 'label' => 'Firmas y Aprobaciones',
                 'route' => 'correspondencia_firmas',
                 'icon' => 'mdi-draw-pen',
-                'order' => 3,
+                'order' => 4,
             ],
             [
                 'label' => 'Seguimiento y Trazabilidad',
                 'route' => 'correspondencia_seguimiento',
                 'icon' => 'mdi-timeline-text-outline',
-                'order' => 4,
+                'order' => 5,
             ],
             [
                 'label' => 'Visor de Expediente 360°',
                 'route' => 'correspondencia_visor_expediente',
                 'icon' => 'mdi-folder-open-outline',
-                'order' => 5,
+                'order' => 6,
             ],
             [
                 'label' => 'Ventanilla Única',
                 'route' => 'correspondencia_ventanilla',
                 'icon' => 'mdi-domain-plus',
-                'order' => 6,
+                'order' => 7,
             ],
             [
                 'label' => 'Despacho y Salida Externa',
                 'route' => 'correspondencia_despacho_salida',
                 'icon' => 'mdi-truck-delivery-outline',
-                'order' => 7,
+                'order' => 8,
             ],
             [
                 'label' => 'Solicitudes Ciudadanas',
                 'route' => 'correspondencia_solicitudes_ciudadanas',
                 'icon' => 'mdi-account-voice',
-                'order' => 8,
+                'order' => 9,
             ],
             [
                 'label' => 'Etiquetas y Carpetas',
                 'route' => 'correspondencia_etiquetas',
                 'icon' => 'mdi-tag-multiple-outline',
-                'order' => 9,
+                'order' => 10,
             ],
             [
-                'label' => 'Configuración y CITEs',
-                'route' => 'correspondencia_configuracion',
-                'icon' => 'mdi-cog-sync-outline',
-                'order' => 10,
+                'label' => 'Matriz de Derivaciones',
+                'route' => 'correspondencia_permisos',
+                'icon' => 'mdi-shield-account-outline',
+                'order' => 11,
+            ],
+            [
+                'label' => 'Plantillas y Diseñador PDF',
+                'route' => 'correspondencia_plantillas',
+                'icon' => 'mdi-file-document-edit-outline',
+                'order' => 12,
+            ],
+            [
+                'label' => 'Transferencias de Bandeja',
+                'route' => 'correspondencia_transferencias',
+                'icon' => 'mdi-account-switch-outline',
+                'order' => 13,
             ],
         ];
 
@@ -120,6 +138,7 @@ class CorrespondenciaMenuAndPermissionsSeeder extends Seeder
 
         // 4. Permisos Spatie Granulares
         $permisosData = [
+            ['name' => 'correspondencia.dashboard.ver', 'module' => 'Dashboard', 'description' => 'Ver métricas e indicadores de gestión'],
             ['name' => 'correspondencia.hojas_ruta.ver', 'module' => 'Hojas de Ruta', 'description' => 'Ver bandejas de entrada, salida y archivados'],
             ['name' => 'correspondencia.hojas_ruta.crear', 'module' => 'Hojas de Ruta', 'description' => 'Generar nuevas hojas de ruta y trámites'],
             ['name' => 'correspondencia.hojas_ruta.derivar', 'module' => 'Hojas de Ruta', 'description' => 'Derivar expedientes con proveídos oficiales'],
@@ -133,6 +152,7 @@ class CorrespondenciaMenuAndPermissionsSeeder extends Seeder
             ['name' => 'correspondencia.despachos.administrar', 'module' => 'Despacho Salida', 'description' => 'Gestionar envíos físicos y acuses de recibo'],
             ['name' => 'correspondencia.solicitudes.administrar', 'module' => 'Solicitudes Ciudadanas', 'description' => 'Admitir o rechazar trámites ciudadanos web'],
             ['name' => 'correspondencia.etiquetas.administrar', 'module' => 'Etiquetas', 'description' => 'Crear y asignar etiquetas personales'],
+            ['name' => 'correspondencia.transferencias.ejecutar', 'module' => 'Transferencias', 'description' => 'Reasignar bandejas y expedientes entre funcionarios'],
             ['name' => 'correspondencia.configuracion.administrar', 'module' => 'Configuración Correspondencia', 'description' => 'Gestionar plantillas, correlativos y proveídos'],
         ];
 

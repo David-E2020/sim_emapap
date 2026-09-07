@@ -5,41 +5,51 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Correspondencia;
 
 use App\Http\Controllers\Controller;
-use App\Models\Correspondencia\Derivacion;
 use App\Models\Correspondencia\HojaRuta;
 use App\Services\Correspondencia\DerivacionWorkflowService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\Response;
 
 class SeguimientoController extends Controller
 {
-    protected DerivacionWorkflowService $workflowService;
-
-    public function __construct(DerivacionWorkflowService $workflowService)
-    {
-        $this->workflowService = $workflowService;
-    }
+    public function __construct(
+        protected readonly DerivacionWorkflowService $workflowService
+    ) {}
 
     /**
-     * Obtener el Timeline cronológico y el árbol de derivaciones de una Hoja de Ruta
+     * Obtener el Timeline cronológico, árbol genealógico y anexos de una Hoja de Ruta (LONDRA EXACT ENGINE)
      */
-    public function timeline(int $id): JsonResponse
+    public function timeline(int|string $id): JsonResponse
     {
-        $hojaRuta = HojaRuta::with([
+        $query = HojaRuta::with([
             'unidadOrigen',
             'personaOrigen',
             'cargoOrigen',
             'entidadExterna',
-            'documentos',
+            'documentos.firmasAprobaciones.persona',
             'derivaciones.funcionarioOrigen',
             'derivaciones.cargoOrigen',
             'derivaciones.unidadOrigen',
             'derivaciones.funcionarioDestino',
             'derivaciones.cargoDestino',
             'derivaciones.unidadDestino',
-        ])->findOrFail($id);
+            'agrupaciones.hojaRutaAnexada',
+            'archivosAdjuntos',
+        ]);
+
+        if (is_numeric($id)) {
+            $hojaRuta = $query->find((int) $id);
+        } else {
+            $hojaRuta = $query->where('nro_hoja_ruta', trim((string) $id))->first();
+        }
+
+        if (! $hojaRuta) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Expediente no encontrado.',
+            ], Response::HTTP_NOT_FOUND);
+        }
 
         $eventos = [];
 
@@ -64,8 +74,16 @@ class SeguimientoController extends Controller
         ];
 
         // 2. Eventos de cada derivación
-        foreach ($hojaRuta->derivaciones as $der) {
+        foreach ($hojaRuta->derivaciones->sortBy('id') as $der) {
             $semaforo = $this->workflowService->calcularSemaforo($der);
+
+            $color = match ($der->estado_derivacion) {
+                'DEVUELTO_OBSERVADO' => 'orange',
+                'ANULADO' => 'red',
+                'RECIBIDO' => 'teal',
+                'PROCESADO' => 'green',
+                default => 'blue',
+            };
 
             $eventos[] = [
                 'tipo' => 'DERIVACION',
@@ -82,15 +100,21 @@ class SeguimientoController extends Controller
                 'fecha_formateada' => Carbon::parse($der->fecha_derivacion)->format('d/m/Y H:i'),
                 'fecha_recepcion' => $der->fecha_recepcion ? Carbon::parse($der->fecha_recepcion)->format('d/m/Y H:i') : null,
                 'fecha_atencion' => $der->fecha_atencion ? Carbon::parse($der->fecha_atencion)->format('d/m/Y H:i') : null,
-                'icono' => $der->estado_derivacion === 'RECIBIDO' ? 'mdi-account-arrow-right' : ($der->estado_derivacion === 'PROCESADO' ? 'mdi-check-circle' : 'mdi-clock-outline'),
-                'color' => $semaforo['color'],
+                'icono' => match ($der->estado_derivacion) {
+                    'RECIBIDO' => 'mdi-inbox-check-outline',
+                    'DEVUELTO_OBSERVADO' => 'mdi-undo-variant',
+                    'ANULADO' => 'mdi-cancel',
+                    default => 'mdi-send-clock-outline',
+                },
+                'color' => $color,
                 'semaforo' => $semaforo,
-                'es_copia' => $der->es_copia,
+                'es_copia' => (bool) $der->es_copia,
+                'mpath' => $der->mpath,
             ];
         }
 
         // 3. Evento de conclusión si aplica
-        if ($hojaRuta->estado === 'CONCLUIDO' && $hojaRuta->fecha_cierre) {
+        if ($hojaRuta->estado === 'CERRADO' && $hojaRuta->fecha_cierre) {
             $eventos[] = [
                 'tipo' => 'CONCLUIDO',
                 'titulo' => 'Expediente Concluido y Archivado',
@@ -98,7 +122,7 @@ class SeguimientoController extends Controller
                 'fecha' => Carbon::parse($hojaRuta->fecha_cierre)->toIso8601String(),
                 'fecha_formateada' => Carbon::parse($hojaRuta->fecha_cierre)->format('d/m/Y H:i'),
                 'icono' => 'mdi-archive-check',
-                'color' => 'success',
+                'color' => 'teal',
             ];
         }
 
@@ -109,5 +133,13 @@ class SeguimientoController extends Controller
                 'timeline' => $eventos,
             ],
         ], Response::HTTP_OK);
+    }
+
+    /**
+     * Consulta pública de seguimiento para ciudadanos y usuarios externos
+     */
+    public function publico(string $codigo): JsonResponse
+    {
+        return $this->timeline($codigo);
     }
 }

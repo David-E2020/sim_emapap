@@ -33,13 +33,15 @@ class Menu extends Model
     public function getIconMdiAttribute()
     {
         $icon = $this->attributes['icon'] ?? '';
+
         return Str::kebab($icon);
     }
 
     public function getIconMenuAttribute()
     {
         $icon = $this->attributes['icon'] ?? '';
-        return 'icons.' . $icon;
+
+        return 'icons.'.$icon;
     }
 
     public function subMenuN1()

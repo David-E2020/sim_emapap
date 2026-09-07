@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 class Gestion extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.gestiones';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

@@ -3,9 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Menu;
-use App\Models\MenuRol;
 use App\Models\Rol;
-use App\Models\RolUser;
 use App\Models\User;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -13,6 +11,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class RolTest extends TestCase
 {
     protected $token;
+
     protected $admin;
 
     protected function setUp(): void
@@ -27,7 +26,7 @@ class RolTest extends TestCase
      */
     public function test_listar_roles()
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson('/api/rol');
 
         $response->assertStatus(200);
@@ -40,8 +39,8 @@ class RolTest extends TestCase
     public function test_crud_rol()
     {
         // 1. Crear nuevo rol
-        $rolNombre = 'Rol Temporal ' . time();
-        $responseCreate = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $rolNombre = 'Rol Temporal '.time();
+        $responseCreate = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/rol', [
                 'name' => $rolNombre,
             ]);
@@ -50,9 +49,9 @@ class RolTest extends TestCase
         $rolId = $responseCreate->json('id');
 
         // 2. Actualizar rol
-        $nuevoNombre = $rolNombre . ' Editado';
-        $responseUpdate = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->putJson('/api/rol/' . $rolId, [
+        $nuevoNombre = $rolNombre.' Editado';
+        $responseUpdate = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->putJson('/api/rol/'.$rolId, [
                 'name' => $nuevoNombre,
             ]);
 
@@ -60,8 +59,8 @@ class RolTest extends TestCase
         $this->assertEquals($nuevoNombre, $responseUpdate->json('name'));
 
         // 3. Eliminar rol no asignado
-        $responseDelete = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->deleteJson('/api/rol/' . $rolId);
+        $responseDelete = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->deleteJson('/api/rol/'.$rolId);
 
         $responseDelete->assertStatus(200);
     }
@@ -74,7 +73,7 @@ class RolTest extends TestCase
         $menu = Menu::first();
         $rol = Rol::first();
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/menu-rol', [
                 'menu_id' => $menu->id,
                 'rol_id' => $rol->id,

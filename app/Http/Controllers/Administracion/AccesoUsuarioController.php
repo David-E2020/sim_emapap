@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Administracion;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Audit\AuditService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -29,7 +30,7 @@ class AccesoUsuarioController extends Controller
     public function guardar_acceso_usuario(Request $request): JsonResponse
     {
         try {
-            $userId = (int)$request->input('user_id');
+            $userId = (int) $request->input('user_id');
             $user = User::findOrFail($userId);
 
             $this->auditService->log(
@@ -40,22 +41,22 @@ class AccesoUsuarioController extends Controller
 
             return response()->json([
                 'success' => true,
-                'mensaje' => 'Permisos y accesos de módulos guardados correctamente para ' . $user->usr_usuario
+                'mensaje' => 'Permisos y accesos de módulos guardados correctamente para '.$user->usr_usuario,
             ], Response::HTTP_OK);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        } catch (ModelNotFoundException) {
             return response()->json([
                 'success' => false,
-                'mensaje' => 'Usuario no encontrado'
+                'mensaje' => 'Usuario no encontrado',
             ], Response::HTTP_NOT_FOUND);
         } catch (\Throwable $ex) {
             Log::error('Error al guardar acceso de usuario', [
                 'user_id' => $request->input('user_id'),
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'mensaje' => 'Error interno al guardar los accesos del usuario.'
+                'mensaje' => 'Error interno al guardar los accesos del usuario.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

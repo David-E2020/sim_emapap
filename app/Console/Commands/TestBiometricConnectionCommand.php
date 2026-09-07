@@ -32,19 +32,19 @@ class TestBiometricConnectionCommand extends Command
      */
     public function handle(ZkBiometricService $biometricService): int
     {
-        $ip = (string)$this->argument('ip');
-        $port = (int)$this->option('port');
-        $timeout = (float)$this->option('timeout');
-        $iterations = (int)$this->option('stress-iterations');
+        $ip = (string) $this->argument('ip');
+        $port = (int) $this->option('port');
+        $timeout = (float) $this->option('timeout');
+        $iterations = (int) $this->option('stress-iterations');
 
-        $this->info("=========================================================");
-        $this->info("🏢 DIAGNÓSTICO DE RED Y RESILIENCIA PARA HARDWARE BIOMÉTRICO");
-        $this->info("=========================================================");
+        $this->info('=========================================================');
+        $this->info('🏢 DIAGNÓSTICO DE RED Y RESILIENCIA PARA HARDWARE BIOMÉTRICO');
+        $this->info('=========================================================');
         $this->line("📍 Destino: <fg=yellow>{$ip}:{$port}</>");
         $this->line("⏱️  Timeout por intento: <fg=yellow>{$timeout}s</>");
         $this->line("🔄 Iteraciones de estrés: <fg=yellow>{$iterations}</>\n");
 
-        $this->info("1️⃣  Fase 1: Prueba de Conectividad de Socket Rápido (Non-blocking probe)");
+        $this->info('1️⃣  Fase 1: Prueba de Conectividad de Socket Rápido (Non-blocking probe)');
         $successfulPings = 0;
         $latencies = [];
 
@@ -64,7 +64,7 @@ class TestBiometricConnectionCommand extends Command
         }
 
         $this->newLine();
-        $this->info("📊 Estadísticas de Conectividad:");
+        $this->info('📊 Estadísticas de Conectividad:');
         $packetLoss = round((($iterations - $successfulPings) / $iterations) * 100, 1);
         $avgLatency = count($latencies) > 0 ? round(array_sum($latencies) / count($latencies), 2) : 0;
 
@@ -79,15 +79,15 @@ class TestBiometricConnectionCommand extends Command
         );
 
         $this->newLine();
-        $this->info("2️⃣  Fase 2: Prueba de Protección ante Desconexión Física y Timeout");
+        $this->info('2️⃣  Fase 2: Prueba de Protección ante Desconexión Física y Timeout');
         if ($successfulPings === 0) {
             $this->warn("⚠️  El dispositivo está desconectado físicamente o la IP {$ip} no responde.");
             $this->line("✔ <fg=green>Comprobación de Seguridad APROBADA:</> El sistema abortó la petición de forma segura en <fg=cyan>{$elapsedMs} ms</> sin congelar los workers de PHP-FPM ni la cola de procesos.");
         } else {
-            $this->info("3️⃣  Fase 3: Intento de Extracción e Idempotencia (SHA-256)");
+            $this->info('3️⃣  Fase 3: Intento de Extracción e Idempotencia (SHA-256)');
             try {
                 $logs = $biometricService->getAttendanceLogs($ip, $port, $timeout);
-                $this->line("✔ <fg=green>Handshake exitoso.</> Marcaciones recuperadas: <fg=cyan>" . $logs->count() . "</>");
+                $this->line('✔ <fg=green>Handshake exitoso.</> Marcaciones recuperadas: <fg=cyan>'.$logs->count().'</>');
 
                 if ($logs->isNotEmpty()) {
                     $sample = $logs->first();
@@ -96,14 +96,14 @@ class TestBiometricConnectionCommand extends Command
                     $this->line("  - Huella SHA-256 (Idempotencia): <fg=yellow>{$sample['fingerprint_hash']}</>");
                 }
             } catch (\Throwable $e) {
-                $this->error("✘ Error en protocolo ZK: " . $e->getMessage());
+                $this->error('✘ Error en protocolo ZK: '.$e->getMessage());
             }
         }
 
         $this->newLine();
-        $this->info("=========================================================");
-        $this->info("✔ Diagnóstico de hardware concluido.");
-        $this->info("=========================================================");
+        $this->info('=========================================================');
+        $this->info('✔ Diagnóstico de hardware concluido.');
+        $this->info('=========================================================');
 
         return Command::SUCCESS;
     }

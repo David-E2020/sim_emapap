@@ -6,8 +6,6 @@ namespace App\Http\Controllers\Correspondencia;
 
 use App\Http\Controllers\Controller;
 use App\Models\Correspondencia\DespachoSalida;
-use App\Models\Correspondencia\Documento;
-use App\Models\Correspondencia\HojaRuta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -24,7 +22,7 @@ class DespachoSalidaController extends Controller
             $query->where('estado_despacho', $estado);
         }
 
-        $despachos = $query->orderBy('id', 'desc')->paginate((int)$request->input('per_page', 25));
+        $despachos = $query->orderBy('id', 'desc')->paginate((int) $request->input('per_page', 25));
 
         return response()->json([
             'success' => true,
@@ -59,7 +57,7 @@ class DespachoSalidaController extends Controller
             'id_hoja_ruta' => $request->input('id_hoja_ruta'),
             'id_documento' => $request->input('id_documento'),
             'tipo_despacho' => $request->input('tipo_despacho'),
-            'destinatario_institucion' => strtoupper(trim((string)$request->input('destinatario_institucion'))),
+            'destinatario_institucion' => strtoupper(trim((string) $request->input('destinatario_institucion'))),
             'destinatario_persona' => $request->input('destinatario_persona'),
             'destinatario_direccion' => $request->input('destinatario_direccion'),
             'destinatario_ciudad' => $request->input('destinatario_ciudad', 'La Paz'),

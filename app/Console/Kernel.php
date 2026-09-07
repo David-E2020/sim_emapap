@@ -19,12 +19,19 @@ class Kernel extends ConsoleKernel
     /**
      * Define the application's command schedule.
      *
-     * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // 1. Renovación diaria obligatoria del CUFD antes del inicio de jornada comercial
+        $schedule->command('facturacion:renovar-cufd')
+            ->dailyAt('00:01')
+            ->appendOutputTo(storage_path('logs/siat_cufd.log'));
+
+        // 2. Sincronización diaria de catálogos paramétricos del SIAT
+        $schedule->command('facturacion:sincronizar-catalogos')
+            ->dailyAt('04:00')
+            ->appendOutputTo(storage_path('logs/siat_catalogos.log'));
     }
 
     /**

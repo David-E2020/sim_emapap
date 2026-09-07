@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Horario extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.horarios';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

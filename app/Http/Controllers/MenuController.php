@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Menu;
 use App\Models\MenuRol;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -13,34 +14,34 @@ class MenuController extends Controller
     /**
      * Display a listing of the resource.
      *
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
     public function index()
     {
-        $menus = Menu::with(['subMenuN1' => function($query){
+        $menus = Menu::with(['subMenuN1' => function ($query) {
             $query->orderBy('order', 'asc');
         }])->where('menu_id', '=', null)->orderBy('order', 'asc')->get();
+
         return $menus;
     }
 
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
     public function store(Request $request)
     {
         $input = $request->all();
+
         return Menu::create($input);
     }
 
     /**
      * Update the specified resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
     public function update(Request $request, $id)
     {
@@ -50,6 +51,7 @@ class MenuController extends Controller
         $menu->icon = $input['icon'];
         $menu->route = $input['route'];
         $menu->save();
+
         return $menu;
     }
 
@@ -57,7 +59,7 @@ class MenuController extends Controller
      * Remove the specified resource from storage.
      *
      * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
     public function destroy($id)
     {
@@ -65,25 +67,28 @@ class MenuController extends Controller
         $total = count($menu_);
 
         if ($total != 0) {
-            $result = array(
+            $result = [
                 'code' => 406,
-                'message' => "El menú tiene submenús asignados"
-            );
+                'message' => 'El menú tiene submenús asignados',
+            ];
+
             return response()->json($result, 406);
         } else {
             $menuRol_ = MenuRol::where('menu_id', $id)->get();
             $totalMenuRol = count($menuRol_);
 
             if ($totalMenuRol != 0) {
-                $result = array(
+                $result = [
                     'code' => 406,
-                    'message' => "El menú está asignado a un rol"
-                );
+                    'message' => 'El menú está asignado a un rol',
+                ];
+
                 return response()->json($result, 406);
             } else {
                 $menu = Menu::find($id);
                 $menu->delete();
-                return "delete";
+
+                return 'delete';
             }
         }
     }
@@ -116,18 +121,18 @@ class MenuController extends Controller
     public function getPermisosSubmenu($id)
     {
         $menu = Menu::find($id);
-        if (!$menu) {
+        if (! $menu) {
             return response()->json(['permisos' => []]);
         }
 
         // Mapeo automático de ruta a prefijo de permiso
         $prefix = $this->getPrefixFromRoute($menu->route);
-        $allPermissions = Permission::where('name', 'like', $prefix . '%')->get();
+        $allPermissions = Permission::where('name', 'like', $prefix.'%')->get();
 
         return response()->json([
             'menu' => $menu,
             'prefix' => $prefix,
-            'permisos' => $allPermissions
+            'permisos' => $allPermissions,
         ]);
     }
 
@@ -142,17 +147,17 @@ class MenuController extends Controller
         ]);
 
         $menu = Menu::find($request->menu_id);
-        if (!$menu) {
+        if (! $menu) {
             return response()->json(['success' => false, 'message' => 'Submenú no encontrado'], 404);
         }
 
         $prefix = $this->getPrefixFromRoute($menu->route);
         $cleanAction = strtolower(trim(str_replace(' ', '_', $request->nombre_accion)));
-        $permissionName = $prefix . '.' . $cleanAction;
+        $permissionName = $prefix.'.'.$cleanAction;
 
         $permission = Permission::firstOrCreate([
             'name' => $permissionName,
-            'guard_name' => 'api'
+            'guard_name' => 'api',
         ]);
 
         // Asignar automáticamente al Administrador General
@@ -164,7 +169,7 @@ class MenuController extends Controller
         return response()->json([
             'success' => true,
             'permiso' => $permission,
-            'message' => 'Permiso granular creado correctamente'
+            'message' => 'Permiso granular creado correctamente',
         ]);
     }
 

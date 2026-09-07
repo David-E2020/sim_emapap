@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 class Nivel extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.niveles';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

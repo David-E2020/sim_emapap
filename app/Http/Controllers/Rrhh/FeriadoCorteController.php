@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Rrhh\Departamento;
 use App\Models\Rrhh\Feriado;
 use App\Services\Audit\AuditService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,7 @@ class FeriadoCorteController extends Controller
 
     public function listarFeriados(Request $request): JsonResponse
     {
-        $anio = (int)$request->query('anio', date('Y'));
+        $anio = (int) $request->query('anio', date('Y'));
         $feriados = Feriado::with('departamento')
             ->where('anio', $anio)
             ->where('_estado', 'ACTIVO')
@@ -61,12 +62,12 @@ class FeriadoCorteController extends Controller
 
         try {
             $feriado = Feriado::create([
-                'nombre' => strtoupper(trim((string)$request->input('nombre'))),
-                'dia' => (int)$request->input('dia'),
-                'mes' => (int)$request->input('mes'),
-                'dia_feriado' => (int)$request->input('dia'),
-                'anio' => (int)$request->input('anio'),
-                'es_feriado_nacional' => (bool)$request->input('es_feriado_nacional', true),
+                'nombre' => strtoupper(trim((string) $request->input('nombre'))),
+                'dia' => (int) $request->input('dia'),
+                'mes' => (int) $request->input('mes'),
+                'dia_feriado' => (int) $request->input('dia'),
+                'anio' => (int) $request->input('anio'),
+                'es_feriado_nacional' => (bool) $request->input('es_feriado_nacional', true),
                 'id_departamento' => $request->input('es_feriado_nacional') ? null : $request->input('id_departamento'),
                 '_usuario_creacion' => auth()->id() ?? 1,
                 '_fecha_creacion' => now(),
@@ -79,6 +80,7 @@ class FeriadoCorteController extends Controller
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar feriado', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al registrar feriado.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -115,15 +117,15 @@ class FeriadoCorteController extends Controller
         }
 
         try {
-            $gestion = (int)($request->input('gestion') ?: $request->input('anio', date('Y')));
-            $inicio = \Carbon\Carbon::parse($request->input('fecha_inicio'));
-            $fin = \Carbon\Carbon::parse($request->input('fecha_fin'));
+            $gestion = (int) ($request->input('gestion') ?: $request->input('anio', date('Y')));
+            $inicio = Carbon::parse($request->input('fecha_inicio'));
+            $fin = Carbon::parse($request->input('fecha_fin'));
 
             DB::table('rrhh.fechas_cortes')->insert([
-                'mes' => (int)$request->input('mes'),
+                'mes' => (int) $request->input('mes'),
                 'gestion' => $gestion,
-                'dia_inicio' => (int)$inicio->day,
-                'dia_fin' => (int)$fin->day,
+                'dia_inicio' => (int) $inicio->day,
+                'dia_fin' => (int) $fin->day,
                 'fecha_inicio' => $request->input('fecha_inicio'),
                 'fecha_fin' => $request->input('fecha_fin'),
                 '_estado' => 'ACTIVO',
@@ -138,6 +140,7 @@ class FeriadoCorteController extends Controller
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al configurar fecha corte', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al registrar fecha de corte.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

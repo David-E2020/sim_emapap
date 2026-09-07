@@ -28,14 +28,14 @@ class RrhhIntegrationTest extends TestCase
 
     public function test_can_create_persona_and_attendance_flow(): void
     {
-        $ciTest = 'CI-' . uniqid();
+        $ciTest = 'CI-'.uniqid();
         $persona = Persona::create([
             'nombres' => 'JUAN CARLOS',
             'primer_apellido' => 'PEREZ',
             'segundo_apellido' => 'MAMANI',
             'nro_documento' => $ciTest,
             'telefono_celular' => '71234567',
-            'correo_electronico_personal' => 'juan.perez.' . uniqid() . '@emapa.gob.bo',
+            'correo_electronico_personal' => 'juan.perez.'.uniqid().'@emapa.gob.bo',
             'genero' => 'MASCULINO',
         ]);
 

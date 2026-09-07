@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Correspondencia;
 
 use App\Http\Controllers\Controller;
-use App\Models\Correspondencia\AgrupacionHojaRuta;
-use App\Models\Correspondencia\Derivacion;
 use App\Models\Correspondencia\Documento;
 use App\Models\Correspondencia\HojaRuta;
 use App\Models\Rrhh\Persona;
@@ -15,43 +13,37 @@ use App\Services\Correspondencia\CiteGeneratorService;
 use App\Services\Correspondencia\DerivacionWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\Response;
 
 class HojaRutaController extends Controller
 {
-    protected CiteGeneratorService $citeService;
-    protected DerivacionWorkflowService $workflowService;
-    protected CaratulaPdfService $caratulaService;
-
     public function __construct(
-        CiteGeneratorService $citeService,
-        DerivacionWorkflowService $workflowService,
-        CaratulaPdfService $caratulaService
-    ) {
-        $this->citeService = $citeService;
-        $this->workflowService = $workflowService;
-        $this->caratulaService = $caratulaService;
-    }
+        protected readonly CiteGeneratorService $citeService,
+        protected readonly DerivacionWorkflowService $workflowService,
+        protected readonly CaratulaPdfService $caratulaService
+    ) {}
 
     /**
-     * Listar Hojas de Ruta con filtros por bandeja (ENTRADA, SALIDA, AGRUPADOS, ARCHIVADOS, TODOS)
+     * Listar Hojas de Ruta con filtros por bandeja (ENTRADA, SALIDA, AGRUPADOS, ARCHIVADOS, TODOS) - LONDRA REVERSE ENGINEERED
      */
     public function index(Request $request): JsonResponse
     {
-        $bandeja = strtoupper((string)$request->input('bandeja', 'ENTRADA'));
-        $busqueda = trim((string)$request->input('q', ''));
+        $bandeja = strtoupper((string) $request->input('bandeja', 'ENTRADA'));
+        $busqueda = trim((string) $request->input('q', ''));
         $prioridad = $request->input('prioridad');
-        $idPersona = auth()->user()?->id_persona ?: (int)$request->input('id_persona', 1);
+        $user = auth()->user();
+        $idPersona = $user?->usr_externo_id ?: ($user?->id_persona ?: ($request->filled('id_persona') ? (int) $request->input('id_persona') : (Persona::first()?->id ?? 1)));
 
         $query = HojaRuta::with([
             'unidadOrigen',
             'personaOrigen',
             'cargoOrigen',
             'documentos',
+            'derivaciones.funcionarioOrigen',
             'derivaciones.funcionarioDestino',
             'derivaciones.unidadDestino',
+            'agrupaciones.hojaRutaAnexada',
         ])->where('_estado', 'ACTIVO');
 
         if ($busqueda) {
@@ -62,33 +54,63 @@ class HojaRutaController extends Controller
             });
         }
 
-        if ($prioridad) {
+        if ($prioridad && $prioridad !== 'TODAS') {
             $query->where('prioridad', $prioridad);
         }
 
         if ($bandeja === 'ENTRADA') {
-            $query->whereHas('derivaciones', function ($q) use ($idPersona) {
-                $q->where('id_funcionario_destino', $idPersona)
-                    ->whereIn('estado_derivacion', ['PENDIENTE_RECEPCION', 'RECIBIDO']);
-            });
+            $query->where('estado', '!=', 'CERRADO')
+                ->where('estado', '!=', 'ANULADO')
+                ->where('estado', '!=', 'AGRUPADO')
+                ->whereHas('derivaciones', function ($q) use ($idPersona) {
+                    $q->where('id_funcionario_destino', $idPersona)
+                        ->where('_estado', 'ACTIVO')
+                        ->whereIn('estado_derivacion', ['PENDIENTE_RECEPCION', 'RECIBIDO']);
+                });
         } elseif ($bandeja === 'SALIDA') {
             $query->whereHas('derivaciones', function ($q) use ($idPersona) {
-                $q->where('id_funcionario_origen', $idPersona);
+                $q->where('id_funcionario_origen', $idPersona)
+                    ->where('_estado', 'ACTIVO');
             });
         } elseif ($bandeja === 'ARCHIVADOS') {
-            $query->where('estado', 'ARCHIVADO');
+            $query->where('estado', 'CERRADO');
         } elseif ($bandeja === 'AGRUPADOS') {
-            $query->whereHas('agrupaciones');
+            $query->where(function ($q) {
+                $q->where('estado', 'AGRUPADO')->orWhereHas('agrupaciones', function ($qa) {
+                    $qa->where('_estado', 'ACTIVO');
+                });
+            });
         }
 
-        $hojasRuta = $query->orderBy('id', 'desc')->paginate((int)$request->input('per_page', 25));
+        $hojasRuta = $query->orderBy('id', 'desc')->paginate((int) $request->input('per_page', 25));
 
         $hojasRuta->getCollection()->transform(function ($hr) use ($idPersona) {
-            $ultimaDerivacion = $hr->derivaciones->sortByDesc('id')->first();
+            $ultimaDerivacion = $hr->derivaciones->where('_estado', 'ACTIVO')->sortByDesc('id')->first();
+            $miDerivacion = $hr->derivaciones->where('id_funcionario_destino', $idPersona)->where('_estado', 'ACTIVO')->sortByDesc('id')->first();
+
             $hr->semaforo = $ultimaDerivacion ? $this->workflowService->calcularSemaforo($ultimaDerivacion) : null;
-            $hr->mi_derivacion = $hr->derivaciones->where('id_funcionario_destino', $idPersona)->sortByDesc('id')->first();
+            $hr->mi_derivacion = $miDerivacion;
+            $hr->acciones_permitidas = $this->workflowService->calcularAccionesPermitidas($hr, $idPersona, $miDerivacion);
+
             return $hr;
         });
+
+        // Contadores para pestañas
+        $totalEntrada = HojaRuta::where('_estado', 'ACTIVO')
+            ->where('estado', '!=', 'CERRADO')
+            ->where('estado', '!=', 'ANULADO')
+            ->where('estado', '!=', 'AGRUPADO')
+            ->whereHas('derivaciones', function ($q) use ($idPersona) {
+                $q->where('id_funcionario_destino', $idPersona)
+                    ->where('_estado', 'ACTIVO')
+                    ->whereIn('estado_derivacion', ['PENDIENTE_RECEPCION', 'RECIBIDO']);
+            })->count();
+
+        $totalSalida = HojaRuta::where('_estado', 'ACTIVO')
+            ->whereHas('derivaciones', function ($q) use ($idPersona) {
+                $q->where('id_funcionario_origen', $idPersona)
+                    ->where('_estado', 'ACTIVO');
+            })->count();
 
         return response()->json([
             'success' => true,
@@ -97,12 +119,41 @@ class HojaRutaController extends Controller
                 'total' => $hojasRuta->total(),
                 'current_page' => $hojasRuta->currentPage(),
                 'last_page' => $hojasRuta->lastPage(),
+                'total_entrada' => $totalEntrada,
+                'total_salida' => $totalSalida,
             ],
         ], Response::HTTP_OK);
     }
 
     /**
-     * Crear una nueva Hoja de Ruta institucional
+     * Bandeja de Hojas de Ruta (Alias para endpoint de bandeja)
+     */
+    public function bandeja(Request $request): JsonResponse
+    {
+        return $this->index($request);
+    }
+
+    /**
+     * Consultar acciones permitidas en una Hoja de Ruta
+     */
+    public function accionesPermitidas(Request $request, int $id): JsonResponse
+    {
+        $hr = HojaRuta::with(['derivaciones'])->findOrFail($id);
+        $idPersona = auth()->user()?->id_persona ?: (int) $request->input('id_persona', 1);
+        $miDerivacion = $hr->derivaciones->where('id_funcionario_destino', $idPersona)->where('_estado', 'ACTIVO')->sortByDesc('id')->first();
+        $acciones = $this->workflowService->calcularAccionesPermitidas($hr, $idPersona, $miDerivacion);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'acciones' => $acciones,
+                'hoja_ruta' => $hr,
+            ],
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Crear una nueva Hoja de Ruta institucional (LONDRA: Creación y Derivación Inicial)
      */
     public function store(Request $request): JsonResponse
     {
@@ -124,34 +175,39 @@ class HojaRutaController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $idPersonaOrigen = $request->input('id_persona_origen', auth()->user()?->id_persona ?: 1);
+        $idPersonaOrigen = (int) $request->input('id_persona_origen', auth()->user()?->id_persona ?: 1);
 
         $cite = $this->citeService->generarCiteHojaRuta(
-            $request->input('id_regional'),
-            (int)date('Y')
+            $request->input('id_regional') ? (int) $request->input('id_regional') : null,
+            (int) date('Y')
         );
 
         $hojaRuta = HojaRuta::create([
             'nro_hoja_ruta' => $cite,
-            'gestion' => (int)date('Y'),
+            'gestion' => (int) date('Y'),
             'tipo_hr' => $request->input('tipo_hr', 'INTERNA'),
             'origen' => $request->input('origen', 'INTERNO'),
-            'asunto' => strtoupper(trim((string)$request->input('asunto'))),
+            'asunto' => strtoupper(trim((string) $request->input('asunto'))),
             'referencia' => $request->input('referencia'),
             'prioridad' => $request->input('prioridad', 'MEDIA'),
-            'confidencial' => (bool)$request->input('confidencial', false),
-            'nro_fojas' => (int)$request->input('nro_fojas', 1),
-            'nro_anexos' => (int)$request->input('nro_anexos', 0),
+            'confidencial' => (bool) $request->input('confidencial', false),
+            'nro_fojas' => (int) $request->input('nro_fojas', 1),
+            'nro_anexos' => (int) $request->input('nro_anexos', 0),
             'id_unidad_origen' => $request->input('id_unidad_origen'),
             'id_persona_origen' => $idPersonaOrigen,
             'id_cargo_origen' => $request->input('id_cargo_origen'),
             'remitente_externo' => $request->input('remitente_externo'),
             'id_ventanilla_origen' => $request->input('id_ventanilla_origen'),
-            'estado' => 'NUEVO',
+            'estado' => 'CREADO',
             'fecha_solicitud' => now(),
+            '_estado' => 'ACTIVO',
+            '_transaccion' => 'CREAR',
             '_usuario_creacion' => auth()->id() ?? 1,
             '_fecha_creacion' => now(),
         ]);
@@ -161,7 +217,12 @@ class HojaRutaController extends Controller
             if ($doc) {
                 $doc->id_hoja_ruta = $hojaRuta->id;
                 $doc->save();
-                $hojaRuta->documentos()->attach($doc->id, ['es_documento_principal' => true]);
+                $hojaRuta->documentos()->attach($doc->id, [
+                    'es_documento_principal' => true,
+                    '_estado' => 'ACTIVO',
+                    '_usuario_creacion' => auth()->id() ?? 1,
+                    '_fecha_creacion' => now(),
+                ]);
             }
         }
 
@@ -174,7 +235,7 @@ class HojaRutaController extends Controller
                 'id_cargo_origen' => $hojaRuta->id_cargo_origen,
                 'proveido' => $request->input('proveido', 'PASE A SUS EFECTOS'),
                 'instruccion_detalle' => $request->input('instruccion_detalle'),
-                'dias_plazo' => (int)$request->input('dias_plazo', 2),
+                'dias_plazo' => (int) $request->input('dias_plazo', 2),
                 'prioridad' => $hojaRuta->prioridad,
                 'destinatarios' => $request->input('destinatarios'),
             ]);
@@ -189,6 +250,7 @@ class HojaRutaController extends Controller
 
     public function show(int $id): JsonResponse
     {
+        $idPersona = auth()->user()?->id_persona ?: 1;
         $hojaRuta = HojaRuta::with([
             'unidadOrigen',
             'personaOrigen',
@@ -205,7 +267,13 @@ class HojaRutaController extends Controller
             'agrupaciones.hojaRutaAnexada',
         ])->findOrFail($id);
 
-        return response()->json(['success' => true, 'data' => $hojaRuta], Response::HTTP_OK);
+        $miDerivacion = $hojaRuta->derivaciones->where('id_funcionario_destino', $idPersona)->where('_estado', 'ACTIVO')->sortByDesc('id')->first();
+        $hojaRuta->acciones_permitidas = $this->workflowService->calcularAccionesPermitidas($hojaRuta, $idPersona, $miDerivacion);
+
+        return response()->json([
+            'success' => true,
+            'data' => $hojaRuta,
+        ], Response::HTTP_OK);
     }
 
     public function caratula(int $id): Response
@@ -221,31 +289,34 @@ class HojaRutaController extends Controller
         ])->findOrFail($id);
 
         $html = $this->caratulaService->renderCaratulaHtml($hojaRuta);
+
         return response($html, Response::HTTP_OK)->header('Content-Type', 'text/html; charset=utf-8');
     }
 
     public function cerrar(Request $request, int $id): JsonResponse
     {
-        $hojaRuta = HojaRuta::findOrFail($id);
-        $hojaRuta->estado = 'CONCLUIDO';
-        $hojaRuta->fecha_cierre = now();
-        $hojaRuta->id_usuario_cierre = auth()->id() ?? 1;
-        $hojaRuta->motivo_cierre = $request->input('motivo_cierre', 'Trámite finalizado y atendido.');
-        $hojaRuta->save();
+        $idPersona = auth()->user()?->id_persona ?: 1;
+        $motivo = (string) $request->input('motivo_cierre', 'Trámite finalizado y atendido a satisfacción.');
+        $hojaRuta = $this->workflowService->cerrarHojaRuta($id, $idPersona, $motivo);
 
-        return response()->json(['success' => true, 'message' => 'Hoja de ruta concluida exitosamente.', 'data' => $hojaRuta], Response::HTTP_OK);
+        return response()->json([
+            'success' => true,
+            'message' => 'Hoja de ruta concluida y archivada exitosamente.',
+            'data' => $hojaRuta,
+        ], Response::HTTP_OK);
     }
 
     public function reabrir(Request $request, int $id): JsonResponse
     {
-        $hojaRuta = HojaRuta::findOrFail($id);
-        $hojaRuta->estado = 'EN_PROCESO';
-        $hojaRuta->fecha_reapertura = now();
-        $hojaRuta->id_usuario_reapertura = auth()->id() ?? 1;
-        $hojaRuta->motivo_reapertura = $request->input('motivo_reapertura', 'Reapertura para diligencias complementarias.');
-        $hojaRuta->save();
+        $idPersona = auth()->user()?->id_persona ?: 1;
+        $motivo = (string) $request->input('motivo_reapertura', 'Reapertura de trámite para diligencias complementarias.');
+        $hojaRuta = $this->workflowService->reabrirHojaRuta($id, $idPersona, $motivo);
 
-        return response()->json(['success' => true, 'message' => 'Hoja de ruta reabierta exitosamente.', 'data' => $hojaRuta], Response::HTTP_OK);
+        return response()->json([
+            'success' => true,
+            'message' => 'Hoja de ruta reabierta exitosamente.',
+            'data' => $hojaRuta,
+        ], Response::HTTP_OK);
     }
 
     public function agrupar(Request $request): JsonResponse
@@ -253,29 +324,39 @@ class HojaRutaController extends Controller
         $validator = Validator::make($request->all(), [
             'id_hoja_ruta_principal' => 'required|integer|exists:App\Models\Correspondencia\HojaRuta,id',
             'id_hoja_ruta_anexada' => 'required|integer|exists:App\Models\Correspondencia\HojaRuta,id|different:id_hoja_ruta_principal',
-            'motivo' => 'required|string|max:500',
+            'motivo' => 'nullable|string|max:500',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $agrupacion = AgrupacionHojaRuta::create([
-            'id_hoja_ruta_principal' => $request->input('id_hoja_ruta_principal'),
-            'id_hoja_ruta_anexada' => $request->input('id_hoja_ruta_anexada'),
-            'motivo_agrupacion' => $request->input('motivo'),
-            'fecha_agrupacion' => now(),
-            'id_usuario_agrupacion' => auth()->id() ?? 1,
-            '_usuario_creacion' => auth()->id() ?? 1,
-            '_fecha_creacion' => now(),
-        ]);
+        $idPersona = auth()->user()?->id_persona ?: 1;
+        $agrupacion = $this->workflowService->agrupar(
+            (int) $request->input('id_hoja_ruta_principal'),
+            (int) $request->input('id_hoja_ruta_anexada'),
+            $idPersona,
+            $request->input('motivo')
+        );
 
-        $hrAnexada = HojaRuta::find($request->input('id_hoja_ruta_anexada'));
-        if ($hrAnexada) {
-            $hrAnexada->id_hoja_ruta_padre = $request->input('id_hoja_ruta_principal');
-            $hrAnexada->save();
-        }
+        return response()->json([
+            'success' => true,
+            'message' => 'Expedientes agrupados exitosamente.',
+            'data' => $agrupacion,
+        ], Response::HTTP_CREATED);
+    }
 
-        return response()->json(['success' => true, 'message' => 'Expedientes agrupados exitosamente.', 'data' => $agrupacion], Response::HTTP_CREATED);
+    public function desagrupar(Request $request, int $id): JsonResponse
+    {
+        $idPersona = auth()->user()?->id_persona ?: 1;
+        $this->workflowService->desagrupar($id, $idPersona);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Hoja de ruta desagrupada exitosamente.',
+        ], Response::HTTP_OK);
     }
 }

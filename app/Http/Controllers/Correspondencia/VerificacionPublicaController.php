@@ -25,11 +25,11 @@ class VerificacionPublicaController extends Controller
             'plantilla',
             'firmasAprobaciones.persona',
         ])
-        ->where('codigo_verificacion', strtoupper(trim($codigo)))
-        ->orWhere('cite', strtoupper(trim($codigo)))
-        ->first();
+            ->where('codigo_verificacion', strtoupper(trim($codigo)))
+            ->orWhere('cite', strtoupper(trim($codigo)))
+            ->first();
 
-        if (!$doc) {
+        if (! $doc) {
             return response()->json([
                 'success' => false,
                 'message' => 'El código de verificación o CITE no corresponde a ningún documento oficial emitido por EMAPA.',
@@ -70,10 +70,10 @@ class VerificacionPublicaController extends Controller
      */
     public function verificarHojaRuta(Request $request): JsonResponse
     {
-        $cite = trim((string)$request->input('cite', ''));
+        $cite = trim((string) $request->input('cite', ''));
         $hojaRuta = HojaRuta::with(['unidadOrigen', 'personaOrigen'])->where('nro_hoja_ruta', $cite)->first();
 
-        if (!$hojaRuta) {
+        if (! $hojaRuta) {
             return response()->json(['success' => false, 'message' => 'Hoja de ruta no encontrada.'], Response::HTTP_NOT_FOUND);
         }
 

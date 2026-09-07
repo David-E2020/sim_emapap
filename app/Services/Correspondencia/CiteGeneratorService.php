@@ -17,12 +17,12 @@ class CiteGeneratorService
      */
     public function generarCiteHojaRuta(?int $idRegional = null, ?int $gestion = null): string
     {
-        $gestion = $gestion ?: (int)date('Y');
+        $gestion = $gestion ?: (int) date('Y');
         $siglaRegional = 'NAL';
 
         if ($idRegional) {
             $reg = Regional::find($idRegional);
-            if ($reg && !empty($reg->sigla)) {
+            if ($reg && ! empty($reg->sigla)) {
                 $siglaRegional = strtoupper(trim($reg->sigla));
             }
         }
@@ -34,7 +34,7 @@ class CiteGeneratorService
                 ->lockForUpdate()
                 ->first();
 
-            if (!$correlativo) {
+            if (! $correlativo) {
                 $correlativo = Correlativo::create([
                     'gestion' => $gestion,
                     'tipo_correlativo' => 'HOJA_RUTA',
@@ -52,7 +52,8 @@ class CiteGeneratorService
             $correlativo->_fecha_modificacion = now();
             $correlativo->save();
 
-            $nroPad = str_pad((string)$nuevoNro, 4, '0', STR_PAD_LEFT);
+            $nroPad = str_pad((string) $nuevoNro, 4, '0', STR_PAD_LEFT);
+
             return "HR-EMAPA-{$siglaRegional}-{$nroPad}/{$gestion}";
         });
     }
@@ -62,11 +63,11 @@ class CiteGeneratorService
      */
     public function generarCiteDocumento(int $idUnidad, string $siglaPlantilla, ?int $gestion = null): string
     {
-        $gestion = $gestion ?: (int)date('Y');
+        $gestion = $gestion ?: (int) date('Y');
         $siglaPlantilla = strtoupper(trim($siglaPlantilla));
 
         $unidad = UnidadOrganizacional::find($idUnidad);
-        $siglaUnidad = $unidad && !empty($unidad->sigla) ? strtoupper(trim($unidad->sigla)) : 'ORG';
+        $siglaUnidad = $unidad && ! empty($unidad->sigla) ? strtoupper(trim($unidad->sigla)) : 'ORG';
 
         return DB::transaction(function () use ($gestion, $idUnidad, $siglaPlantilla, $siglaUnidad) {
             $correlativo = Correlativo::where('gestion', $gestion)
@@ -76,7 +77,7 @@ class CiteGeneratorService
                 ->lockForUpdate()
                 ->first();
 
-            if (!$correlativo) {
+            if (! $correlativo) {
                 $correlativo = Correlativo::create([
                     'gestion' => $gestion,
                     'tipo_correlativo' => 'DOCUMENTO',
@@ -95,7 +96,8 @@ class CiteGeneratorService
             $correlativo->_fecha_modificacion = now();
             $correlativo->save();
 
-            $nroPad = str_pad((string)$nuevoNro, 3, '0', STR_PAD_LEFT);
+            $nroPad = str_pad((string) $nuevoNro, 3, '0', STR_PAD_LEFT);
+
             return "EMAPA/{$siglaUnidad}/{$siglaPlantilla}/{$nroPad}/{$gestion}";
         });
     }

@@ -4,14 +4,14 @@ use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
 
 header('Content-Type: application/json; charset=utf-8');
-header("Content-Type: application/xml; charset=utf-8");
-header("Content-Type: application/html; charset=utf-8");
-header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
-header("Cache-Control: no-store, no-cache, must-revalidate");
-header("Cache-Control: post-check=0, pre-check=0", false);
-header("Pragma: no-cache");
+header('Content-Type: application/xml; charset=utf-8');
+header('Content-Type: application/html; charset=utf-8');
+header('Last-Modified: '.gmdate('D, d M Y H:i:s').' GMT');
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
 header('X-Content-Type-Options: nosniff');
-header("X-Frame-Options: SAMEORIGIN");
+header('X-Frame-Options: SAMEORIGIN');
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: application/json; charset = UTF-8');
 header('Access-Control-Allow-Methods: GET, POST, PATCH, PUT, DELETE, OPTIONS');
@@ -29,8 +29,8 @@ define('LARAVEL_START', microtime(true));
 |
  */
 
-if (file_exists(__DIR__ . '/../storage/framework/maintenance.php')) {
-	require __DIR__ . '/../storage/framework/maintenance.php';
+if (file_exists(__DIR__.'/../storage/framework/maintenance.php')) {
+    require __DIR__.'/../storage/framework/maintenance.php';
 }
 
 /*
@@ -44,7 +44,7 @@ if (file_exists(__DIR__ . '/../storage/framework/maintenance.php')) {
 |
  */
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__.'/../vendor/autoload.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -57,12 +57,12 @@ require __DIR__ . '/../vendor/autoload.php';
 |
  */
 
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
 
 $kernel = $app->make(Kernel::class);
 
 $response = tap($kernel->handle(
-	$request = Request::capture()
+    $request = Request::capture()
 ))->send();
 
 $kernel->terminate($request, $response);

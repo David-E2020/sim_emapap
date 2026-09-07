@@ -2,20 +2,22 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Permission\Traits\HasRoles;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 class User extends Authenticatable implements JWTSubject
 {
-    use Notifiable;
     use HasRoles;
+    use Notifiable;
     use SoftDeletes;
 
     protected $table = 'users';
+
     protected $primaryKey = 'id';
+
     protected $guard_name = 'api';
 
     /**
@@ -76,7 +78,7 @@ class User extends Authenticatable implements JWTSubject
         return [];
     }
 
-    # Relación Rol User
+    // Relación Rol User
     public function rolPersmisos()
     {
         return $this->hasOne(RolUser::class, 'usuario_id', 'id');

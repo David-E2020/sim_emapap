@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class FichaPersonal extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.fichas_personales';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

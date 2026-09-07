@@ -18,6 +18,7 @@ use Illuminate\Support\Str;
 class SolicitudCiudadanaController extends Controller
 {
     protected CiteGeneratorService $citeService;
+
     protected DerivacionWorkflowService $workflowService;
 
     public function __construct(CiteGeneratorService $citeService, DerivacionWorkflowService $workflowService)
@@ -35,7 +36,7 @@ class SolicitudCiudadanaController extends Controller
             $query->where('estado_solicitud', $estado);
         }
 
-        $solicitudes = $query->orderBy('id', 'desc')->paginate((int)$request->input('per_page', 25));
+        $solicitudes = $query->orderBy('id', 'desc')->paginate((int) $request->input('per_page', 25));
 
         return response()->json([
             'success' => true,
@@ -66,12 +67,12 @@ class SolicitudCiudadanaController extends Controller
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $codigo = 'SOL-' . strtoupper(Str::random(8));
+        $codigo = 'SOL-'.strtoupper(Str::random(8));
 
         $solicitud = SolicitudCiudadana::create([
             'codigo_solicitud' => $codigo,
-            'solicitante_nombre' => strtoupper(trim((string)$request->input('solicitante_nombre'))),
-            'solicitante_ci_nit' => trim((string)$request->input('solicitante_ci_nit')),
+            'solicitante_nombre' => strtoupper(trim((string) $request->input('solicitante_nombre'))),
+            'solicitante_ci_nit' => trim((string) $request->input('solicitante_ci_nit')),
             'solicitante_telefono' => $request->input('solicitante_telefono'),
             'solicitante_correo' => $request->input('solicitante_correo'),
             'tipo_solicitud' => $request->input('tipo_solicitud'),
@@ -106,14 +107,14 @@ class SolicitudCiudadanaController extends Controller
         }
 
         $solicitud = SolicitudCiudadana::findOrFail($id);
-        $cite = $this->citeService->generarCiteHojaRuta(null, (int)date('Y'));
+        $cite = $this->citeService->generarCiteHojaRuta(null, (int) date('Y'));
 
         $hojaRuta = HojaRuta::create([
             'nro_hoja_ruta' => $cite,
-            'gestion' => (int)date('Y'),
+            'gestion' => (int) date('Y'),
             'tipo_hr' => 'EXTERNA',
             'origen' => 'VENTANILLA_DIGITAL',
-            'asunto' => "SOLICITUD CIUDADANA ({$solicitud->codigo_solicitud}): " . substr($solicitud->descripcion_solicitud, 0, 300),
+            'asunto' => "SOLICITUD CIUDADANA ({$solicitud->codigo_solicitud}): ".substr($solicitud->descripcion_solicitud, 0, 300),
             'remitente_externo' => "{$solicitud->solicitante_nombre} (CI: {$solicitud->solicitante_ci_nit})",
             'prioridad' => 'MEDIA',
             'estado' => 'EN_PROCESO',
@@ -127,13 +128,13 @@ class SolicitudCiudadanaController extends Controller
             'id_hoja_ruta' => $hojaRuta->id,
             'proveido' => $request->input('proveido', 'PARA SU ATENCIÓN Y RESPUESTA'),
             'instruccion_detalle' => 'Trámite digital ingresado por Portal Ciudadano.',
-            'dias_plazo' => (int)$request->input('dias_plazo', 3),
+            'dias_plazo' => (int) $request->input('dias_plazo', 3),
             'destinatarios' => [
                 [
                     'id_unidad_destino' => $request->input('id_unidad_destino'),
                     'id_funcionario_destino' => $request->input('id_funcionario_destino'),
                     'es_copia' => false,
-                ]
+                ],
             ],
         ]);
 

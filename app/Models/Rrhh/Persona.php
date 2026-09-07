@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Persona extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.personas';
+
     protected $primaryKey = 'id';
 
     protected $appends = ['nombre_completo'];

@@ -4,80 +4,82 @@ namespace App\Http\Controllers;
 
 use App\Models\MenuRol;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
-class MenuRolController extends Controller {
-	/**
-	 * Display a listing of the resource.
-	 *
-	 * @return \Illuminate\Http\Response
-	 */
+class MenuRolController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     *
+     * @return Response
+     */
+    public function index()
+    {
+        //
+    }
 
-	public function index() {
-		//
-	}
+    /**
+     * Store a newly created resource in storage.
+     *
+     * @return Response
+     */
+    public function store(Request $request)
+    {
 
-	/**
-	 * Store a newly created resource in storage.
-	 *
-	 * @param  \Illuminate\Http\Request  $request
-	 * @return \Illuminate\Http\Response
-	 */
+        $input = $request->all();
+        $menuId = $input['menu_id'];
+        $rolId = $input['rol_id'];
 
-	public function store(Request $request) {
+        $menuRol_ = MenuRol::where('menu_id', $menuId)->where('rol_id', $rolId)->first();
 
-		$input = $request->all();
-		$menuId = $input['menu_id'];
-		$rolId = $input['rol_id'];
+        if ($menuRol_ != null) {
+            $estadoCheck = $menuRol_->check;
 
-		$menuRol_ = MenuRol::where('menu_id', $menuId)->where('rol_id', $rolId)->first();
+            if (! $estadoCheck) {
+                $menuRol_->check = true;
+            } else {
+                $menuRol_->check = false;
+            }
+            $menuRol_->save();
 
-		if ($menuRol_ != null) {
-			$estadoCheck = $menuRol_->check;
+            return $menuRol_;
+        } else {
+            $rol = MenuRol::create($input);
 
-			if (!$estadoCheck) {
-				$menuRol_->check = true;
-			} else {
-				$menuRol_->check = false;
-			}
-			$menuRol_->save();
-			return $menuRol_;
-		} else {
-			$rol = MenuRol::create($input);
-			return $rol;
-		}
-	}
+            return $rol;
+        }
+    }
 
-	/**
-	 * Display the specified resource.
-	 *
-	 * @param  int  $id
-	 * @return \Illuminate\Http\Response
-	 */
+    /**
+     * Display the specified resource.
+     *
+     * @param  int  $id
+     * @return Response
+     */
+    public function show($id)
+    {
+        //
+    }
 
-	public function show($id) {
-		//
-	}
+    /**
+     * Update the specified resource in storage.
+     *
+     * @param  int  $id
+     * @return Response
+     */
+    public function update(Request $request, $id)
+    {
+        //
+    }
 
-	/**
-	 * Update the specified resource in storage.
-	 *
-	 * @param  \Illuminate\Http\Request  $request
-	 * @param  int  $id
-	 * @return \Illuminate\Http\Response
-	 */
-
-	public function update(Request $request, $id) {
-		//
-	}
-
-	/**
-	 * Remove the specified resource from storage.
-	 *
-	 * @param  int  $id
-	 * @return \Illuminate\Http\Response
-	 */
-
-	public function destroy($id) {
-		//
-	}
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  int  $id
+     * @return Response
+     */
+    public function destroy($id)
+    {
+        //
+    }
 }

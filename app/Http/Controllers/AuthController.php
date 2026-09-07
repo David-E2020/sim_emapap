@@ -41,7 +41,7 @@ class AuthController extends Controller
         try {
             $token = JWTAuth::attempt($credentials);
 
-            if (!$token) {
+            if (! $token) {
                 $this->auditService->log(
                     event: 'auth_login_failed',
                     newValues: ['username_attempted' => $credentials['usr_usuario']]

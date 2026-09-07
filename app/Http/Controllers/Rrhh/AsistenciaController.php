@@ -11,7 +11,6 @@ use App\Services\Biometrics\ZkBiometricService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response;
 
 class AsistenciaController extends Controller
@@ -23,8 +22,9 @@ class AsistenciaController extends Controller
     public function listarBiometricos(): JsonResponse
     {
         $biometricos = Biometrico::orderBy('id')->get()->map(function ($b) {
-            $isOnline = $this->biometricService->pingDevice($b->url, (int)$b->puerto, 0.5);
+            $isOnline = $this->biometricService->pingDevice($b->url, (int) $b->puerto, 0.5);
             $b->is_online = $isOnline;
+
             return $b;
         });
 
@@ -37,7 +37,7 @@ class AsistenciaController extends Controller
     public function probarConexion(int $id): JsonResponse
     {
         $biometrico = Biometrico::findOrFail($id);
-        $isOnline = $this->biometricService->pingDevice($biometrico->url, (int)$biometrico->puerto, 1.5);
+        $isOnline = $this->biometricService->pingDevice($biometrico->url, (int) $biometrico->puerto, 1.5);
 
         return response()->json([
             'success' => true,
@@ -62,9 +62,10 @@ class AsistenciaController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al sincronizar reloj biometrico', ['id' => $id, 'exception' => $ex->getMessage()]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Fallo al sincronizar con el reloj: ' . $ex->getMessage(),
+                'message' => 'Fallo al sincronizar con el reloj: '.$ex->getMessage(),
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -97,6 +98,7 @@ class AsistenciaController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al calcular asistencia', ['fecha' => $fecha, 'exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al calcular asistencia.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

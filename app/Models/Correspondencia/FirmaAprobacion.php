@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class FirmaAprobacion extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.firmas_aprobaciones';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

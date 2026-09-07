@@ -20,10 +20,10 @@ class AdminAccessMiddleware
     {
         $user = Auth::guard('api')->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'status' => 'unauthorized',
-                'message' => 'No autenticado.'
+                'message' => 'No autenticado.',
             ], Response::HTTP_UNAUTHORIZED);
         }
 
@@ -33,7 +33,7 @@ class AdminAccessMiddleware
                               'SIGP',
                               'admin.usuarios.ver',
                               'admin.menus.ver',
-                              'admin.control_acceso.ver'
+                              'admin.control_acceso.ver',
                           ]);
 
         // 2. Verificación de rol activo en tabla pivote
@@ -41,10 +41,10 @@ class AdminAccessMiddleware
             ->where('estado', true)
             ->exists();
 
-        if (!$hasSpatieAdmin && !$hasActiveRolUser) {
+        if (! $hasSpatieAdmin && ! $hasActiveRolUser) {
             return response()->json([
                 'status' => 'forbidden',
-                'message' => 'Acceso denegado. Se requieren permisos de administración.'
+                'message' => 'Acceso denegado. Se requieren permisos de administración.',
             ], Response::HTTP_FORBIDDEN);
         }
 

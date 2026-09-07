@@ -14,7 +14,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Derivacion extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.derivaciones';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

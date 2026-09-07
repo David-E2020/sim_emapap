@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class ParticipanteDocumento extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.participantes_documentos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

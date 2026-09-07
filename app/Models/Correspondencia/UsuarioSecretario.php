@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class UsuarioSecretario extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.usuarios_secretarios';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ExperienciaLaboral extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.experiencias_laborales';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

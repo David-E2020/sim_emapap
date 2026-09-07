@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Correspondencia;
 use App\Http\Controllers\Controller;
 use App\Models\Correspondencia\Etiqueta;
 use App\Models\Correspondencia\EtiquetaParticipante;
-use App\Models\Correspondencia\HojaRuta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,6 +18,7 @@ class EtiquetaController extends Controller
     {
         $idUsuario = auth()->id() ?? 1;
         $etiquetas = Etiqueta::where('id_usuario', $idUsuario)->where('_estado', 'ACTIVO')->get();
+
         return response()->json(['success' => true, 'data' => $etiquetas], Response::HTTP_OK);
     }
 
@@ -34,13 +34,17 @@ class EtiquetaController extends Controller
         }
 
         $idUsuario = auth()->id() ?? 1;
-        $etiqueta = Etiqueta::create([
-            'nombre' => strtoupper(trim((string)$request->input('nombre'))),
-            'color' => $request->input('color', '#1976D2'),
-            'id_usuario' => $idUsuario,
-            '_usuario_creacion' => $idUsuario,
-            '_fecha_creacion' => now(),
-        ]);
+        $etiqueta = Etiqueta::firstOrCreate(
+            [
+                'nombre' => strtoupper(trim((string) $request->input('nombre'))),
+                'id_usuario' => $idUsuario,
+            ],
+            [
+                'color' => $request->input('color', '#1976D2'),
+                '_usuario_creacion' => $idUsuario,
+                '_fecha_creacion' => now(),
+            ]
+        );
 
         return response()->json(['success' => true, 'message' => 'Etiqueta creada.', 'data' => $etiqueta], Response::HTTP_CREATED);
     }

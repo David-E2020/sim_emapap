@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Feriado extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.feriados';
+
     protected $primaryKey = 'id';
 
     protected $casts = [

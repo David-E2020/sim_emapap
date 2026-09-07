@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class EstudioAcademico extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.estudios_academicos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

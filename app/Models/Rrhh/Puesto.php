@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Puesto extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.puestos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [
@@ -35,5 +37,12 @@ class Puesto extends Model
     public function asignaciones(): HasMany
     {
         return $this->hasMany(AsignacionPuesto::class, 'id_puesto', 'id');
+    }
+
+    public function asignacionesActivas(): HasMany
+    {
+        return $this->hasMany(AsignacionPuesto::class, 'id_puesto', 'id')
+            ->where('_estado', 'ACTIVO')
+            ->whereNull('fecha_fin');
     }
 }

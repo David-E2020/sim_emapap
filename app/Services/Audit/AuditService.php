@@ -13,12 +13,11 @@ class AuditService
     /**
      * Registra un evento inmutable en el registro de auditoría.
      *
-     * @param string $event Nombre del evento (e.g. 'role_assigned', 'user_revoked', 'param_deleted')
-     * @param Model|null $model Modelo afectado (si aplica)
-     * @param array|null $oldValues Valores anteriores
-     * @param array|null $newValues Nuevos valores establecidos
-     * @param int|null $userId ID del usuario ejecutor (default: usuario autenticado)
-     * @return AuditLog
+     * @param  string  $event  Nombre del evento (e.g. 'role_assigned', 'user_revoked', 'param_deleted')
+     * @param  Model|null  $model  Modelo afectado (si aplica)
+     * @param  array|null  $oldValues  Valores anteriores
+     * @param  array|null  $newValues  Nuevos valores establecidos
+     * @param  int|null  $userId  ID del usuario ejecutor (default: usuario autenticado)
      */
     public function log(
         string $event,

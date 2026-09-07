@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SolicitudSalida extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.solicitudes_salidas';
+
     protected $primaryKey = 'id';
 
     protected $casts = [

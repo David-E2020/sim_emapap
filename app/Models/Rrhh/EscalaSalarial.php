@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class EscalaSalarial extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.escalas_salariales';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [
@@ -31,12 +33,12 @@ class EscalaSalarial extends Model
 
     public function getSalarioMensualAttribute(): float
     {
-        return (float)($this->attributes['salario'] ?? 0);
+        return (float) ($this->attributes['salario'] ?? 0);
     }
 
     public function setSalarioMensualAttribute($value): void
     {
-        $this->attributes['salario'] = (float)$value;
+        $this->attributes['salario'] = (float) $value;
     }
 
     public function puestos(): HasMany

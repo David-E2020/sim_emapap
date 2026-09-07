@@ -13,6 +13,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class RrhhPopulationAndReportingTest extends TestCase
 {
     protected string $token;
+
     protected User $admin;
 
     protected function setUp(): void
@@ -27,7 +28,7 @@ class RrhhPopulationAndReportingTest extends TestCase
      */
     public function test_padron_personal_and_organizational_hierarchy(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson('/api/rrhh/reportes/padron-personal');
 
         $response->assertStatus(200)
@@ -50,10 +51,10 @@ class RrhhPopulationAndReportingTest extends TestCase
      */
     public function test_calculo_planilla_sueldos_mensual(): void
     {
-        $mes = (int)date('m');
-        $anio = (int)date('Y');
+        $mes = (int) date('m');
+        $anio = (int) date('Y');
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson("/api/rrhh/reportes/planilla-sueldos?mes={$mes}&anio={$anio}");
 
         $response->assertStatus(200)
@@ -93,7 +94,7 @@ class RrhhPopulationAndReportingTest extends TestCase
             ->delete();
 
         // 1. Cerrar y Declarar Planilla
-        $responseCierre = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $responseCierre = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/rrhh/reportes/cerrar-declarar-planilla', [
                 'mes' => $mes,
                 'anio' => $anio,
@@ -106,7 +107,7 @@ class RrhhPopulationAndReportingTest extends TestCase
             ]);
 
         // 2. Consultar nuevamente y verificar que devuelve el snapshot inmutable congelado
-        $responseConsulta = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $responseConsulta = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson("/api/rrhh/reportes/planilla-sueldos?mes={$mes}&anio={$anio}");
 
         $responseConsulta->assertStatus(200)
@@ -126,7 +127,7 @@ class RrhhPopulationAndReportingTest extends TestCase
         $persona = Persona::where('nro_documento', '4892104')->first();
         $this->assertNotNull($persona);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson("/api/rrhh/reportes/boleta-pago/{$persona->id}/html");
 
         $response->assertStatus(200)
@@ -151,7 +152,7 @@ class RrhhPopulationAndReportingTest extends TestCase
         $persona = Persona::where('nro_documento', '3928105')->first();
         $this->assertNotNull($persona);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson("/api/rrhh/reportes/certificado-trabajo/{$persona->id}/html");
 
         $response->assertStatus(200)
@@ -171,7 +172,7 @@ class RrhhPopulationAndReportingTest extends TestCase
      */
     public function test_generador_reportes_personalizados(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/rrhh/reportes/generar-personalizado', [
                 'columnas' => ['nombres', 'ci', 'cargo', 'unidad', 'tipo_contrato', 'anios_cas'],
                 'tipo_contrato' => 'PLANTA',

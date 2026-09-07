@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AsignacionPuesto extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.asignaciones_puestos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

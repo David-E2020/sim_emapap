@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class UsuarioVentanilla extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.usuarios_ventanilla';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

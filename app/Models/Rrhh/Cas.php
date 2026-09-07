@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Cas extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.cas';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

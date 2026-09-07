@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\AuditLog;
-use App\Models\Parametrica;
 use App\Models\User;
 use App\Services\Administracion\ParametricaService;
 use App\Services\Administracion\UserAccessService;
 use App\Services\Biometrics\ZkBiometricService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class EnterpriseArchitectureTest extends TestCase

@@ -8,8 +8,8 @@
             <v-icon color="white">mdi-file-document-edit-outline</v-icon>
           </v-avatar>
           <div>
-            <h2 class="text-h5 font-weight-bold mb-0">Redacción de Documentos</h2>
-            <span class="text-caption text-secondary">Elaboración de memorándums, informes técnicos, circulares y notas oficiales</span>
+            <h2 class="text-h5 font-weight-bold mb-0">Gestión de Documentos Oficiales</h2>
+            <span class="text-caption text-secondary">Redacción, revisión secuencial (VIA -> DE), firmas electrónicas y emisión oficial (Estándar Londra)</span>
           </div>
         </div>
 
@@ -21,9 +21,20 @@
       </div>
     </v-card>
 
-    <!-- LISTADO DE DOCUMENTOS -->
-    <v-card rounded="lg" class="erp-card-elevated pa-4">
-      <v-row dense class="mb-3" align="center">
+    <!-- TABS DE BANDEJA DOCUMENTAL (LONDRA) -->
+    <v-card rounded="lg" class="mb-5 erp-card-elevated">
+      <v-tabs v-model="tabActual" background-color="transparent" color="indigo" grow @change="cargarDocumentos">
+        <v-tab><v-icon left small>mdi-file-account-outline</v-icon> Mis Documentos</v-tab>
+        <v-tab><v-icon left small>mdi-file-clock-outline</v-icon> En Revisión</v-tab>
+        <v-tab><v-icon left small>mdi-file-check-outline</v-icon> Firmados / Aprobados</v-tab>
+        <v-tab><v-icon left small>mdi-file-alert-outline</v-icon> Observados</v-tab>
+        <v-tab><v-icon left small>mdi-file-multiple-outline</v-icon> Todos</v-tab>
+      </v-tabs>
+    </v-card>
+
+    <!-- FILTROS Y BÚSQUEDA -->
+    <v-card rounded="lg" class="mb-5 pa-4 erp-card-elevated">
+      <v-row dense align="center">
         <v-col cols="12" md="6">
           <v-text-field
             v-model="busqueda"
@@ -34,12 +45,13 @@
             hide-details
             clearable
             @keyup.enter="cargarDocumentos"
+            @click:clear="cargarDocumentos"
           ></v-text-field>
         </v-col>
         <v-col cols="12" md="3">
           <v-select
             v-model="filtroTipo"
-            :items="['TODOS', 'MEMORANDUM', 'INFORME_TECNICO', 'NOTA_INTERNA', 'CIRCULAR', 'CARTA_EXTERNA']"
+            :items="['TODOS', 'MEMORANDUM', 'INFORME_TECNICO', 'NOTA_INTERNA', 'CIRCULAR', 'CARTA_EXTERNA', 'RESOLUCION']"
             label="Tipo Documento"
             dense
             outlined
@@ -54,7 +66,10 @@
           <v-btn icon color="secondary" @click="limpiarFiltros"><v-icon>mdi-refresh</v-icon></v-btn>
         </v-col>
       </v-row>
+    </v-card>
 
+    <!-- LISTADO DE DOCUMENTOS -->
+    <v-card rounded="lg" class="erp-card-elevated pa-4">
       <v-data-table
         :headers="headers"
         :items="documentos"
@@ -67,10 +82,11 @@
         <template v-slot:item.cite="{ item }">
           <div class="py-2">
             <v-chip label small color="indigo lighten-5" text-color="indigo" class="font-weight-bold mb-1">
+              <v-icon left x-small>mdi-file-certificate-outline</v-icon>
               {{ item.cite }}
             </v-chip>
-            <div class="text-caption text-secondary" style="font-family: monospace;">
-              Token QR: {{ item.codigo_verificacion }}
+            <div class="text-caption text-secondary font-italic" v-if="item.codigo_verificacion">
+              Token QR: <span style="font-family: monospace;">{{ item.codigo_verificacion }}</span>
             </div>
           </div>
         </template>
@@ -82,14 +98,18 @@
           </v-chip>
         </template>
 
-        <!-- ASUNTO -->
+        <!-- ASUNTO Y AUTOR -->
         <template v-slot:item.asunto="{ item }">
           <div class="py-1">
-            <div class="font-weight-bold text-subtitle-2 text-truncate" style="max-width: 300px;">
+            <div class="font-weight-bold text-subtitle-2 text-truncate" style="max-width: 320px;">
               {{ item.asunto }}
             </div>
             <div class="text-caption text-secondary">
-              Por: {{ item.creador ? item.creador.nombre_completo : 'Autoridad EMAPA' }}
+              Por: {{ item.creador ? item.creador.nombre_completo : 'Funcionario EMAPA' }}
+              <span v-if="item.unidad_generadora"> | {{ item.unidad_generadora.nombre }}</span>
+            </div>
+            <div v-if="item.estado === 'OBSERVADO' && item.motivo_anulacion" class="text-caption orange--text text--darken-3 font-weight-bold">
+              {{ item.motivo_anulacion }}
             </div>
           </div>
         </template>
@@ -101,187 +121,266 @@
           </v-chip>
         </template>
 
-        <!-- FECHA -->
-        <template v-slot:item._fecha_creacion="{ item }">
-          <span class="text-caption text-secondary">{{ formatFecha(item._fecha_creacion) }}</span>
-        </template>
-
-        <!-- ACCIONES -->
+        <!-- ACCIONES (LONDRA REVERSE ENGINE) -->
         <template v-slot:item.acciones="{ item }">
-          <div class="d-flex align-center gap-1">
+          <div class="d-flex align-center gap-1 flex-wrap">
+            <!-- Previsualizar / Imprimir -->
             <v-tooltip bottom>
               <template v-slot:activator="{ on, attrs }">
-                <v-btn icon small color="indigo" v-bind="attrs" v-on="on" @click="previsualizarDoc(item.id)">
+                <v-btn icon small color="indigo" v-bind="attrs" v-on="on" @click="previsualizar(item.id)">
                   <v-icon small>mdi-eye-outline</v-icon>
                 </v-btn>
               </template>
-              <span>Previsualizar Documento Oficial</span>
+              <span>Ver / Imprimir Documento</span>
             </v-tooltip>
 
+            <!-- Editar Documento (Borrador u Observado) -->
+            <v-tooltip bottom v-if="item.acciones_permitidas && item.acciones_permitidas.puede_editar">
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn icon small color="primary" v-bind="attrs" v-on="on" @click="abrirModalEditar(item)">
+                  <v-icon small>mdi-pencil-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Editar y Subsanar</span>
+            </v-tooltip>
+
+            <!-- Enviar a Revisión -->
+            <v-tooltip bottom v-if="item.acciones_permitidas && item.acciones_permitidas.puede_enviar_revision && item.estado === 'BORRADOR'">
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn icon small color="teal" v-bind="attrs" v-on="on" @click="enviarARevision(item)">
+                  <v-icon small>mdi-send-check-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Enviar a Flujo de Firmas</span>
+            </v-tooltip>
+
+            <!-- Adjuntar Archivos -->
             <v-tooltip bottom>
               <template v-slot:activator="{ on, attrs }">
-                <v-btn icon small color="teal" v-bind="attrs" v-on="on" @click="abrirModalAdjuntos(item)">
+                <v-btn icon small color="blue-grey" v-bind="attrs" v-on="on" @click="abrirModalAdjuntos(item)">
                   <v-icon small>mdi-paperclip</v-icon>
                 </v-btn>
               </template>
-              <span>Subir Archivos Adjuntos</span>
+              <span>Archivos Adjuntos ({{ item.archivos_adjuntos ? item.archivos_adjuntos.length : 0 }})</span>
             </v-tooltip>
 
-            <v-tooltip bottom v-if="item.estado === 'BORRADOR'">
+            <!-- Anular Documento -->
+            <v-tooltip bottom v-if="item.acciones_permitidas && item.acciones_permitidas.puede_anular && item.estado !== 'ANULADO'">
               <template v-slot:activator="{ on, attrs }">
-                <v-btn icon small color="green darken-2" v-bind="attrs" v-on="on" @click="firmarDirecto(item.id)">
-                  <v-icon small>mdi-draw-pen</v-icon>
+                <v-btn icon small color="red darken-1" v-bind="attrs" v-on="on" @click="abrirModalAnular(item)">
+                  <v-icon small>mdi-close-circle-outline</v-icon>
                 </v-btn>
               </template>
-              <span>Firmar Electrónicamente</span>
+              <span>Anular Documento</span>
+            </v-tooltip>
+
+            <!-- Eliminar Borrador -->
+            <v-tooltip bottom v-if="item.acciones_permitidas && item.acciones_permitidas.puede_eliminar">
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn icon small color="red lighten-1" v-bind="attrs" v-on="on" @click="eliminarBorrador(item.id)">
+                  <v-icon small>mdi-delete-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Eliminar Borrador</span>
             </v-tooltip>
           </div>
         </template>
       </v-data-table>
     </v-card>
 
-    <!-- MODAL REDACTAR DOCUMENTO -->
-    <v-dialog v-model="dialogRedactar" max-width="850px" persistent>
+    <!-- MODAL REDACTAR / EDITAR DOCUMENTO -->
+    <v-dialog v-model="dialogRedactar" max-width="900px" persistent>
       <v-card rounded="lg">
         <v-card-title class="font-weight-bold text-h6 indigo white--text py-3">
-          <v-icon left color="white">mdi-pencil-plus</v-icon> Redactar Documento Oficial
+          <v-icon left color="white">mdi-pencil-plus</v-icon>
+          {{ esEdicion ? 'Editar Documento: ' + formDoc.cite : 'Redactar Nuevo Documento Oficial' }}
         </v-card-title>
         <v-card-text class="pt-4">
           <v-row dense>
-            <v-col cols="12" md="6">
+            <v-col cols="12" md="6" v-if="!esEdicion">
               <v-select
                 v-model="formDoc.tipo_documento"
                 :items="tiposDocumento"
-                item-text="param_nombre"
-                item-value="param_codigo"
-                label="Tipo de Documento *"
+                item-text="nombre"
+                item-value="codigo"
+                label="Tipo de Documento Oficial *"
                 dense
                 outlined
-                @change="seleccionarPlantilla"
               ></v-select>
             </v-col>
-            <v-col cols="12" md="6">
+            <v-col cols="12" md="6" v-if="!esEdicion">
               <v-select
                 v-model="formDoc.id_unidad_generadora"
                 :items="unidades"
                 item-text="nombre"
                 item-value="id"
-                label="Unidad Emisora *"
+                label="Unidad Organizacional Generadora *"
                 dense
                 outlined
               ></v-select>
             </v-col>
+            <v-col cols="12">
+              <v-text-field
+                v-model="formDoc.asunto"
+                label="Asunto / Objeto del Documento *"
+                dense
+                outlined
+                :rules="[v => !!v || 'El asunto es obligatorio']"
+              ></v-text-field>
+            </v-col>
           </v-row>
 
-          <v-text-field
-            v-model="formDoc.asunto"
-            label="Referencia / Asunto del Documento *"
-            dense
-            outlined
-            class="mb-2"
-          ></v-text-field>
+          <!-- PARTICIPANTES (SOLO EN CREACIÓN) -->
+          <div v-if="!esEdicion" class="mt-2 mb-3">
+            <div class="d-flex align-center justify-space-between mb-2">
+              <span class="text-subtitle-2 font-weight-bold indigo--text">Participantes y Firmantes del Documento</span>
+              <v-btn x-small color="indigo" outlined class="rounded-pill text-capitalize" @click="agregarParticipante">
+                <v-icon left x-small>mdi-plus</v-icon> + Agregar Participante
+              </v-btn>
+            </div>
 
-          <span class="text-caption font-weight-bold text-secondary">Contenido Oficial (HTML / Texto Formateado) *</span>
-          <v-textarea
-            v-model="formDoc.contenido_html"
-            rows="8"
-            outlined
-            dense
-            class="mt-1 mb-3"
-            placeholder="Ingrese los párrafos, antecedentes, análisis técnico o resoluciones del documento..."
-          ></v-textarea>
-
-          <v-divider class="my-2"></v-divider>
-          <div class="d-flex justify-space-between align-center mb-2">
-            <span class="text-subtitle-2 font-weight-bold indigo--text">Destinatarios y Aprobadores</span>
-            <v-btn x-small color="indigo" outlined class="rounded-pill" @click="agregarParticipante">
-              <v-icon left x-small>mdi-account-plus</v-icon> + Agregar
-            </v-btn>
+            <div v-for="(p, idx) in formDoc.participantes" :key="'part-' + idx" class="pa-2 mb-2 grey lighten-4 rounded">
+              <v-row dense align="center">
+                <v-col cols="12" md="3">
+                  <v-select
+                    v-model="p.tipo_participacion"
+                    :items="rolesParticipacion"
+                    item-text="text"
+                    item-value="val"
+                    label="Rol *"
+                    dense
+                    outlined
+                    hide-details
+                  ></v-select>
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-select
+                    v-model="p.id_unidad"
+                    :items="unidades"
+                    item-text="nombre"
+                    item-value="id"
+                    label="Unidad *"
+                    dense
+                    outlined
+                    hide-details
+                    @change="cargarFuncionariosParticipante(idx)"
+                  ></v-select>
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-select
+                    v-model="p.id_persona"
+                    :items="p.funcionariosDisponibles || []"
+                    item-text="nombre_completo"
+                    item-value="id"
+                    label="Funcionario *"
+                    dense
+                    outlined
+                    hide-details
+                  ></v-select>
+                </v-col>
+                <v-col cols="12" md="1" class="text-center">
+                  <v-btn icon x-small color="red" @click="eliminarParticipante(idx)" v-if="formDoc.participantes.length > 1">
+                    <v-icon x-small>mdi-delete</v-icon>
+                  </v-btn>
+                </v-col>
+              </v-row>
+            </div>
           </div>
 
-          <v-simple-table dense class="mb-3">
-            <template v-slot:default>
-              <thead>
-                <tr>
-                  <th>Rol Participación</th>
-                  <th>Funcionario</th>
-                  <th class="text-center" style="width: 60px;">Quitar</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(p, i) in formDoc.participantes" :key="i">
-                  <td>
-                    <v-select
-                      v-model="p.tipo_participacion"
-                      :items="rolesParticipacion"
-                      dense
-                      hide-details
-                    ></v-select>
-                  </td>
-                  <td>
-                    <v-select
-                      v-model="p.id_persona"
-                      :items="todosFuncionarios"
-                      item-text="nombre_completo"
-                      item-value="id"
-                      dense
-                      hide-details
-                    ></v-select>
-                  </td>
-                  <td class="text-center">
-                    <v-btn icon x-small color="red" @click="formDoc.participantes.splice(i, 1)"><v-icon x-small>mdi-delete</v-icon></v-btn>
-                  </td>
-                </tr>
-              </tbody>
-            </template>
-          </v-simple-table>
+          <!-- CONTENIDO HTML -->
+          <span class="text-subtitle-2 font-weight-bold">Cuerpo / Contenido del Documento *</span>
+          <v-textarea
+            v-model="formDoc.contenido_html"
+            rows="6"
+            dense
+            outlined
+            class="mt-1 font-italic"
+            placeholder="Redacte el texto oficial aquí..."
+          ></v-textarea>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer></v-spacer>
           <v-btn text class="rounded-pill text-capitalize" @click="dialogRedactar = false">Cancelar</v-btn>
-          <v-btn color="indigo" class="rounded-pill text-capitalize white--text px-4" :loading="guardando" @click="guardarDocumento">
-            Generar CITE y Guardar
+          <v-btn
+            v-if="!esEdicion"
+            color="secondary"
+            outlined
+            class="rounded-pill text-capitalize"
+            :loading="guardando"
+            @click="guardarDocumento(false)"
+          >
+            Guardar Borrador
+          </v-btn>
+          <v-btn color="indigo" class="rounded-pill text-capitalize white--text px-4" :loading="guardando" @click="guardarDocumento(true)">
+            {{ esEdicion ? 'Actualizar y Enviar' : 'Generar y Enviar a Revisión' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- MODAL ANULAR DOCUMENTO -->
+    <v-dialog v-model="dialogAnular" max-width="500px" persistent>
+      <v-card rounded="lg" v-if="docSeleccionado">
+        <v-card-title class="font-weight-bold text-h6 red darken-2 white--text py-3">
+          <v-icon left color="white">mdi-close-circle</v-icon> Anular Documento: {{ docSeleccionado.cite }}
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <p class="text-caption text-secondary">
+            Esta acción anulará el documento de manera permanente registrando la justificación técnica en la bitácora de auditoría.
+          </p>
+          <v-textarea
+            v-model="motivoAnulacion"
+            label="Motivo de Anulación *"
+            rows="3"
+            dense
+            outlined
+          ></v-textarea>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn text class="rounded-pill text-capitalize" @click="dialogAnular = false">Cancelar</v-btn>
+          <v-btn color="red darken-2" class="rounded-pill text-capitalize white--text px-4" :loading="guardando" @click="confirmarAnulacion">
+            Confirmar Anulación
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <!-- MODAL ADJUNTOS -->
-    <v-dialog v-model="dialogAdjuntos" max-width="550px" persistent>
+    <v-dialog v-model="dialogAdjuntos" max-width="600px" persistent>
       <v-card rounded="lg" v-if="docSeleccionado">
-        <v-card-title class="font-weight-bold text-h6 teal white--text py-3">
-          <v-icon left color="white">mdi-paperclip</v-icon> Adjuntos: {{ docSeleccionado.cite }}
+        <v-card-title class="font-weight-bold text-h6 blue-grey darken-2 white--text py-3">
+          <v-icon left color="white">mdi-paperclip</v-icon> Archivos Adjuntos: {{ docSeleccionado.cite }}
         </v-card-title>
         <v-card-text class="pt-4">
           <v-file-input
             v-model="archivoASubir"
-            label="Seleccionar Archivo (PDF, DOCX, ZIP)"
+            label="Seleccionar Archivo (PDF, Word, Excel, ZIP)..."
             dense
             outlined
-            prepend-icon="mdi-upload"
             show-size
+            class="mb-3"
           ></v-file-input>
 
-          <v-list dense class="mt-2">
-            <v-subheader class="font-weight-bold">Archivos ya adjuntados</v-subheader>
-            <v-list-item v-for="adj in docSeleccionado.archivos_adjuntos" :key="adj.id">
-              <v-list-item-icon><v-icon small color="teal">mdi-file-pdf-box</v-icon></v-list-item-icon>
+          <v-btn color="blue-grey" class="white--text text-capitalize rounded-pill mb-4" :loading="guardando" @click="subirAdjunto">
+            <v-icon left small>mdi-cloud-upload</v-icon> Subir Archivo
+          </v-btn>
+
+          <v-divider class="mb-3"></v-divider>
+          <span class="text-subtitle-2 font-weight-bold">Archivos Subidos</span>
+          <v-list dense class="pa-0">
+            <v-list-item v-for="(adj, idx) in docSeleccionado.archivos_adjuntos || []" :key="'adj-' + idx">
+              <v-list-item-icon><v-icon color="primary">mdi-file-document-outline</v-icon></v-list-item-icon>
               <v-list-item-content>
-                <v-list-item-title class="text-caption font-weight-medium">{{ adj.nombre_original }}</v-list-item-title>
-                <v-list-item-subtitle class="text-caption">{{ (adj.tamanio_bytes / 1024).toFixed(1) }} KB</v-list-item-subtitle>
+                <v-list-item-title class="font-weight-bold">{{ adj.nombre_original }}</v-list-item-title>
+                <v-list-item-subtitle class="text-caption">{{ (adj.tamanio_bytes / 1024).toFixed(1) }} KB | SHA256: {{ adj.hash_sha256.substring(0, 16) }}...</v-list-item-subtitle>
               </v-list-item-content>
             </v-list-item>
-            <div v-if="!docSeleccionado.archivos_adjuntos || !docSeleccionado.archivos_adjuntos.length" class="text-caption text-secondary pa-2">
-              Sin adjuntos subidos aún.
-            </div>
           </v-list>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer></v-spacer>
-          <v-btn text class="rounded-pill text-capitalize" @click="dialogAdjuntos = false">Cerrar</v-btn>
-          <v-btn color="teal" class="rounded-pill text-capitalize white--text px-4" :loading="guardando" @click="subirAdjunto">
-            Subir Archivo
-          </v-btn>
+          <v-btn color="blue-grey" text class="rounded-pill text-capitalize" @click="dialogAdjuntos = false">Cerrar</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -301,6 +400,7 @@ export default {
   name: 'GestionDocumentos',
   data() {
     return {
+      tabActual: 0,
       documentos: [],
       cargando: false,
       guardando: false,
@@ -310,19 +410,35 @@ export default {
       headers: [
         { text: 'CITE Oficial', value: 'cite', width: '220px' },
         { text: 'Tipo', value: 'tipo_documento', width: '130px' },
-        { text: 'Asunto / Creador', value: 'asunto' },
+        { text: 'Asunto / Generador', value: 'asunto' },
         { text: 'Estado', value: 'estado', width: '120px' },
-        { text: 'Fecha Creación', value: '_fecha_creacion', width: '140px' },
-        { text: 'Acciones', value: 'acciones', sortable: false, width: '160px', align: 'center' },
+        { text: 'Acciones', value: 'acciones', sortable: false, width: '220px', align: 'center' },
+      ],
+
+      tiposDocumento: [
+        { codigo: 'MEMORANDUM', nombre: 'Memorándum (MEM)' },
+        { codigo: 'INFORME_TECNICO', nombre: 'Informe Técnico (INF)' },
+        { codigo: 'NOTA_INTERNA', nombre: 'Nota Interna (NI)' },
+        { codigo: 'CIRCULAR', nombre: 'Circular (CIR)' },
+        { codigo: 'CARTA_EXTERNA', nombre: 'Carta Externa (CAR)' },
+        { codigo: 'RESOLUCION', nombre: 'Resolución Administrativa (RES)' },
+      ],
+
+      rolesParticipacion: [
+        { val: 'REMITENTE_DE', text: 'DE: Autor / Remitente' },
+        { val: 'VIA', text: 'VIA: Revisor Intermedio' },
+        { val: 'DESTINATARIO_A', text: 'A: Destinatario' },
+        { val: 'CON_COPIA_A', text: 'CC: Copia Informativa' },
       ],
 
       unidades: [],
-      tiposDocumento: [],
-      todosFuncionarios: [],
-      rolesParticipacion: ['DESTINATARIO_A', 'REMITENTE_DE', 'VIA', 'CON_COPIA_A'],
-
       dialogRedactar: false,
+      esEdicion: false,
+      docSeleccionado: null,
+
       formDoc: {
+        id: null,
+        cite: '',
         tipo_documento: 'MEMORANDUM',
         id_unidad_generadora: null,
         asunto: '',
@@ -330,8 +446,10 @@ export default {
         participantes: [],
       },
 
+      dialogAnular: false,
+      motivoAnulacion: '',
+
       dialogAdjuntos: false,
-      docSeleccionado: null,
       archivoASubir: null,
 
       snackbar: { status: false, text: '', color: 'success' },
@@ -339,13 +457,15 @@ export default {
   },
   mounted() {
     this.cargarDocumentos();
-    this.cargarDatosMaestros();
+    this.cargarUnidades();
   },
   methods: {
     async cargarDocumentos() {
       this.cargando = true;
       try {
+        const bandejas = ['MIS_DOCUMENTOS', 'EN_REVISION', 'FIRMADOS', 'OBSERVADOS', 'TODOS'];
         const params = {
+          bandeja: bandejas[this.tabActual] || 'MIS_DOCUMENTOS',
           tipo_documento: this.filtroTipo !== 'TODOS' ? this.filtroTipo : undefined,
           q: this.busqueda || undefined,
         };
@@ -359,76 +479,113 @@ export default {
         this.cargando = false;
       }
     },
-    async cargarDatosMaestros() {
+    async cargarUnidades() {
       try {
-        const [resOrg, resPer] = await Promise.all([
-          window.axios.get('/api/rrhh/organigrama'),
-          window.axios.get('/api/rrhh/personal?per_page=100'),
-        ]);
-
-        if (resOrg.data && resOrg.data.success) {
+        const res = await window.axios.get('/api/rrhh/organigrama');
+        if (res.data && res.data.success) {
           const planas = [];
           const aplanar = (items) => {
             items.forEach(u => {
-              planas.push({ id: u.id, nombre: u.nombre });
+              planas.push({ id: u.id, nombre: u.nombre, puestos: u.puestos || [] });
               if (u.dependencias && u.dependencias.length) aplanar(u.dependencias);
             });
           };
-          aplanar(resOrg.data.data);
+          aplanar(res.data.data);
           this.unidades = planas;
         }
-
-        if (resPer.data && resPer.data.success) {
-          this.todosFuncionarios = resPer.data.data;
-        }
-
-        this.tiposDocumento = [
-          { param_codigo: 'MEMORANDUM', param_nombre: 'Memorándum Institucional' },
-          { param_codigo: 'INFORME_TECNICO', param_nombre: 'Informe Técnico Oficial' },
-          { param_codigo: 'NOTA_INTERNA', param_nombre: 'Nota Interna de Coordinación' },
-          { param_codigo: 'CIRCULAR', param_nombre: 'Circular General' },
-          { param_codigo: 'CARTA_EXTERNA', param_nombre: 'Carta Externa' },
-        ];
       } catch (e) {}
     },
+    cargarFuncionariosParticipante(idx) {
+      const p = this.formDoc.participantes[idx];
+      if (!p) return;
+      const u = this.unidades.find(x => x.id === p.id_unidad);
+      if (u && u.puestos) {
+        const funcs = [];
+        u.puestos.forEach(pto => {
+          if (pto.asignaciones && pto.asignaciones.length && pto.asignaciones[0].persona) {
+            funcs.push({
+              id: pto.asignaciones[0].persona.id,
+              nombre_completo: `${pto.asignaciones[0].persona.nombre_completo} (${pto.nombre})`,
+            });
+          }
+        });
+        this.$set(p, 'funcionariosDisponibles', funcs);
+      }
+    },
     abrirModalRedactar() {
+      this.esEdicion = false;
       this.formDoc = {
+        id: null,
+        cite: '',
         tipo_documento: 'MEMORANDUM',
         id_unidad_generadora: this.unidades.length ? this.unidades[0].id : null,
         asunto: '',
-        contenido_html: '<p>Mediante la presente comunicación, se pone a su conocimiento...</p>',
+        contenido_html: '',
         participantes: [
-          { tipo_participacion: 'REMITENTE_DE', id_persona: this.todosFuncionarios.length ? this.todosFuncionarios[0].id : null },
-          { tipo_participacion: 'DESTINATARIO_A', id_persona: this.todosFuncionarios.length > 1 ? this.todosFuncionarios[1].id : null },
+          { tipo_participacion: 'REMITENTE_DE', id_unidad: null, id_persona: null, funcionariosDisponibles: [] },
+          { tipo_participacion: 'DESTINATARIO_A', id_unidad: null, id_persona: null, funcionariosDisponibles: [] },
         ],
+      };
+      this.dialogRedactar = true;
+    },
+    abrirModalEditar(item) {
+      this.esEdicion = true;
+      this.docSeleccionado = item;
+      this.formDoc = {
+        id: item.id,
+        cite: item.cite,
+        tipo_documento: item.tipo_documento,
+        id_unidad_generadora: item.id_unidad_generadora,
+        asunto: item.asunto,
+        contenido_html: item.contenido_html,
+        participantes: [],
       };
       this.dialogRedactar = true;
     },
     agregarParticipante() {
       this.formDoc.participantes.push({
-        tipo_participacion: 'DESTINATARIO_A',
-        id_persona: this.todosFuncionarios.length ? this.todosFuncionarios[0].id : null,
+        tipo_participacion: 'VIA',
+        id_unidad: null,
+        id_persona: null,
+        funcionariosDisponibles: [],
       });
     },
-    seleccionarPlantilla() {
-      if (this.formDoc.tipo_documento === 'INFORME_TECNICO') {
-        this.formDoc.contenido_html = '<h3>1. ANTECEDENTES</h3><p>...</p><h3>2. ANÁLISIS TÉCNICO</h3><p>...</p><h3>3. CONCLUSIONES</h3><p>...</p>';
-      } else if (this.formDoc.tipo_documento === 'MEMORANDUM') {
-        this.formDoc.contenido_html = '<p>Por medio del presente memorándum se comunica que...</p>';
-      }
+    eliminarParticipante(idx) {
+      this.formDoc.participantes.splice(idx, 1);
     },
-    async guardarDocumento() {
-      if (!this.formDoc.asunto || !this.formDoc.contenido_html || !this.formDoc.id_unidad_generadora) {
-        this.mostrarMensaje('Completa los campos obligatorios.', 'warning');
+    async guardarDocumento(enviarARevision = false) {
+      if (!this.formDoc.asunto || !this.formDoc.contenido_html) {
+        this.mostrarMensaje('Completa el asunto y el contenido del documento.', 'warning');
         return;
       }
       this.guardando = true;
       try {
-        const res = await window.axios.post('/api/correspondencia/documentos', this.formDoc);
-        if (res.data && res.data.success) {
-          this.mostrarMensaje('Documento redactado exitosamente.', 'success');
-          this.dialogRedactar = false;
-          this.cargarDocumentos();
+        if (this.esEdicion) {
+          const res = await window.axios.put(`/api/correspondencia/documentos/${this.formDoc.id}`, {
+            asunto: this.formDoc.asunto,
+            contenido_html: this.formDoc.contenido_html,
+            enviar_a_revision: enviarARevision,
+          });
+          if (res.data && res.data.success) {
+            this.mostrarMensaje('Documento actualizado exitosamente.', 'success');
+            this.dialogRedactar = false;
+            this.cargarDocumentos();
+          }
+        } else {
+          const payload = {
+            tipo_documento: this.formDoc.tipo_documento,
+            id_unidad_generadora: this.formDoc.id_unidad_generadora,
+            asunto: this.formDoc.asunto,
+            contenido_html: this.formDoc.contenido_html,
+            enviar_a_revision: enviarARevision,
+            participantes: this.formDoc.participantes.filter(p => p.id_persona),
+          };
+          const res = await window.axios.post('/api/correspondencia/documentos', payload);
+          if (res.data && res.data.success) {
+            this.mostrarMensaje('Documento generado exitosamente.', 'success');
+            this.dialogRedactar = false;
+            this.cargarDocumentos();
+          }
         }
       } catch (e) {
         this.mostrarMensaje('Error al guardar documento.', 'error');
@@ -436,8 +593,54 @@ export default {
         this.guardando = false;
       }
     },
-    previsualizarDoc(id) {
-      window.open(`/api/correspondencia/documentos/${id}/preview`, '_blank');
+    async enviarARevision(item) {
+      try {
+        const res = await window.axios.post(`/api/correspondencia/documentos/${item.id}/enviar-revision`);
+        if (res.data && res.data.success) {
+          this.mostrarMensaje('Documento enviado al flujo de firmas.', 'success');
+          this.cargarDocumentos();
+        }
+      } catch (e) {
+        this.mostrarMensaje('Error al enviar a revisión.', 'error');
+      }
+    },
+    abrirModalAnular(item) {
+      this.docSeleccionado = item;
+      this.motivoAnulacion = '';
+      this.dialogAnular = true;
+    },
+    async confirmarAnulacion() {
+      if (!this.motivoAnulacion.trim()) {
+        this.mostrarMensaje('Debe especificar el motivo de anulación.', 'warning');
+        return;
+      }
+      this.guardando = true;
+      try {
+        const res = await window.axios.post(`/api/correspondencia/documentos/${this.docSeleccionado.id}/anular`, {
+          motivo: this.motivoAnulacion,
+        });
+        if (res.data && res.data.success) {
+          this.mostrarMensaje('Documento anulado con éxito.', 'success');
+          this.dialogAnular = false;
+          this.cargarDocumentos();
+        }
+      } catch (e) {
+        this.mostrarMensaje('Error al anular documento.', 'error');
+      } finally {
+        this.guardando = false;
+      }
+    },
+    async eliminarBorrador(id) {
+      if (!confirm('¿Desea eliminar este borrador?')) return;
+      try {
+        const res = await window.axios.delete(`/api/correspondencia/documentos/${id}`);
+        if (res.data && res.data.success) {
+          this.mostrarMensaje('Borrador eliminado.', 'success');
+          this.cargarDocumentos();
+        }
+      } catch (e) {
+        this.mostrarMensaje('Error al eliminar borrador.', 'error');
+      }
     },
     abrirModalAdjuntos(item) {
       this.docSeleccionado = item;
@@ -446,41 +649,28 @@ export default {
     },
     async subirAdjunto() {
       if (!this.archivoASubir) {
-        this.mostrarMensaje('Selecciona un archivo primero.', 'warning');
+        this.mostrarMensaje('Seleccione un archivo.', 'warning');
         return;
       }
       this.guardando = true;
       try {
         const formData = new FormData();
         formData.append('archivo', this.archivoASubir);
-        const res = await window.axios.post(`/api/correspondencia/documentos/${this.docSeleccionado.id}/adjuntos`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const res = await window.axios.post(`/api/correspondencia/documentos/${this.docSeleccionado.id}/adjuntos`, formData);
         if (res.data && res.data.success) {
           this.mostrarMensaje('Archivo adjuntado exitosamente.', 'success');
-          this.dialogAdjuntos = false;
-          this.cargarDocumentos();
+          if (!this.docSeleccionado.archivos_adjuntos) this.docSeleccionado.archivos_adjuntos = [];
+          this.docSeleccionado.archivos_adjuntos.push(res.data.data);
+          this.archivoASubir = null;
         }
       } catch (e) {
-        this.mostrarMensaje('Error al subir archivo.', 'error');
+        this.mostrarMensaje('Error al subir adjunto.', 'error');
       } finally {
         this.guardando = false;
       }
     },
-    async firmarDirecto(idDoc) {
-      try {
-        const res = await window.axios.post('/api/correspondencia/firmas/firmar', {
-          id_documento: idDoc,
-          pin: '1234',
-          tipo_firma: 'PIN_ELECTRONICO',
-        });
-        if (res.data && res.data.success) {
-          this.mostrarMensaje('Documento firmado con éxito.', 'success');
-          this.cargarDocumentos();
-        }
-      } catch (e) {
-        this.mostrarMensaje('Error al firmar documento.', 'error');
-      }
+    previsualizar(id) {
+      window.open(`/api/correspondencia/documentos/${id}/preview`, '_blank');
     },
     limpiarFiltros() {
       this.busqueda = '';
@@ -488,17 +678,25 @@ export default {
       this.cargarDocumentos();
     },
     formatTipoDoc(t) {
-      const map = { MEMORANDUM: 'Memorándum', INFORME_TECNICO: 'Informe Técnico', NOTA_INTERNA: 'Nota Interna', CIRCULAR: 'Circular', CARTA_EXTERNA: 'Carta Externa' };
+      const map = {
+        MEMORANDUM: 'Memorándum',
+        INFORME_TECNICO: 'Informe Técnico',
+        NOTA_INTERNA: 'Nota Interna',
+        CIRCULAR: 'Circular',
+        CARTA_EXTERNA: 'Carta Externa',
+        RESOLUCION: 'Resolución Adm.',
+      };
       return map[t] || t;
     },
     getColorEstado(e) {
-      const map = { BORRADOR: 'grey darken-1', EN_REVISION: 'orange darken-2', FIRMADO: 'green darken-2', PUBLICADO: 'blue darken-2', ANULADO: 'red darken-2' };
+      const map = {
+        BORRADOR: 'grey darken-1',
+        EN_REVISION: 'blue darken-1',
+        OBSERVADO: 'orange darken-3',
+        FIRMADO: 'green darken-2',
+        ANULADO: 'red darken-2',
+      };
       return map[e] || 'grey';
-    },
-    formatFecha(f) {
-      if (!f) return '-';
-      const d = new Date(f);
-      return d.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     },
     mostrarMensaje(text, color = 'success') {
       this.snackbar = { status: true, text, color };

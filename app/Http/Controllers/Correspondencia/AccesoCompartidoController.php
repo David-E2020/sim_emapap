@@ -39,7 +39,7 @@ class AccesoCompartidoController extends Controller
         }
 
         $idUsuarioAuth = auth()->id() ?? 1;
-        $dias = (int)$request->input('dias_validez', 7);
+        $dias = (int) $request->input('dias_validez', 7);
 
         $acceso = AccesoCompartido::create([
             'id_hoja_ruta' => $request->input('id_hoja_ruta'),

@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Correspondencia;
 
 use App\Models\Correspondencia\Derivacion;
-use App\Models\Correspondencia\Documento;
-use App\Models\Correspondencia\HojaRuta;
 use App\Models\Correspondencia\ParticipanteDocumento;
 use Illuminate\Support\Facades\DB;
 

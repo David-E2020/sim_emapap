@@ -29,15 +29,15 @@
 
     <!-- Navigation Items -->
     <v-list expand shaped class="vertical-nav-menu-items" v-if="menus">
-      <v-list-group :value="false" :prepend-icon="item.icon_mdi" v-for="item in menus" :key="item.order" class="nav-group-item">
+      <v-list-group :value="false" :prepend-icon="item.icon_mdi" v-for="(item, index) in menus" :key="'group-' + (item.id || item.label || index)" class="nav-group-item">
         <template v-slot:activator>
           <v-list-item-title class="group-title font-weight-medium">{{ item.label }}</v-list-item-title>
         </template>
         
         <div class="submenu-container pl-2">
           <v-list-item
-            v-for="itemN2 in item.sub_menu"
-            :key="itemN2.order"
+            v-for="(itemN2, index2) in item.sub_menu"
+            :key="'sub-' + (itemN2.id || itemN2.route || itemN2.label || index2)"
             :to="{ name: itemN2.route }"
             class="submenu-item my-1 rounded-lg"
             active-class="submenu-item--active"

@@ -1,0 +1,220 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Facturacion;
+
+use App\Http\Controllers\Controller;
+use App\Models\Facturacion\Factura;
+use App\Models\Facturacion\SiatSucursal;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class ReporteFacturacionController extends Controller
+{
+    /**
+     * Consulta y agregaciones del Libro de Ventas IVA.
+     */
+    public function libroVentas(Request $request): JsonResponse
+    {
+        $fechaDesde = $request->input('fecha_desde', Carbon::now()->startOfMonth()->format('Y-m-d'));
+        $fechaHasta = $request->input('fecha_hasta', Carbon::now()->endOfMonth()->format('Y-m-d'));
+        $sucursalId = $request->input('id_sucursal');
+        $estado = $request->input('estado'); // VALIDADA, ANULADA, o null
+
+        $query = Factura::with(['cliente', 'sucursal', 'puntoVenta'])
+            ->whereDate('fecha_emision', '>=', $fechaDesde)
+            ->whereDate('fecha_emision', '<=', $fechaHasta);
+
+        if ($sucursalId !== null && $sucursalId !== '') {
+            $query->where('id_sucursal', (int) $sucursalId);
+        }
+
+        if (!empty($estado)) {
+            $query->where('estado_factura', $estado);
+        }
+
+        $facturas = (clone $query)->orderBy('numero_factura', 'asc')->get();
+
+        // Métricas agregadas
+        $totalFacturado = 0.0;
+        $totalSujetoIva = 0.0;
+        $totalDescuento = 0.0;
+        $cantidadValidas = 0;
+        $cantidadAnuladas = 0;
+
+        foreach ($facturas as $f) {
+            if ($f->estado_factura === 'ANULADA') {
+                $cantidadAnuladas++;
+            } else {
+                $cantidadValidas++;
+                $totalFacturado += (float) $f->monto_total;
+                $totalSujetoIva += (float) $f->monto_total_sujeto_iva;
+                $totalDescuento += (float) $f->monto_descuento;
+            }
+        }
+
+        $debitoFiscal = round($totalSujetoIva * 0.13, 2);
+
+        return response()->json([
+            'success' => true,
+            'periodo' => [
+                'desde' => $fechaDesde,
+                'hasta' => $fechaHasta,
+            ],
+            'resumen' => [
+                'total_registros' => $facturas->count(),
+                'cantidad_validas' => $cantidadValidas,
+                'cantidad_anuladas' => $cantidadAnuladas,
+                'total_facturado' => round($totalFacturado, 2),
+                'total_descuento' => round($totalDescuento, 2),
+                'total_base_debito_fiscal' => round($totalSujetoIva, 2),
+                'debito_fiscal_iva' => $debitoFiscal,
+            ],
+            'data' => $facturas,
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Exportar el Libro de Ventas IVA en formato oficial CSV / Texto delimitado del SIN.
+     * Estructura oficial según Resolución Normativa de Directorio (RND) del SIN.
+     */
+    public function exportarCsvLibroVentas(Request $request): StreamedResponse
+    {
+        $fechaDesde = $request->input('fecha_desde', Carbon::now()->startOfMonth()->format('Y-m-d'));
+        $fechaHasta = $request->input('fecha_hasta', Carbon::now()->endOfMonth()->format('Y-m-d'));
+        $sucursalId = $request->input('id_sucursal');
+
+        $query = Factura::with(['cliente', 'sucursal'])
+            ->whereDate('fecha_emision', '>=', $fechaDesde)
+            ->whereDate('fecha_emision', '<=', $fechaHasta);
+
+        if ($sucursalId !== null && $sucursalId !== '') {
+            $query->where('id_sucursal', (int) $sucursalId);
+        }
+
+        $facturas = $query->orderBy('numero_factura', 'asc')->get();
+        $filename = "Libro_Ventas_IVA_EMAPAP_{$fechaDesde}_a_{$fechaHasta}.csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        return response()->stream(function () use ($facturas) {
+            $handle = fopen('php://output', 'w');
+            
+            // BOM para compatibilidad con Excel UTF-8
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // Encabezados oficiales de las 23 columnas del SIN
+            fputcsv($handle, [
+                'NRO',
+                'ESPECIFICACION',
+                'FECHA DE LA FACTURA',
+                'NRO. DE LA FACTURA',
+                'CODIGO DE AUTORIZACION (CUF)',
+                'NIT / CI / CEX CLIENTE',
+                'COMPLEMENTO',
+                'NOMBRE O RAZON SOCIAL',
+                'IMPORTE TOTAL VENTA',
+                'IMPORTE ICE',
+                'IMPORTE IEHD',
+                'IMPORTE IPJ',
+                'TASAS',
+                'OTROS NO SUJETOS A CREDITO FISCAL',
+                'EXPORTACIONES Y EXENTAS',
+                'VENTAS TASA CERO',
+                'SUBTOTAL',
+                'DESCUENTOS / BONIFICACIONES',
+                'IMPORTE GIFT CARD',
+                'BASE PARA DEBITO FISCAL',
+                'DEBITO FISCAL (13%)',
+                'ESTADO',
+                'CODIGO DE CONTROL',
+            ], ';');
+
+            $correlativo = 1;
+
+            foreach ($facturas as $f) {
+                $esAnulada = ($f->estado_factura === 'ANULADA');
+                
+                $totalVenta = $esAnulada ? 0.00 : (float) $f->monto_total;
+                $descuento = $esAnulada ? 0.00 : (float) $f->monto_descuento;
+                $subtotal = $totalVenta;
+                $baseFiscal = $esAnulada ? 0.00 : (float) $f->monto_total_sujeto_iva;
+                $debitoFiscal = round($baseFiscal * 0.13, 2);
+                $estado = $esAnulada ? 'A' : 'V';
+
+                fputcsv($handle, [
+                    $correlativo++,
+                    1, // 1 = Compra Venta Estándar
+                    Carbon::parse($f->fecha_emision)->format('d/m/Y'),
+                    $f->numero_factura,
+                    $f->cuf,
+                    $f->numero_documento,
+                    $f->complemento ?? '',
+                    $f->nombre_razon_social,
+                    number_format($totalVenta, 2, '.', ''),
+                    '0.00', // ICE
+                    '0.00', // IEHD
+                    '0.00', // IPJ
+                    '0.00', // Tasas
+                    '0.00', // Otros no sujetos
+                    '0.00', // Exentas
+                    '0.00', // Tasa Cero
+                    number_format($subtotal, 2, '.', ''),
+                    number_format($descuento, 2, '.', ''),
+                    '0.00', // Gift Card
+                    number_format($baseFiscal, 2, '.', ''),
+                    number_format($debitoFiscal, 2, '.', ''),
+                    $estado,
+                    '0', // Código de control manual
+                ], ';');
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
+    /**
+     * Resumen de ventas agrupadas por mes para gráficos del dashboard.
+     */
+    public function ventasMensuales(Request $request): JsonResponse
+    {
+        $anio = (int) $request->input('gestion', Carbon::now()->year);
+
+        $facturas = Factura::whereYear('fecha_emision', $anio)
+            ->where('estado_factura', '!=', 'ANULADA')
+            ->selectRaw("EXTRACT(MONTH FROM fecha_emision)::int as mes, COUNT(id) as total_facturas, SUM(monto_total) as total_monto")
+            ->groupByRaw("EXTRACT(MONTH FROM fecha_emision)")
+            ->orderByRaw("EXTRACT(MONTH FROM fecha_emision)")
+            ->get();
+
+        $meses = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+        ];
+
+        $data = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $registro = $facturas->firstWhere('mes', $m);
+            $data[] = [
+                'mes' => $m,
+                'nombre_mes' => $meses[$m],
+                'total_facturas' => $registro ? (int) $registro->total_facturas : 0,
+                'total_monto' => $registro ? round((float) $registro->total_monto, 2) : 0.0,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'gestion' => $anio,
+            'data' => $data,
+        ], Response::HTTP_OK);
+    }
+}

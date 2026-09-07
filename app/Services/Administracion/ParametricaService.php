@@ -66,11 +66,11 @@ class ParametricaService
             $userId = $userId ?? auth()->id();
             $isNew = empty($data['id']);
 
-            if (!$isNew) {
-                $parametrica = Parametrica::findOrFail((int)$data['id']);
+            if (! $isNew) {
+                $parametrica = Parametrica::findOrFail((int) $data['id']);
                 $oldValues = $parametrica->only(['param_nombre', 'param_descripcion', 'param_tabla', 'param_valor']);
             } else {
-                $parametrica = new Parametrica();
+                $parametrica = new Parametrica;
                 $oldValues = null;
             }
 
@@ -78,7 +78,7 @@ class ParametricaService
             $parametrica->param_nombre = strtoupper(trim($data['param_nombre'] ?? ''));
             $parametrica->param_descripcion = isset($data['param_descripcion']) ? strtoupper(trim($data['param_descripcion'])) : null;
             $parametrica->param_codigo = $data['param_codigo'] ?? 'ORIGEN';
-            $parametrica->param_valor = (int)($data['param_valor'] ?? 0);
+            $parametrica->param_valor = (int) ($data['param_valor'] ?? 0);
             $parametrica->param_estado = 'A';
 
             if ($isNew) {
@@ -112,7 +112,7 @@ class ParametricaService
             $parametrica = Parametrica::findOrFail($id);
 
             // Si es una tabla origen (valor 0), validar que no tenga campos hijos activos
-            if ((int)$parametrica->param_valor === 0) {
+            if ((int) $parametrica->param_valor === 0) {
                 $hasActiveChildren = Parametrica::where('param_tabla', $parametrica->param_tabla)
                     ->where('param_valor', '<>', 0)
                     ->where('param_estado', 'A')
@@ -135,7 +135,7 @@ class ParametricaService
                 event: 'parametrica_deleted',
                 model: $parametrica,
                 oldValues: $oldValues,
-                newValues: ['param_estado' => 'B', 'deleted_at' => (string)now()],
+                newValues: ['param_estado' => 'B', 'deleted_at' => (string) now()],
                 userId: $userId
             );
 

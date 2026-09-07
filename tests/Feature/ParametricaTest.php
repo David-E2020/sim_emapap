@@ -10,6 +10,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class ParametricaTest extends TestCase
 {
     protected $token;
+
     protected $admin;
 
     protected function setUp(): void
@@ -24,7 +25,7 @@ class ParametricaTest extends TestCase
      */
     public function test_listar_tablas_parametricas()
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson('/api/parametrica-api');
 
         $response->assertStatus(200);
@@ -36,10 +37,10 @@ class ParametricaTest extends TestCase
      */
     public function test_crear_tabla_y_campo_parametrico()
     {
-        $tablaNombre = 'TABLA_TEST_' . time();
+        $tablaNombre = 'TABLA_TEST_'.time();
 
         // 1. Crear origen de paramétrica
-        $responseOrigen = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $responseOrigen = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/parametrica-api', [
                 'param_tabla' => $tablaNombre,
                 'param_nombre' => 'TABLA DE PRUEBAS',
@@ -52,7 +53,7 @@ class ParametricaTest extends TestCase
             ]);
 
         // 2. Registrar campo hijo en la tabla
-        $responseCampo = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $responseCampo = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/registrar_campo', [
                 'param_tabla' => $tablaNombre,
                 'param_nombre' => 'VALOR PRUEBA 1',
@@ -66,8 +67,8 @@ class ParametricaTest extends TestCase
             ]);
 
         // 3. Consultar campos de la tabla creada
-        $responseShow = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->getJson('/api/parametrica-api/' . $tablaNombre);
+        $responseShow = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->getJson('/api/parametrica-api/'.$tablaNombre);
 
         $responseShow->assertStatus(200);
         $this->assertGreaterThanOrEqual(1, count($responseShow->json()));
@@ -75,8 +76,8 @@ class ParametricaTest extends TestCase
         // 4. Limpieza lógica y física
         $campoHijo = Parametrica::where('param_tabla', $tablaNombre)->where('param_valor', '>', 0)->first();
         if ($campoHijo) {
-            $responseDelete = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-                ->deleteJson('/api/parametrica-api/' . $campoHijo->id);
+            $responseDelete = $this->withHeader('Authorization', 'Bearer '.$this->token)
+                ->deleteJson('/api/parametrica-api/'.$campoHijo->id);
 
             $responseDelete->assertStatus(200)
                 ->assertJson([

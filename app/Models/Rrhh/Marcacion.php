@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Marcacion extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.marcaciones';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

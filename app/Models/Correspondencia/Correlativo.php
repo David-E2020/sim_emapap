@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models\Correspondencia;
 
-use App\Models\Rrhh\Regional;
 use App\Models\Rrhh\UnidadOrganizacional;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Correlativo extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.correlativos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

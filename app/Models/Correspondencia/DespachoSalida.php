@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class DespachoSalida extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.despachos_salida';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

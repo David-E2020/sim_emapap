@@ -14,7 +14,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Documento extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.documentos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

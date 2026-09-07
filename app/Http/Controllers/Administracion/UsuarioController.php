@@ -59,12 +59,12 @@ class UsuarioController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $validator->errors()->first(),
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         try {
-            $user = new User();
+            $user = new User;
             $user->usr_usuario = trim($request->input('usr_usuario'));
             $user->name = trim($request->input('name'));
             $user->email = strtolower(trim($request->input('email')));
@@ -75,7 +75,7 @@ class UsuarioController extends Controller
 
             // Si se seleccionó rol, asignar accesos de inmediato
             if ($request->filled('rol_id')) {
-                $this->userAccessService->enableAccess($user->id, (int)$request->input('rol_id'));
+                $this->userAccessService->enableAccess($user->id, (int) $request->input('rol_id'));
             }
 
             // Auditoría inmutable
@@ -86,24 +86,24 @@ class UsuarioController extends Controller
                     'usr_usuario' => $user->usr_usuario,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'rol_id' => $request->input('rol_id')
+                    'rol_id' => $request->input('rol_id'),
                 ]
             );
 
             return response()->json([
                 'success' => true,
                 'message' => 'Usuario registrado exitosamente.',
-                'data' => $user->load(['roles', 'permissions', 'rolPersmisos.rol'])
+                'data' => $user->load(['roles', 'permissions', 'rolPersmisos.rol']),
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar usuario', [
                 'request' => $request->except(['password']),
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'No se pudo registrar el usuario. Intente nuevamente.'
+                'message' => 'No se pudo registrar el usuario. Intente nuevamente.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -115,7 +115,7 @@ class UsuarioController extends Controller
     {
         try {
             $user = User::with(['roles.permissions', 'permissions', 'rolPersmisos.rol'])
-                ->findOrFail((int)$id);
+                ->findOrFail((int) $id);
 
             // Últimos eventos de auditoría relacionados con este usuario
             $recentAuditLogs = AuditLog::where('auditable_type', User::class)
@@ -128,19 +128,19 @@ class UsuarioController extends Controller
             return response()->json([
                 'success' => true,
                 'user' => $user,
-                'recent_logs' => $recentAuditLogs
+                'recent_logs' => $recentAuditLogs,
             ], Response::HTTP_OK);
         } catch (ModelNotFoundException) {
             return response()->json([
                 'success' => false,
-                'message' => 'Usuario no encontrado.'
+                'message' => 'Usuario no encontrado.',
             ], Response::HTTP_NOT_FOUND);
         } catch (\Throwable $ex) {
             Log::error('Error al consultar detalle de usuario', ['id' => $id, 'exception' => $ex->getMessage()]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno al consultar el usuario.'
+                'message' => 'Error interno al consultar el usuario.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -150,18 +150,18 @@ class UsuarioController extends Controller
      */
     public function update(Request $request, int|string $id): JsonResponse
     {
-        $user = User::findOrFail((int)$id);
+        $user = User::findOrFail((int) $id);
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:150',
-            'email' => 'required|email|max:150|unique:users,email,' . $user->id,
+            'email' => 'required|email|max:150|unique:users,email,'.$user->id,
             'password' => 'nullable|string|min:6',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => $validator->errors()->first()
+                'message' => $validator->errors()->first(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -188,14 +188,14 @@ class UsuarioController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Usuario actualizado correctamente.',
-                'data' => $user->load(['roles', 'permissions'])
+                'data' => $user->load(['roles', 'permissions']),
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al actualizar usuario', ['id' => $id, 'exception' => $ex->getMessage()]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno al actualizar usuario.'
+                'message' => 'Error interno al actualizar usuario.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -206,7 +206,7 @@ class UsuarioController extends Controller
     public function quitarSistema(int|string $id): JsonResponse
     {
         try {
-            $this->userAccessService->revokeAccess((int)$id);
+            $this->userAccessService->revokeAccess((int) $id);
 
             return response()->json([
                 'code' => Response::HTTP_OK,
@@ -221,7 +221,7 @@ class UsuarioController extends Controller
         } catch (\Throwable $ex) {
             Log::error('Error al revocar acceso al sistema', [
                 'user_id' => $id,
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
@@ -237,7 +237,7 @@ class UsuarioController extends Controller
     public function agregarSistema(int|string $id): JsonResponse
     {
         try {
-            $this->userAccessService->enableAccess((int)$id);
+            $this->userAccessService->enableAccess((int) $id);
 
             return response()->json([
                 'code' => Response::HTTP_OK,
@@ -252,7 +252,7 @@ class UsuarioController extends Controller
         } catch (\Throwable $ex) {
             Log::error('Error al agregar acceso al sistema', [
                 'user_id' => $id,
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
@@ -267,7 +267,7 @@ class UsuarioController extends Controller
      */
     public function rolUser(int|string $userId): array
     {
-        $rolUser_ = RolUser::where('usuario_id', (int)$userId)->first();
+        $rolUser_ = RolUser::where('usuario_id', (int) $userId)->first();
         $usuarioRolId = $rolUser_ ? $rolUser_->rol_id : null;
         $roles_ = Rol::all();
 
@@ -282,11 +282,16 @@ class UsuarioController extends Controller
      */
     public function menuUsuario(int|string $usuarioId): array
     {
-        $rolUser_ = RolUser::where('usuario_id', (int)$usuarioId)->first();
+        $rolUser_ = RolUser::where('usuario_id', (int) $usuarioId)->first();
 
         if ($rolUser_) {
             $rolId = $rolUser_->rol_id;
-            $menuRol_ = MenuRol::where('rol_id', $rolId)->where('check', true)->pluck('menu_id');
+            // Si el rol es Administrador General (ID 1), asegurar acceso total a todos los menús activos
+            if ($rolId === 1) {
+                $menuRol_ = Menu::where('estado', true)->pluck('id');
+            } else {
+                $menuRol_ = MenuRol::where('rol_id', $rolId)->where('check', true)->pluck('menu_id');
+            }
         } else {
             $menuRol_ = collect([]);
         }
@@ -322,7 +327,7 @@ class UsuarioController extends Controller
      */
     public function menuRol(int|string $rolId): array
     {
-        $menuRol_ = MenuRol::where('rol_id', (int)$rolId)->where('check', true)->pluck('menu_id');
+        $menuRol_ = MenuRol::where('rol_id', (int) $rolId)->where('check', true)->pluck('menu_id');
         $menus_ = Menu::with('subMenuN1')->whereNull('menu_id')->orderBy('order', 'asc')->get();
 
         $menusResp = [];
@@ -343,7 +348,7 @@ class UsuarioController extends Controller
         $countActive = 0;
 
         foreach ($menus as $value) {
-            if (!empty($value->active)) {
+            if (! empty($value->active)) {
                 $countActive++;
             }
         }
@@ -353,26 +358,28 @@ class UsuarioController extends Controller
         }
 
         $resp = ($countActive / $total) * 100;
+
         return ['porcentaje' => round($resp, 2), 'countActive' => $countActive, 'total' => $total];
     }
 
     public function verificaEstadoSubmenu(mixed $subMenus, mixed $arrayMenuUser): array
     {
         $resp = [];
-        if (!is_array($subMenus)) {
+        if (! is_array($subMenus)) {
             $menuArray = $arrayMenuUser->toArray();
             foreach ($subMenus as $value) {
                 $value->active = in_array($value->id, $menuArray, true);
                 $resp[] = $value;
             }
         }
+
         return $resp;
     }
 
     public function filtrarSubmenusActivos(mixed $subMenus, mixed $arrayMenuUser): array
     {
         $resp = [];
-        if (!is_array($subMenus)) {
+        if (! is_array($subMenus)) {
             $menuArray = $arrayMenuUser->toArray();
             foreach ($subMenus as $value) {
                 if (in_array($value->id, $menuArray, true)) {
@@ -381,6 +388,7 @@ class UsuarioController extends Controller
                 }
             }
         }
+
         return $resp;
     }
 
@@ -388,6 +396,7 @@ class UsuarioController extends Controller
     {
         try {
             $users = User::with(['roles', 'rolPersmisos'])->get();
+
             return response()->json([
                 'success' => true,
                 'mensaje' => 'Listado de usuarios',
@@ -395,6 +404,7 @@ class UsuarioController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al listar usuario_rol', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'mensaje' => 'Error al obtener usuarios.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

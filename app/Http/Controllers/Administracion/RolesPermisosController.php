@@ -9,6 +9,7 @@ use App\Models\Menu;
 use App\Models\MenuRol;
 use App\Models\Rol;
 use App\Services\Audit\AuditService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +49,7 @@ class RolesPermisosController extends Controller
     public function matriz(int|string $rolId): JsonResponse
     {
         try {
-            $rol = Rol::with('permissions')->findOrFail((int)$rolId);
+            $rol = Rol::with('permissions')->findOrFail((int) $rolId);
             $rolePermissionNames = $rol->permissions->pluck('name')->toArray();
 
             // 1. Obtener todos los permisos Spatie
@@ -94,7 +95,7 @@ class RolesPermisosController extends Controller
                     if ($isMenuActive) {
                         $countActiveSubmenus++;
                         // Sincronizar en base de datos si no estaba
-                        if (!in_array($sub->id, $menuRolIds, true) && $activePermsCount > 0) {
+                        if (! in_array($sub->id, $menuRolIds, true) && $activePermsCount > 0) {
                             MenuRol::updateOrCreate(
                                 ['rol_id' => $rol->id, 'menu_id' => $sub->id],
                                 ['check' => true]
@@ -134,13 +135,14 @@ class RolesPermisosController extends Controller
                 'role' => $rol,
                 'menus' => $menusResp,
             ], Response::HTTP_OK);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        } catch (ModelNotFoundException) {
             return response()->json([
                 'success' => false,
                 'message' => 'Rol no encontrado.',
             ], Response::HTTP_NOT_FOUND);
         } catch (\Throwable $ex) {
             Log::error('Error al obtener matriz unificada', ['rol_id' => $rolId, 'exception' => $ex->getMessage()]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error interno al cargar la matriz de roles y permisos.',
@@ -159,8 +161,8 @@ class RolesPermisosController extends Controller
         ]);
 
         try {
-            $rol = Rol::findOrFail((int)$request->input('rol_id'));
-            
+            $rol = Rol::findOrFail((int) $request->input('rol_id'));
+
             // Garantizar guard_name compatible
             if ($rol->guard_name !== 'api') {
                 $rol->guard_name = 'api';
@@ -188,7 +190,7 @@ class RolesPermisosController extends Controller
             if ($moduleName) {
                 $subMenus = Menu::where(function ($q) use ($moduleName) {
                     $q->where('label', $moduleName)
-                      ->orWhere('route', array_search($moduleName, self::MODULE_MAP, true) ?: '__none__');
+                        ->orWhere('route', array_search($moduleName, self::MODULE_MAP, true) ?: '__none__');
                 })->get();
 
                 foreach ($subMenus as $subMenu) {
@@ -232,7 +234,7 @@ class RolesPermisosController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno al actualizar el permiso del rol: ' . $ex->getMessage(),
+                'message' => 'Error interno al actualizar el permiso del rol: '.$ex->getMessage(),
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -248,8 +250,8 @@ class RolesPermisosController extends Controller
         ]);
 
         try {
-            $rol = Rol::findOrFail((int)$request->input('rol_id'));
-            $menu = Menu::findOrFail((int)$request->input('menu_id'));
+            $rol = Rol::findOrFail((int) $request->input('rol_id'));
+            $menu = Menu::findOrFail((int) $request->input('menu_id'));
 
             if ($rol->guard_name !== 'api') {
                 $rol->guard_name = 'api';
@@ -257,8 +259,8 @@ class RolesPermisosController extends Controller
             }
 
             $menuRol = MenuRol::where('rol_id', $rol->id)->where('menu_id', $menu->id)->first();
-            $isCurrentlyActive = $menuRol ? (bool)$menuRol->check : false;
-            $newActiveState = !$isCurrentlyActive;
+            $isCurrentlyActive = $menuRol ? (bool) $menuRol->check : false;
+            $newActiveState = ! $isCurrentlyActive;
 
             // Actualizar estado del submenú
             MenuRol::updateOrCreate(
@@ -281,7 +283,7 @@ class RolesPermisosController extends Controller
                         ->whereIn('menu_id', Menu::where('menu_id', $menu->menu_id)->pluck('id'))
                         ->exists();
 
-                    if (!$otherActiveChildren) {
+                    if (! $otherActiveChildren) {
                         MenuRol::where('rol_id', $rol->id)->where('menu_id', $menu->menu_id)->update(['check' => false]);
                     }
                 }
@@ -293,7 +295,7 @@ class RolesPermisosController extends Controller
 
             if ($newActiveState) {
                 // Al activar la navegación, conceder el permiso de "ver" si existe
-                $verPerm = $permissions->first(fn($p) => str_ends_with($p->name, '.ver'));
+                $verPerm = $permissions->first(fn ($p) => str_ends_with($p->name, '.ver'));
                 if ($verPerm) {
                     $rol->givePermissionTo($verPerm->name);
                 }
@@ -307,12 +309,13 @@ class RolesPermisosController extends Controller
             return response()->json([
                 'success' => true,
                 'active' => $newActiveState,
-                'message' => $newActiveState 
+                'message' => $newActiveState
                     ? "Submódulo \"{$menu->label}\" activado y visible en barra lateral."
                     : "Submódulo \"{$menu->label}\" desactivado y oculto.",
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al toggle menu rol', ['request' => $request->all(), 'exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al actualizar visibilidad del menú.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -325,8 +328,8 @@ class RolesPermisosController extends Controller
         try {
             $orphanPerms = Permission::where(function ($q) {
                 $q->whereNull('module')
-                  ->orWhere('module', '')
-                  ->orWhere('module', 'General');
+                    ->orWhere('module', '')
+                    ->orWhere('module', 'General');
             })->where('name', '!=', 'SIGP')->get();
 
             return response()->json([
@@ -336,6 +339,7 @@ class RolesPermisosController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al consultar permisos huerfanos', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al consultar permisos huérfanos.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -375,12 +379,12 @@ class RolesPermisosController extends Controller
                 $roleIds = $request->input('role_ids', []);
                 foreach ($roleIds as $rolId) {
                     MenuRol::updateOrCreate(
-                        ['rol_id' => (int)$rolId, 'menu_id' => $menu->id],
+                        ['rol_id' => (int) $rolId, 'menu_id' => $menu->id],
                         ['check' => true]
                     );
                     if ($menuId) {
                         MenuRol::updateOrCreate(
-                            ['rol_id' => (int)$rolId, 'menu_id' => (int)$menuId],
+                            ['rol_id' => (int) $rolId, 'menu_id' => (int) $menuId],
                             ['check' => true]
                         );
                     }
@@ -388,7 +392,7 @@ class RolesPermisosController extends Controller
 
                 // Vincular permisos huérfanos seleccionados a este módulo
                 $orphanIds = $request->input('orphan_permission_ids', []);
-                if (!empty($orphanIds)) {
+                if (! empty($orphanIds)) {
                     Permission::whereIn('id', $orphanIds)->update([
                         'module' => $menu->label,
                     ]);
@@ -413,6 +417,7 @@ class RolesPermisosController extends Controller
             });
         } catch (\Throwable $ex) {
             Log::error('Error al crear menu', ['request' => $request->all(), 'exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al crear el menú.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -452,6 +457,7 @@ class RolesPermisosController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al actualizar menu', ['id' => $id, 'exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al actualizar menú.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -487,6 +493,7 @@ class RolesPermisosController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al eliminar menu', ['id' => $id, 'exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al eliminar menú.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -506,9 +513,9 @@ class RolesPermisosController extends Controller
         try {
             DB::transaction(function () use ($request) {
                 foreach ($request->input('items') as $item) {
-                    $updateData = ['order' => (int)$item['order']];
+                    $updateData = ['order' => (int) $item['order']];
                     if (array_key_exists('menu_id', $item)) {
-                        $updateData['menu_id'] = $item['menu_id'] ? (int)$item['menu_id'] : null;
+                        $updateData['menu_id'] = $item['menu_id'] ? (int) $item['menu_id'] : null;
                         $updateData['level'] = $updateData['menu_id'] ? 1 : 0;
                     }
                     Menu::where('id', $item['id'])->update($updateData);
@@ -518,6 +525,7 @@ class RolesPermisosController extends Controller
             return response()->json(['success' => true, 'message' => 'Orden y jerarquía de navegación actualizados correctamente.'], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al reordenar menus', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al reordenar menús.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -534,14 +542,14 @@ class RolesPermisosController extends Controller
         ]);
 
         try {
-            $rol = Rol::findOrFail((int)$request->input('rol_id'));
+            $rol = Rol::findOrFail((int) $request->input('rol_id'));
             if ($rol->guard_name !== 'api') {
                 $rol->guard_name = 'api';
                 $rol->save();
             }
 
             $moduleName = $request->input('module');
-            $grantAll = (bool)$request->input('grant_all');
+            $grantAll = (bool) $request->input('grant_all');
 
             $permissions = Permission::where('module', $moduleName)->get();
 
@@ -556,7 +564,7 @@ class RolesPermisosController extends Controller
             // AUTO-SINCRONIZAR VISIBILIDAD DE MENÚ
             $subMenus = Menu::where(function ($q) use ($moduleName) {
                 $q->where('label', $moduleName)
-                  ->orWhere('route', array_search($moduleName, self::MODULE_MAP, true) ?: '__none__');
+                    ->orWhere('route', array_search($moduleName, self::MODULE_MAP, true) ?: '__none__');
             })->get();
 
             foreach ($subMenus as $subMenu) {
@@ -584,12 +592,13 @@ class RolesPermisosController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => $grantAll 
+                'message' => $grantAll
                     ? "Se concedieron todas las acciones de \"{$moduleName}\" al rol {$rol->name}."
                     : "Se revocaron todas las acciones de \"{$moduleName}\" al rol {$rol->name}.",
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error en batch de permisos de módulo', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al procesar permisos por lote.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

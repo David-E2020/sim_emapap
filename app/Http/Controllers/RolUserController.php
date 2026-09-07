@@ -35,12 +35,12 @@ class RolUserController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => $validator->errors()->first()
+                'message' => $validator->errors()->first(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $rolId = (int)$request->input('rol_id');
-        $usuarioId = (int)$request->input('usuario_id');
+        $rolId = (int) $request->input('rol_id');
+        $usuarioId = (int) $request->input('usuario_id');
 
         try {
             $rolUser = $this->userAccessService->assignRole($usuarioId, $rolId);
@@ -50,12 +50,12 @@ class RolUserController extends Controller
             Log::error('Error al asignar rol a usuario', [
                 'usuario_id' => $usuarioId,
                 'rol_id' => $rolId,
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'No se pudo asignar el rol. Intente nuevamente.'
+                'message' => 'No se pudo asignar el rol. Intente nuevamente.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -67,10 +67,10 @@ class RolUserController extends Controller
     {
         $authUser = Auth::guard('api')->user();
 
-        if (!$authUser) {
+        if (! $authUser) {
             return response()->json([
                 'success' => false,
-                'mensaje' => 'No autenticado.'
+                'mensaje' => 'No autenticado.',
             ], Response::HTTP_UNAUTHORIZED);
         }
 
@@ -83,37 +83,37 @@ class RolUserController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'mensaje' => $validator->errors()->first()
+                'mensaje' => $validator->errors()->first(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $targetUserId = $request->input('id');
 
         // REGLA DE SEGURIDAD IDOR/BOLA:
-        if (!$targetUserId || (int)$targetUserId === (int)$authUser->id) {
+        if (! $targetUserId || (int) $targetUserId === (int) $authUser->id) {
             $userToUpdate = User::findOrFail($authUser->id);
 
             // Verificar contraseña actual si fue provista
-            if ($request->has('current_password') && !Hash::check($request->current_password, $userToUpdate->password)) {
+            if ($request->has('current_password') && ! Hash::check($request->current_password, $userToUpdate->password)) {
                 return response()->json([
                     'success' => false,
-                    'mensaje' => 'La contraseña actual es incorrecta'
+                    'mensaje' => 'La contraseña actual es incorrecta',
                 ], Response::HTTP_BAD_REQUEST);
             }
         } else {
             // Si intenta cambiar la clave de OTRO usuario, debe ser Administrador
-            if (!$authUser->hasRole('Administrador General')) {
+            if (! $authUser->hasRole('Administrador General')) {
                 return response()->json([
                     'success' => false,
-                    'mensaje' => 'Acceso denegado: No tiene permisos para modificar este usuario'
+                    'mensaje' => 'Acceso denegado: No tiene permisos para modificar este usuario',
                 ], Response::HTTP_FORBIDDEN);
             }
 
             $userToUpdate = User::find($targetUserId);
-            if (!$userToUpdate) {
+            if (! $userToUpdate) {
                 return response()->json([
                     'success' => false,
-                    'mensaje' => 'Usuario no encontrado'
+                    'mensaje' => 'Usuario no encontrado',
                 ], Response::HTTP_NOT_FOUND);
             }
         }
@@ -126,7 +126,7 @@ class RolUserController extends Controller
             $this->auditService->log(
                 event: 'user_password_changed',
                 model: $userToUpdate,
-                newValues: ['changed_by' => $authUser->id, 'timestamp' => (string)now()]
+                newValues: ['changed_by' => $authUser->id, 'timestamp' => (string) now()]
             );
 
             return response()->json([
@@ -136,12 +136,12 @@ class RolUserController extends Controller
         } catch (\Throwable $ex) {
             Log::error('Error al actualizar contraseña', [
                 'user_id' => $userToUpdate->id,
-                'exception' => $ex->getMessage()
+                'exception' => $ex->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'mensaje' => 'Error interno al actualizar la contraseña'
+                'mensaje' => 'Error interno al actualizar la contraseña',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

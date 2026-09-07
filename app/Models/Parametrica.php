@@ -12,6 +12,7 @@ class Parametrica extends Model
     use SoftDeletes;
 
     protected $table = 'parametricas';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

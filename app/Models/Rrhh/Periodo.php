@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Periodo extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.periodos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

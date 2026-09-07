@@ -8,7 +8,6 @@ use App\Models\RolUser;
 use App\Models\User;
 use App\Services\Audit\AuditService;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -30,7 +29,7 @@ class UserAccessService
             // 1. Permiso base inmutable
             $permission = Permission::firstOrCreate([
                 'name' => 'SIGP',
-                'guard_name' => 'api'
+                'guard_name' => 'api',
             ]);
             $user->givePermissionTo($permission);
 
@@ -39,7 +38,7 @@ class UserAccessService
             if ($roleId) {
                 $role = Role::find($roleId);
             }
-            if (!$role) {
+            if (! $role) {
                 $role = Role::where('guard_name', 'api')->first() ?: Role::first();
             }
 
@@ -63,7 +62,7 @@ class UserAccessService
                 newValues: [
                     'role_id' => $role?->id,
                     'role_name' => $role?->name,
-                    'permission' => 'SIGP'
+                    'permission' => 'SIGP',
                 ]
             );
 
@@ -96,7 +95,7 @@ class UserAccessService
                 model: $user,
                 oldValues: [
                     'roles' => $oldRoles,
-                    'permissions' => $oldPermissions
+                    'permissions' => $oldPermissions,
                 ]
             );
 

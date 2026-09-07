@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\RolUser;
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -12,13 +12,14 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class UsuarioTest extends TestCase
 {
     protected $token;
+
     protected $admin;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->admin = User::where('usr_usuario', 'admin')->first();
-        if (!$this->admin) {
+        if (! $this->admin) {
             $this->admin = User::create([
                 'name' => 'Administrador Test',
                 'usr_usuario' => 'admin',
@@ -37,7 +38,7 @@ class UsuarioTest extends TestCase
      */
     public function test_listar_usuarios()
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson('/api/usuario');
 
         $response->assertStatus(200);
@@ -52,15 +53,15 @@ class UsuarioTest extends TestCase
     {
         $testUser = User::create([
             'name' => 'Usuario Prueba',
-            'usr_usuario' => 'usuariotest_' . time(),
-            'email' => 'test' . time() . '@test.com',
+            'usr_usuario' => 'usuariotest_'.time(),
+            'email' => 'test'.time().'@test.com',
             'password' => Hash::make('secret123'),
             'usr_estado' => 'A',
         ]);
 
         // Asignar acceso al sistema
-        $responseAdd = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->getJson('/api/usuario/agregar-sistema/' . $testUser->id);
+        $responseAdd = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->getJson('/api/usuario/agregar-sistema/'.$testUser->id);
 
         $responseAdd->assertStatus(200)
             ->assertJson([
@@ -74,8 +75,8 @@ class UsuarioTest extends TestCase
         ]);
 
         // Quitar acceso al sistema
-        $responseRemove = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->getJson('/api/usuario/quitar-sistema/' . $testUser->id);
+        $responseRemove = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->getJson('/api/usuario/quitar-sistema/'.$testUser->id);
 
         $responseRemove->assertStatus(200)
             ->assertJson([
@@ -93,7 +94,7 @@ class UsuarioTest extends TestCase
      */
     public function test_actualizar_password_usuario()
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/update_user_password', [
                 'id' => $this->admin->id,
                 'password' => 'nueva_password123',

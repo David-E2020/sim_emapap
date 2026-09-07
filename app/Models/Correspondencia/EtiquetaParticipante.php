@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace App\Models\Correspondencia;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EtiquetaParticipante extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.etiquetas_participantes';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

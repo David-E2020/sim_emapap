@@ -73,18 +73,18 @@ class ComisionesOmisionesController extends Controller
                     'fecha_fin' => $request->input('fecha_fin'),
                     'dia_completo' => true,
                     'metadata' => [
-                        'monto_viatico' => (float)$request->input('monto_viatico', 0),
+                        'monto_viatico' => (float) $request->input('monto_viatico', 0),
                         'transporte' => $request->input('transporte', 'TERRESTRE'),
                         'tipo_viaje' => 'COMISION_OFICIAL',
                     ],
-                    'cite' => 'CITE-COMISION-' . date('Y') . '-' . strtoupper(uniqid()),
+                    'cite' => 'CITE-COMISION-'.date('Y').'-'.strtoupper(uniqid()),
                     '_usuario_creacion' => auth()->id() ?? 1,
                     '_fecha_creacion' => now(),
                 ]);
 
                 DB::table('rrhh.usuarios_solicitudes_salidas')->insert([
                     'id_solicitud_salida' => $sol->id,
-                    'id_persona' => (int)$request->input('id_persona'),
+                    'id_persona' => (int) $request->input('id_persona'),
                     'estado_aprobacion' => 'PENDIENTE',
                     '_estado' => 'ACTIVO',
                     '_transaccion' => 'CREAR',
@@ -93,16 +93,18 @@ class ComisionesOmisionesController extends Controller
                 ]);
 
                 $this->auditService->log('comision_created', $sol, $sol->toArray());
+
                 return $sol;
             });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Comisión de viaje registrada con CITE ' . $solicitud->cite,
+                'message' => 'Comisión de viaje registrada con CITE '.$solicitud->cite,
                 'data' => $solicitud,
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar comision', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al registrar comisión.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -157,14 +159,14 @@ class ComisionesOmisionesController extends Controller
                     'fecha_fin' => $request->input('fecha'),
                     'hora_marcado_omision' => $request->input('hora_marcado_omision'),
                     'turno_periodo' => $request->input('turno_periodo'),
-                    'cite' => 'CITE-OMISION-' . date('Y') . '-' . strtoupper(uniqid()),
+                    'cite' => 'CITE-OMISION-'.date('Y').'-'.strtoupper(uniqid()),
                     '_usuario_creacion' => auth()->id() ?? 1,
                     '_fecha_creacion' => now(),
                 ]);
 
                 DB::table('rrhh.usuarios_solicitudes_salidas')->insert([
                     'id_solicitud_salida' => $sol->id,
-                    'id_persona' => (int)$request->input('id_persona'),
+                    'id_persona' => (int) $request->input('id_persona'),
                     'estado_aprobacion' => 'PENDIENTE',
                     '_estado' => 'ACTIVO',
                     '_transaccion' => 'CREAR',
@@ -182,6 +184,7 @@ class ComisionesOmisionesController extends Controller
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar omision', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al registrar omisión.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -274,6 +277,7 @@ class ComisionesOmisionesController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
             Log::error('Error al resolver solicitud', ['exception' => $ex->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Error al resolver solicitud.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

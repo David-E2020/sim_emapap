@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ArchivoAdjunto extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.archivos_adjuntos';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

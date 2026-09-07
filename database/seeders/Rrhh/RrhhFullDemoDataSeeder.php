@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Database\Seeders\Rrhh;
 
-use App\Models\Rrhh\Persona;
-use App\Models\Rrhh\FichaPersonal;
+use App\Models\Rrhh\Asistencia;
+use App\Models\Rrhh\Cas;
 use App\Models\Rrhh\DatoLaboral;
 use App\Models\Rrhh\EstudioAcademico;
-use App\Models\Rrhh\Cas;
+use App\Models\Rrhh\FichaPersonal;
 use App\Models\Rrhh\Horario;
-use App\Models\Rrhh\Periodo;
 use App\Models\Rrhh\Marcacion;
-use App\Models\Rrhh\Asistencia;
+use App\Models\Rrhh\Periodo;
+use App\Models\Rrhh\Persona;
 use App\Models\Rrhh\SolicitudSalida;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -376,7 +376,7 @@ class RrhhFullDemoDataSeeder extends Seeder
                 Cas::updateOrCreate(
                     ['id_ficha_personal' => $ficha->id],
                     [
-                        'nro_resolucion' => 'RA-RRHH-' . str_pad((string)$f['id'], 3, '0', STR_PAD_LEFT) . '/2024',
+                        'nro_resolucion' => 'RA-RRHH-'.str_pad((string) $f['id'], 3, '0', STR_PAD_LEFT).'/2024',
                         'anios' => $f['cas_anios'],
                         'meses' => $f['cas_meses'],
                         'dias' => 15,
@@ -390,7 +390,7 @@ class RrhhFullDemoDataSeeder extends Seeder
             }
 
             // 7.7 Usuario ERP
-            if (!empty($f['usuario'])) {
+            if (! empty($f['usuario'])) {
                 User::updateOrCreate(
                     ['usr_usuario' => $f['usuario']],
                     [
@@ -477,8 +477,8 @@ class RrhhFullDemoDataSeeder extends Seeder
 
         // 10. GENERAR ASISTENCIAS Y MARCACIONES REALES DEL MES ACTUAL
         $diasLaborables = 20;
-        $anio = (int)date('Y');
-        $mes = (int)date('m');
+        $anio = (int) date('Y');
+        $mes = (int) date('m');
 
         foreach (Persona::all() as $p) {
             for ($dia = 1; $dia <= $diasLaborables; $dia++) {
@@ -489,7 +489,7 @@ class RrhhFullDemoDataSeeder extends Seeder
                 // Marcación Entrada
                 Marcacion::updateOrCreate(
                     [
-                        'id_usuario_marcacion' => (string)$p->id,
+                        'id_usuario_marcacion' => (string) $p->id,
                         'fecha' => $fechaStr,
                         'hora' => $horaEntrada,
                     ],
@@ -504,7 +504,7 @@ class RrhhFullDemoDataSeeder extends Seeder
                 // Marcación Salida
                 Marcacion::updateOrCreate(
                     [
-                        'id_usuario_marcacion' => (string)$p->id,
+                        'id_usuario_marcacion' => (string) $p->id,
                         'fecha' => $fechaStr,
                         'hora' => '16:32:00',
                     ],

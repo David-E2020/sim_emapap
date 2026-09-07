@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class UnidadOrganizacional extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.unidades_organizacionales';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [
@@ -32,6 +34,11 @@ class UnidadOrganizacional extends Model
         '_usuario_modificacion',
         '_fecha_modificacion',
     ];
+
+    public function regional(): BelongsTo
+    {
+        return $this->belongsTo(Regional::class, 'id_regional', 'id');
+    }
 
     public function padre(): BelongsTo
     {

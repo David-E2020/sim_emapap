@@ -32,6 +32,14 @@ export const routes = [
       requiresAuth: true,
     },
   },
+  {
+    path: '/datos/empresa',
+    name: 'datos_empresa',
+    component: () => import('@/views/datos/ConfiguracionEmpresaSiat.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
 
   // MENU ADMINISTRACION
   {
@@ -211,9 +219,173 @@ export const routes = [
     },
   },
   {
+    path: '/correspondencia/plantillas',
+    name: 'correspondencia_plantillas',
+    component: () => import('@/views/correspondencia/DisenadorPlantillas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
     path: '/correspondencia/configuracion',
     name: 'correspondencia_configuracion',
     component: () => import('@/views/correspondencia/ConfiguracionCorrespondencia.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/dashboard',
+    name: 'correspondencia_dashboard',
+    component: () => import('@/views/correspondencia/DashboardCorrespondencia.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/permisos',
+    name: 'correspondencia_permisos',
+    component: () => import('@/views/correspondencia/MatrizPermisosCorrespondencia.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/correspondencia/transferencias',
+    name: 'correspondencia_transferencias',
+    component: () => import('@/views/correspondencia/TransferenciaExpedientes.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+
+  // MODULO DE FACTURACIÓN ELECTRÓNICA SIAT
+  {
+    path: '/facturacion/caja',
+    name: 'facturacion_caja',
+    component: () => import('@/views/comercial/CajaCobranzas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/crear',
+    name: 'facturacion_crear',
+    component: () => import('@/views/facturacion/CrearFactura.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/bandeja',
+    name: 'facturacion_bandeja',
+    component: () => import('@/views/facturacion/BandejaFacturas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/contingencias',
+    name: 'facturacion_contingencias',
+    component: () => import('@/views/facturacion/FacturaContingencia.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/eventos',
+    name: 'facturacion_eventos',
+    component: () => import('@/views/facturacion/EventosSignificativos.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/puntos-venta',
+    name: 'facturacion_puntos_venta',
+    component: () => import('@/views/facturacion/PuntosVentaSucursales.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/clientes',
+    name: 'facturacion_clientes',
+    component: () => import('@/views/facturacion/ClientesFacturacion.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/productos',
+    name: 'facturacion_productos',
+    component: () => import('@/views/facturacion/ProductosServicios.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/facturacion/libro-ventas',
+    name: 'facturacion_libro_ventas',
+    component: () => import('@/views/facturacion/ReporteLibroVentas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+
+  // MODULO GESTIÓN COMERCIAL Y AGUA POTABLE
+  {
+    path: '/comercial/abonados',
+    name: 'comercial_abonados',
+    component: () => import('@/views/comercial/PadronAbonados.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/comercial/lecturas',
+    name: 'comercial_lecturas',
+    component: () => import('@/views/comercial/TomaLecturas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/comercial/caja',
+    name: 'comercial_caja',
+    component: () => import('@/views/comercial/CajaCobranzas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/comercial/convenios',
+    name: 'comercial_convenios',
+    component: () => import('@/views/comercial/ConveniosPago.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/comercial/cortes',
+    name: 'comercial_cortes',
+    component: () => import('@/views/comercial/CortesReconexiones.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/comercial/tarifas',
+    name: 'comercial_tarifas',
+    component: () => import('@/views/comercial/ConfiguracionTarifasZonas.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/comercial/reportes',
+    name: 'comercial_reportes',
+    component: () => import('@/views/comercial/ReportesComerciales.vue'),
     meta: {
       requiresAuth: true,
     },

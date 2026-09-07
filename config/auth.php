@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\User;
+
 return [
 
     /*
@@ -13,8 +15,8 @@ return [
     |
      */
 
-    'defaults'         => [
-        'guard'     => 'api',
+    'defaults' => [
+        'guard' => 'api',
         'passwords' => 'users',
     ],
 
@@ -35,15 +37,15 @@ return [
     |
      */
 
-    'guards'           => [
+    'guards' => [
         'web' => [
-            'driver'   => 'session',
+            'driver' => 'session',
             'provider' => 'users',
         ],
         'api' => [
-            'driver'   => 'jwt',
+            'driver' => 'jwt',
             'provider' => 'users',
-            'hash'     => false,
+            'hash' => false,
         ],
     ],
 
@@ -64,10 +66,10 @@ return [
     |
      */
 
-    'providers'        => [
+    'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model'  => App\Models\User::class,
+            'model' => User::class,
         ],
 
         // 'users' => [
@@ -91,11 +93,11 @@ return [
     |
      */
 
-    'passwords'        => [
+    'passwords' => [
         'users' => [
             'provider' => 'users',
-            'table'    => 'password_resets',
-            'expire'   => 60,
+            'table' => 'password_resets',
+            'expire' => 60,
             'throttle' => 60,
         ],
     ],

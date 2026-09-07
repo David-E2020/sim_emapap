@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class RevisionDocumento extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.revisiones_doc';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

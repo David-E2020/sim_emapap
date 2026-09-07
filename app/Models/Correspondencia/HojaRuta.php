@@ -16,7 +16,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class HojaRuta extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.hojas_ruta';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

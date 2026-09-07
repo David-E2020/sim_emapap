@@ -6,30 +6,26 @@ namespace App\Http\Controllers\Correspondencia;
 
 use App\Http\Controllers\Controller;
 use App\Models\Correspondencia\Derivacion;
-use App\Models\Correspondencia\HojaRuta;
 use App\Services\Correspondencia\DerivacionWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\Response;
 
 class DerivacionController extends Controller
 {
-    protected DerivacionWorkflowService $workflowService;
-
-    public function __construct(DerivacionWorkflowService $workflowService)
-    {
-        $this->workflowService = $workflowService;
-    }
+    public function __construct(
+        protected readonly DerivacionWorkflowService $workflowService
+    ) {}
 
     /**
-     * Derivar Hoja de Ruta a uno o varios destinatarios
+     * Derivar Hoja de Ruta a uno o varios destinatarios (LONDRA: Principal + Copias CC)
      */
     public function derivar(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'id_hoja_ruta' => 'required|integer|exists:correspondencia.hojas_ruta,id',
-            'id_derivacion_padre' => 'nullable|integer|exists:correspondencia.derivaciones,id',
+            'id_hoja_ruta' => 'required|integer|exists:App\Models\Correspondencia\HojaRuta,id',
+            'id_derivacion_padre' => 'nullable|integer|exists:App\Models\Correspondencia\Derivacion,id',
             'destinatarios' => 'required|array|min:1',
             'destinatarios.*.id_unidad_destino' => 'required|integer',
             'destinatarios.*.id_funcionario_destino' => 'nullable|integer',
@@ -42,10 +38,17 @@ class DerivacionController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $derivaciones = $this->workflowService->derivar($request->all());
+        $idPersona = auth()->user()?->id_persona ?: (int) $request->input('id_funcionario_origen', 1);
+        $payload = $request->all();
+        $payload['id_funcionario_origen'] = $idPersona;
+
+        $derivaciones = $this->workflowService->derivar($payload);
 
         return response()->json([
             'success' => true,
@@ -59,7 +62,7 @@ class DerivacionController extends Controller
      */
     public function recibir(Request $request, int $id): JsonResponse
     {
-        $idPersona = auth()->user()?->id_persona ?: (int)$request->input('id_persona', 1);
+        $idPersona = auth()->user()?->id_persona ?: (int) $request->input('id_persona', 1);
         $derivacion = $this->workflowService->recibir($id, $idPersona);
 
         return response()->json([
@@ -70,7 +73,7 @@ class DerivacionController extends Controller
     }
 
     /**
-     * Devolución de derivación con observaciones
+     * Devolución de derivación con observaciones (LONDRA: Retorno al remitente)
      */
     public function devolver(Request $request, int $id): JsonResponse
     {
@@ -79,16 +82,34 @@ class DerivacionController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $idPersona = auth()->user()?->id_persona ?: (int)$request->input('id_persona', 1);
-        $retorno = $this->workflowService->devolver($id, $idPersona, $request->input('motivo'));
+        $idPersona = auth()->user()?->id_persona ?: (int) $request->input('id_persona', 1);
+        $retorno = $this->workflowService->devolver($id, $idPersona, (string) $request->input('motivo'));
 
         return response()->json([
             'success' => true,
             'message' => 'Trámite devuelto con observaciones.',
             'data' => $retorno,
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Anular / Deshacer una derivación en tránsito (LONDRA: Si aún no fue recibida)
+     */
+    public function anular(Request $request, int $id): JsonResponse
+    {
+        $derivacion = Derivacion::findOrFail($id);
+        $idPersona = auth()->user()?->id_persona ?: (int) $request->input('id_persona', $derivacion->id_funcionario_origen ?: 1);
+        $this->workflowService->anularDerivacion($id, $idPersona);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Derivación anulada con éxito. El trámite ha retornado a su bandeja.',
         ], Response::HTTP_OK);
     }
 }

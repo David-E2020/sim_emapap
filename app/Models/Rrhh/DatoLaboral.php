@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class DatoLaboral extends Model
 {
     public $timestamps = false;
+
     protected $table = 'rrhh.datos_laborales';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

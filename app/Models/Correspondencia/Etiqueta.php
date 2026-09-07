@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Etiqueta extends Model
 {
     public $timestamps = false;
+
     protected $table = 'correspondencia.etiquetas';
+
     protected $primaryKey = 'id';
 
     protected $fillable = [

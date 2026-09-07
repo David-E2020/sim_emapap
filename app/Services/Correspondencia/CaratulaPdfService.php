@@ -60,8 +60,8 @@ class CaratulaPdfService
             $derivacionesHtml = "<div style='text-align: center; color: #64748b; padding: 20px; border: 1px dashed #cbd5e1; border-radius: 6px;'>Sin derivaciones registradas aún.</div>";
         }
 
-        $qrUrl = url("/verificar-hoja-ruta?cite=" . urlencode($hojaRuta->nro_hoja_ruta));
-        $qrImageSrc = "https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=" . urlencode($qrUrl);
+        $qrUrl = url('/verificar-hoja-ruta?cite='.urlencode($hojaRuta->nro_hoja_ruta));
+        $qrImageSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=110x110&data='.urlencode($qrUrl);
 
         return "
 <!DOCTYPE html>
@@ -145,14 +145,14 @@ class CaratulaPdfService
     public function renderDocumentoHtml(Documento $documento): string
     {
         $qrUrl = url("/verificar-documento/{$documento->codigo_verificacion}");
-        $qrImageSrc = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" . urlencode($qrUrl);
+        $qrImageSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='.urlencode($qrUrl);
 
         $firmasHtml = '';
         foreach ($documento->firmasAprobaciones as $f) {
             $nom = $f->persona ? $f->persona->nombre_completo : 'N/A';
             $ci = $f->persona ? $f->persona->nro_documento : 'N/A';
             $fechaFirma = $f->fecha_firma_aprobacion ? Carbon::parse($f->fecha_firma_aprobacion)->format('d/m/Y H:i:s') : 'Pendiente';
-            $hash = $f->hash_documento_sha256 ? substr($f->hash_documento_sha256, 0, 16) . '...' : 'N/A';
+            $hash = $f->hash_documento_sha256 ? substr($f->hash_documento_sha256, 0, 16).'...' : 'N/A';
 
             $firmasHtml .= "
             <div style='border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; width: 45%; margin-bottom: 8px; font-size: 10px; background: #f8fafc;'>
@@ -195,7 +195,7 @@ class CaratulaPdfService
         </tr>
         <tr>
             <td style='font-weight: bold;'>DE:</td>
-            <td><strong>" . ($documento->creador ? $documento->creador->nombre_completo : 'Autoridad EMAPA') . "</strong></td>
+            <td><strong>".($documento->creador ? $documento->creador->nombre_completo : 'Autoridad EMAPA')."</strong></td>
         </tr>
         <tr>
             <td style='font-weight: bold;'>REF:</td>
@@ -203,7 +203,7 @@ class CaratulaPdfService
         </tr>
         <tr>
             <td style='font-weight: bold;'>FECHA:</td>
-            <td>" . date('d \d\e F \d\e Y') . "</td>
+            <td>".date('d \d\e F \d\e Y')."</td>
         </tr>
     </table>
 

@@ -1,17 +1,52 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\Administracion\UsuarioController;
 use App\Http\Controllers\Administracion\AccesoUsuarioController;
-use App\Http\Controllers\Administracion\Parametricas\ParametricaController;
 use App\Http\Controllers\Administracion\AuditLogController;
+use App\Http\Controllers\Administracion\Parametricas\ParametricaController;
 use App\Http\Controllers\Administracion\RolesPermisosController;
-use App\Http\Controllers\RolController;
-use App\Http\Controllers\RolUserController;
+use App\Http\Controllers\Administracion\UsuarioController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Correspondencia\AccesoCompartidoController;
+use App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController;
+use App\Http\Controllers\Correspondencia\DashboardCorrespondenciaController;
+use App\Http\Controllers\Correspondencia\DerivacionController;
+use App\Http\Controllers\Correspondencia\DespachoSalidaController;
+use App\Http\Controllers\Correspondencia\DocumentoController;
+use App\Http\Controllers\Correspondencia\EtiquetaController;
+use App\Http\Controllers\Correspondencia\FirmaAprobacionController;
+use App\Http\Controllers\Correspondencia\HojaRutaController;
+use App\Http\Controllers\Correspondencia\PermisosCorrespondenciaController;
+use App\Http\Controllers\Correspondencia\RevisionDocumentoController;
+use App\Http\Controllers\Correspondencia\SeguimientoController;
+use App\Http\Controllers\Correspondencia\SolicitudCiudadanaController;
+use App\Http\Controllers\Correspondencia\TransferenciaController;
+use App\Http\Controllers\Correspondencia\VentanillaController;
+use App\Http\Controllers\Correspondencia\VerificacionPublicaController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MenuRolController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\RolController;
+use App\Http\Controllers\RolUserController;
+use App\Http\Controllers\Rrhh\AsistenciaController;
+use App\Http\Controllers\Rrhh\ComisionesOmisionesController;
+use App\Http\Controllers\Rrhh\EstructuraOrganizacionalController;
+use App\Http\Controllers\Rrhh\FeriadoCorteController;
+use App\Http\Controllers\Rrhh\HorarioController;
+use App\Http\Controllers\Rrhh\PersonalController;
+use App\Http\Controllers\Rrhh\ReporteRrhhController;
+use App\Http\Controllers\Facturacion\ClienteFacturaController;
+use App\Http\Controllers\Facturacion\EventoSignificativoController;
+use App\Http\Controllers\Facturacion\FacturaController;
+use App\Http\Controllers\Facturacion\ReporteFacturacionController;
+use App\Http\Controllers\Facturacion\SiatCodigoController;
+use App\Http\Controllers\Comercial\AbonadoController;
+use App\Http\Controllers\Comercial\LecturaController;
+use App\Http\Controllers\Comercial\CobranzaCajaController;
+use App\Http\Controllers\Comercial\ConvenioController;
+use App\Http\Controllers\Comercial\CorteReconexionController;
+use App\Http\Controllers\Comercial\TarifaZonaController;
+use App\Http\Controllers\Comercial\ReporteComercialController;
+use App\Http\Controllers\Rrhh\SolicitudSalidaController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -67,67 +102,67 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     // ==========================================
     // MÓDULO RECURSOS HUMANOS (CAPIBARA INTEGRADO)
     // ==========================================
-    Route::get('rrhh/personal', [\App\Http\Controllers\Rrhh\PersonalController::class, 'index']);
-    Route::post('rrhh/personal', [\App\Http\Controllers\Rrhh\PersonalController::class, 'store']);
-    Route::get('rrhh/personal/mi-ficha', [\App\Http\Controllers\Rrhh\PersonalController::class, 'miFichaPersonal']);
-    Route::get('rrhh/personal/{id}', [\App\Http\Controllers\Rrhh\PersonalController::class, 'show']);
-    Route::post('rrhh/personal/{id}/estudios', [\App\Http\Controllers\Rrhh\PersonalController::class, 'storeEstudio']);
-    Route::post('rrhh/personal/{id}/experiencia', [\App\Http\Controllers\Rrhh\PersonalController::class, 'storeExperiencia']);
-    Route::post('rrhh/personal/{id}/cas', [\App\Http\Controllers\Rrhh\PersonalController::class, 'storeCas']);
+    Route::get('rrhh/personal', [PersonalController::class, 'index']);
+    Route::post('rrhh/personal', [PersonalController::class, 'store']);
+    Route::get('rrhh/personal/mi-ficha', [PersonalController::class, 'miFichaPersonal']);
+    Route::get('rrhh/personal/{id}', [PersonalController::class, 'show']);
+    Route::post('rrhh/personal/{id}/estudios', [PersonalController::class, 'storeEstudio']);
+    Route::post('rrhh/personal/{id}/experiencia', [PersonalController::class, 'storeExperiencia']);
+    Route::post('rrhh/personal/{id}/cas', [PersonalController::class, 'storeCas']);
 
-    Route::get('rrhh/organigrama', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'organigrama']);
-    Route::post('rrhh/unidades-organizacionales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeUnidad']);
-    Route::post('rrhh/puestos', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storePuesto']);
-    Route::post('rrhh/asignar-puesto', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'asignarPuesto']);
-    Route::get('rrhh/escalas-salariales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'listarEscalasSalariales']);
-    Route::post('rrhh/escalas-salariales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeEscalaSalarial']);
-    Route::get('rrhh/regionales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'listarRegionales']);
-    Route::post('rrhh/regionales', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeRegional']);
-    Route::get('rrhh/gestiones', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'listarGestiones']);
-    Route::post('rrhh/gestiones', [\App\Http\Controllers\Rrhh\EstructuraOrganizacionalController::class, 'storeGestion']);
+    Route::get('rrhh/organigrama', [EstructuraOrganizacionalController::class, 'organigrama']);
+    Route::post('rrhh/unidades-organizacionales', [EstructuraOrganizacionalController::class, 'storeUnidad']);
+    Route::post('rrhh/puestos', [EstructuraOrganizacionalController::class, 'storePuesto']);
+    Route::post('rrhh/asignar-puesto', [EstructuraOrganizacionalController::class, 'asignarPuesto']);
+    Route::get('rrhh/escalas-salariales', [EstructuraOrganizacionalController::class, 'listarEscalasSalariales']);
+    Route::post('rrhh/escalas-salariales', [EstructuraOrganizacionalController::class, 'storeEscalaSalarial']);
+    Route::get('rrhh/regionales', [EstructuraOrganizacionalController::class, 'listarRegionales']);
+    Route::post('rrhh/regionales', [EstructuraOrganizacionalController::class, 'storeRegional']);
+    Route::get('rrhh/gestiones', [EstructuraOrganizacionalController::class, 'listarGestiones']);
+    Route::post('rrhh/gestiones', [EstructuraOrganizacionalController::class, 'storeGestion']);
 
-    Route::get('rrhh/biometricos', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'listarBiometricos']);
-    Route::post('rrhh/biometricos/{id}/probar-conexion', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'probarConexion']);
-    Route::post('rrhh/biometricos/{id}/sincronizar', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'sincronizar']);
-    Route::get('rrhh/asistencias', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'listarAsistencias']);
-    Route::post('rrhh/asistencias/calcular', [\App\Http\Controllers\Rrhh\AsistenciaController::class, 'calcularAsistencia']);
+    Route::get('rrhh/biometricos', [AsistenciaController::class, 'listarBiometricos']);
+    Route::post('rrhh/biometricos/{id}/probar-conexion', [AsistenciaController::class, 'probarConexion']);
+    Route::post('rrhh/biometricos/{id}/sincronizar', [AsistenciaController::class, 'sincronizar']);
+    Route::get('rrhh/asistencias', [AsistenciaController::class, 'listarAsistencias']);
+    Route::post('rrhh/asistencias/calcular', [AsistenciaController::class, 'calcularAsistencia']);
 
-    Route::get('rrhh/permisos/catalogo', [\App\Http\Controllers\Rrhh\SolicitudSalidaController::class, 'catalogoPermisos']);
-    Route::get('rrhh/solicitudes', [\App\Http\Controllers\Rrhh\SolicitudSalidaController::class, 'index']);
-    Route::post('rrhh/solicitudes', [\App\Http\Controllers\Rrhh\SolicitudSalidaController::class, 'store']);
+    Route::get('rrhh/permisos/catalogo', [SolicitudSalidaController::class, 'catalogoPermisos']);
+    Route::get('rrhh/solicitudes', [SolicitudSalidaController::class, 'index']);
+    Route::post('rrhh/solicitudes', [SolicitudSalidaController::class, 'store']);
 
     // Horarios y Turnos
-    Route::get('rrhh/horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'index']);
-    Route::post('rrhh/horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'store']);
-    Route::get('rrhh/asignaciones-horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'listarAsignaciones']);
-    Route::post('rrhh/asignaciones-horarios', [\App\Http\Controllers\Rrhh\HorarioController::class, 'asignarHorario']);
+    Route::get('rrhh/horarios', [HorarioController::class, 'index']);
+    Route::post('rrhh/horarios', [HorarioController::class, 'store']);
+    Route::get('rrhh/asignaciones-horarios', [HorarioController::class, 'listarAsignaciones']);
+    Route::post('rrhh/asignaciones-horarios', [HorarioController::class, 'asignarHorario']);
 
     // Comisiones, Omisiones y Aprobaciones
-    Route::get('rrhh/comisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'listarComisiones']);
-    Route::post('rrhh/comisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'storeComision']);
-    Route::get('rrhh/omisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'listarOmisiones']);
-    Route::post('rrhh/omisiones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'storeOmision']);
-    Route::get('rrhh/bandeja-aprobaciones', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'bandejaAprobaciones']);
-    Route::put('rrhh/bandeja-aprobaciones/{id}/resolver', [\App\Http\Controllers\Rrhh\ComisionesOmisionesController::class, 'resolverSolicitud']);
+    Route::get('rrhh/comisiones', [ComisionesOmisionesController::class, 'listarComisiones']);
+    Route::post('rrhh/comisiones', [ComisionesOmisionesController::class, 'storeComision']);
+    Route::get('rrhh/omisiones', [ComisionesOmisionesController::class, 'listarOmisiones']);
+    Route::post('rrhh/omisiones', [ComisionesOmisionesController::class, 'storeOmision']);
+    Route::get('rrhh/bandeja-aprobaciones', [ComisionesOmisionesController::class, 'bandejaAprobaciones']);
+    Route::put('rrhh/bandeja-aprobaciones/{id}/resolver', [ComisionesOmisionesController::class, 'resolverSolicitud']);
 
     // Feriados y Fechas de Corte
-    Route::get('rrhh/feriados', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'listarFeriados']);
-    Route::post('rrhh/feriados', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'storeFeriado']);
-    Route::get('rrhh/fechas-corte', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'listarFechasCorte']);
-    Route::post('rrhh/fechas-corte', [\App\Http\Controllers\Rrhh\FeriadoCorteController::class, 'storeFechaCorte']);
+    Route::get('rrhh/feriados', [FeriadoCorteController::class, 'listarFeriados']);
+    Route::post('rrhh/feriados', [FeriadoCorteController::class, 'storeFeriado']);
+    Route::get('rrhh/fechas-corte', [FeriadoCorteController::class, 'listarFechasCorte']);
+    Route::post('rrhh/fechas-corte', [FeriadoCorteController::class, 'storeFechaCorte']);
 
     // Reportes Oficiales y Planillas
-    Route::get('rrhh/reportes/boleta-salida/{id}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'boletaSalidaHtml']);
-    Route::get('rrhh/reportes/asistencia-mensual', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'asistenciaMensual']);
-    Route::get('rrhh/reportes/refrigerio-mensual', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'refrigerioMensual']);
-    Route::get('rrhh/reportes/saldo-vacaciones', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'saldoVacaciones']);
-    Route::get('rrhh/reportes/planilla-sueldos', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'planillaSueldosMensual']);
-    Route::post('rrhh/reportes/cerrar-declarar-planilla', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'cerrarYDeclararPlanilla']);
-    Route::get('rrhh/reportes/boleta-pago/{personaId}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'boletaPagoHtml']);
-    Route::get('rrhh/reportes/padron-personal', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'padronPersonal']);
-    Route::get('rrhh/reportes/kardex-funcionario/{personaId}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'kardexFuncionarioHtml']);
-    Route::post('rrhh/reportes/generar-personalizado', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'generarReportePersonalizado']);
-    Route::get('rrhh/reportes/certificado-trabajo/{personaId}/html', [\App\Http\Controllers\Rrhh\ReporteRrhhController::class, 'certificadoTrabajoHtml']);
+    Route::get('rrhh/reportes/boleta-salida/{id}/html', [ReporteRrhhController::class, 'boletaSalidaHtml']);
+    Route::get('rrhh/reportes/asistencia-mensual', [ReporteRrhhController::class, 'asistenciaMensual']);
+    Route::get('rrhh/reportes/refrigerio-mensual', [ReporteRrhhController::class, 'refrigerioMensual']);
+    Route::get('rrhh/reportes/saldo-vacaciones', [ReporteRrhhController::class, 'saldoVacaciones']);
+    Route::get('rrhh/reportes/planilla-sueldos', [ReporteRrhhController::class, 'planillaSueldosMensual']);
+    Route::post('rrhh/reportes/cerrar-declarar-planilla', [ReporteRrhhController::class, 'cerrarYDeclararPlanilla']);
+    Route::get('rrhh/reportes/boleta-pago/{personaId}/html', [ReporteRrhhController::class, 'boletaPagoHtml']);
+    Route::get('rrhh/reportes/padron-personal', [ReporteRrhhController::class, 'padronPersonal']);
+    Route::get('rrhh/reportes/kardex-funcionario/{personaId}/html', [ReporteRrhhController::class, 'kardexFuncionarioHtml']);
+    Route::post('rrhh/reportes/generar-personalizado', [ReporteRrhhController::class, 'generarReportePersonalizado']);
+    Route::get('rrhh/reportes/certificado-trabajo/{personaId}/html', [ReporteRrhhController::class, 'certificadoTrabajoHtml']);
 
     // Rutas para Obtener Estructura de Menú (Según Usuario/Rol Autenticado)
     Route::get('usuario/menu-rol/{rolId}', [UsuarioController::class, 'menuRol']);
@@ -139,72 +174,202 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::apiResource('parametrica-api', ParametricaController::class);
     Route::post('registrar_campo', [ParametricaController::class, 'registrar_campo']);
 
+    // Configuración Institucional y Parámetros SIAT (Módulo Datos)
+    Route::get('datos/empresa', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'obtener']);
+    Route::post('datos/empresa', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'guardar']);
+    Route::post('datos/empresa/probar-conexion', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'probarConexion']);
+
     // ==========================================
     // MÓDULO DE CORRESPONDENCIA Y HOJAS DE RUTA (LONDRA)
     // ==========================================
     // 1. Hojas de Ruta
-    Route::get('correspondencia/hojas-ruta', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'index']);
-    Route::post('correspondencia/hojas-ruta', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'store']);
-    Route::get('correspondencia/hojas-ruta/{id}', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'show']);
-    Route::get('correspondencia/hojas-ruta/{id}/caratula', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'caratula']);
-    Route::post('correspondencia/hojas-ruta/{id}/cerrar', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'cerrar']);
-    Route::post('correspondencia/hojas-ruta/{id}/reabrir', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'reabrir']);
-    Route::post('correspondencia/hojas-ruta/agrupar', [\App\Http\Controllers\Correspondencia\HojaRutaController::class, 'agrupar']);
+    Route::get('correspondencia/hojas-ruta/bandeja', [HojaRutaController::class, 'bandeja']);
+    Route::get('correspondencia/hojas-ruta', [HojaRutaController::class, 'index']);
+    Route::post('correspondencia/hojas-ruta', [HojaRutaController::class, 'store']);
+    Route::post('correspondencia/hojas-ruta/agrupar', [HojaRutaController::class, 'agrupar']);
+    Route::get('correspondencia/hojas-ruta/{id}/acciones-permitidas', [HojaRutaController::class, 'accionesPermitidas']);
+    Route::get('correspondencia/hojas-ruta/{id}', [HojaRutaController::class, 'show']);
+    Route::get('correspondencia/hojas-ruta/{id}/caratula', [HojaRutaController::class, 'caratula']);
+    Route::post('correspondencia/hojas-ruta/{id}/cerrar', [HojaRutaController::class, 'cerrar']);
+    Route::post('correspondencia/hojas-ruta/{id}/reabrir', [HojaRutaController::class, 'reabrir']);
+    Route::post('correspondencia/hojas-ruta/{id}/desagrupar', [HojaRutaController::class, 'desagrupar']);
 
     // 2. Derivaciones y Workflow
-    Route::post('correspondencia/derivaciones', [\App\Http\Controllers\Correspondencia\DerivacionController::class, 'derivar']);
-    Route::post('correspondencia/derivaciones/{id}/recibir', [\App\Http\Controllers\Correspondencia\DerivacionController::class, 'recibir']);
-    Route::post('correspondencia/derivaciones/{id}/devolver', [\App\Http\Controllers\Correspondencia\DerivacionController::class, 'devolver']);
+    Route::post('correspondencia/derivaciones', [DerivacionController::class, 'derivar']);
+    Route::post('correspondencia/derivaciones/{id}/recibir', [DerivacionController::class, 'recibir']);
+    Route::post('correspondencia/derivaciones/{id}/devolver', [DerivacionController::class, 'devolver']);
+    Route::post('correspondencia/derivaciones/{id}/anular', [DerivacionController::class, 'anular']);
 
     // 3. Documentos Oficiales
-    Route::get('correspondencia/documentos', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'index']);
-    Route::post('correspondencia/documentos', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'store']);
-    Route::get('correspondencia/documentos/{id}', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'show']);
-    Route::get('correspondencia/documentos/{id}/preview', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'previewHtml']);
-    Route::post('correspondencia/documentos/{id}/adjuntos', [\App\Http\Controllers\Correspondencia\DocumentoController::class, 'adjuntarArchivo']);
+    Route::get('correspondencia/documentos/bandeja', [DocumentoController::class, 'bandeja']);
+    Route::get('correspondencia/documentos', [DocumentoController::class, 'index']);
+    Route::post('correspondencia/documentos', [DocumentoController::class, 'store']);
+    Route::get('correspondencia/documentos/{id}', [DocumentoController::class, 'show']);
+    Route::put('correspondencia/documentos/{id}', [DocumentoController::class, 'update']);
+    Route::delete('correspondencia/documentos/{id}', [DocumentoController::class, 'destroy']);
+    Route::post('correspondencia/documentos/{id}/anular', [DocumentoController::class, 'anular']);
+    Route::post('correspondencia/documentos/{id}/enviar-revision', [DocumentoController::class, 'enviarRevision']);
+    Route::get('correspondencia/documentos/{id}/preview', [DocumentoController::class, 'previewHtml']);
+    Route::post('correspondencia/documentos/{id}/adjuntos', [DocumentoController::class, 'adjuntarArchivo']);
 
     // 4. Firmas y Aprobaciones
-    Route::get('correspondencia/firmas/pendientes', [\App\Http\Controllers\Correspondencia\FirmaAprobacionController::class, 'pendientes']);
-    Route::post('correspondencia/firmas/firmar', [\App\Http\Controllers\Correspondencia\FirmaAprobacionController::class, 'firmar']);
-    Route::post('correspondencia/firmas/rechazar', [\App\Http\Controllers\Correspondencia\FirmaAprobacionController::class, 'rechazar']);
+    Route::get('correspondencia/firmas/pendientes', [FirmaAprobacionController::class, 'pendientes']);
+    Route::post('correspondencia/firmas/firmar', [FirmaAprobacionController::class, 'firmar']);
+    Route::post('correspondencia/firmas/rechazar', [FirmaAprobacionController::class, 'rechazar']);
 
     // 5. Seguimiento y Trazabilidad
-    Route::get('correspondencia/seguimiento/{id}/timeline', [\App\Http\Controllers\Correspondencia\SeguimientoController::class, 'timeline']);
+    Route::get('correspondencia/seguimiento/{id}/timeline', [SeguimientoController::class, 'timeline'])->where('id', '.*');
 
     // 6. Ventanilla Única
-    Route::get('correspondencia/ventanillas', [\App\Http\Controllers\Correspondencia\VentanillaController::class, 'index']);
-    Route::post('correspondencia/ventanillas/entrada', [\App\Http\Controllers\Correspondencia\VentanillaController::class, 'registrarEntrada']);
+    Route::get('correspondencia/ventanillas', [VentanillaController::class, 'index']);
+    Route::post('correspondencia/ventanillas/entrada', [VentanillaController::class, 'registrarEntrada']);
 
-    // 7. Configuración
-    Route::get('correspondencia/configuracion/plantillas', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'plantillas']);
-    Route::get('correspondencia/configuracion/correlativos', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'correlativos']);
-    Route::get('correspondencia/configuracion/proveidos', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'proveidos']);
-    Route::get('correspondencia/configuracion/secretarios', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'secretarios']);
-    Route::post('correspondencia/configuracion/secretarios', [\App\Http\Controllers\Correspondencia\ConfiguracionCorrespondenciaController::class, 'storeSecretario']);
+    // 7. Configuración y Diseñador de Plantillas
+    Route::get('correspondencia/configuracion/plantillas', [ConfiguracionCorrespondenciaController::class, 'plantillas']);
+    Route::get('correspondencia/configuracion/plantillas/{id}', [ConfiguracionCorrespondenciaController::class, 'showPlantilla']);
+    Route::post('correspondencia/configuracion/plantillas', [ConfiguracionCorrespondenciaController::class, 'storePlantilla']);
+    Route::get('correspondencia/configuracion/correlativos', [ConfiguracionCorrespondenciaController::class, 'correlativos']);
+    Route::get('correspondencia/configuracion/proveidos', [ConfiguracionCorrespondenciaController::class, 'proveidos']);
+    Route::get('correspondencia/configuracion/secretarios', [ConfiguracionCorrespondenciaController::class, 'secretarios']);
+    Route::post('correspondencia/configuracion/secretarios', [ConfiguracionCorrespondenciaController::class, 'storeSecretario']);
 
     // 8. Despacho y Bandeja de Salida Externa (Gestor de Salida)
-    Route::get('correspondencia/despachos', [\App\Http\Controllers\Correspondencia\DespachoSalidaController::class, 'index']);
-    Route::post('correspondencia/despachos', [\App\Http\Controllers\Correspondencia\DespachoSalidaController::class, 'store']);
-    Route::post('correspondencia/despachos/{id}/entregar', [\App\Http\Controllers\Correspondencia\DespachoSalidaController::class, 'entregar']);
+    Route::get('correspondencia/despachos', [DespachoSalidaController::class, 'index']);
+    Route::post('correspondencia/despachos', [DespachoSalidaController::class, 'store']);
+    Route::post('correspondencia/despachos/{id}/entregar', [DespachoSalidaController::class, 'entregar']);
 
     // 9. Etiquetas y Carpetas Virtuales
-    Route::get('correspondencia/etiquetas', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'index']);
-    Route::post('correspondencia/etiquetas', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'store']);
-    Route::post('correspondencia/etiquetas/asignar', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'asignar']);
-    Route::post('correspondencia/etiquetas/desasignar', [\App\Http\Controllers\Correspondencia\EtiquetaController::class, 'desasignar']);
+    Route::get('correspondencia/etiquetas', [EtiquetaController::class, 'index']);
+    Route::post('correspondencia/etiquetas', [EtiquetaController::class, 'store']);
+    Route::post('correspondencia/etiquetas/asignar', [EtiquetaController::class, 'asignar']);
+    Route::post('correspondencia/etiquetas/desasignar', [EtiquetaController::class, 'desasignar']);
 
     // 10. Accesos Compartidos
-    Route::get('correspondencia/compartidos', [\App\Http\Controllers\Correspondencia\AccesoCompartidoController::class, 'index']);
-    Route::post('correspondencia/compartidos/compartir', [\App\Http\Controllers\Correspondencia\AccesoCompartidoController::class, 'compartir']);
+    Route::get('correspondencia/compartidos', [AccesoCompartidoController::class, 'index']);
+    Route::post('correspondencia/compartidos/compartir', [AccesoCompartidoController::class, 'compartir']);
 
     // 11. Solicitudes Ciudadanas y Trámites Digitales
-    Route::get('correspondencia/solicitudes-ciudadanas', [\App\Http\Controllers\Correspondencia\SolicitudCiudadanaController::class, 'index']);
-    Route::post('correspondencia/solicitudes-ciudadanas/{id}/convertir-hoja-ruta', [\App\Http\Controllers\Correspondencia\SolicitudCiudadanaController::class, 'convertirEnHojaRuta']);
+    Route::get('correspondencia/solicitudes-ciudadanas', [SolicitudCiudadanaController::class, 'index']);
+    Route::post('correspondencia/solicitudes-ciudadanas/{id}/convertir-hoja-ruta', [SolicitudCiudadanaController::class, 'convertirEnHojaRuta']);
+
+    // 12. Dashboard de Correspondencia y KPIs
+    Route::get('correspondencia/dashboard/cards', [DashboardCorrespondenciaController::class, 'cards']);
+    Route::get('correspondencia/dashboard/charts', [DashboardCorrespondenciaController::class, 'charts']);
+
+    // 13. Matriz de Permisos de Derivación (Copia Fiel Londres/SIM-EMAPA)
+    Route::get('correspondencia/permisos/derivaciones', [PermisosCorrespondenciaController::class, 'derivaciones']);
+    Route::post('correspondencia/permisos/derivaciones', [PermisosCorrespondenciaController::class, 'storePermisoDerivacion']);
+    Route::get('correspondencia/permisos/arbol-jerarquico', [PermisosCorrespondenciaController::class, 'arbolJerarquico']);
+    Route::get('correspondencia/permisos/lista-grupos/{tipo}', [PermisosCorrespondenciaController::class, 'listaGrupos']);
+    Route::get('correspondencia/permisos/destinos-asignados', [PermisosCorrespondenciaController::class, 'destinosAsignados']);
+    Route::post('correspondencia/permisos/guardar-lote', [PermisosCorrespondenciaController::class, 'guardarLote']);
+    Route::post('correspondencia/permisos/restablecer', [PermisosCorrespondenciaController::class, 'restablecer']);
+    Route::get('correspondencia/permisos/resumen', [PermisosCorrespondenciaController::class, 'resumen']);
+
+    // 14. Transferencias Masivas de Bandejas
+    Route::post('correspondencia/transferencias', [TransferenciaController::class, 'transferir']);
+
+    // 15. Revisiones y Versiones de Documentos
+    Route::get('correspondencia/documentos/{id}/revisiones', [RevisionDocumentoController::class, 'index']);
+    Route::post('correspondencia/documentos/{id}/revisiones', [RevisionDocumentoController::class, 'store']);
+
+    // ==========================================
+    // MÓDULO DE FACTURACIÓN ELECTRÓNICA EN LÍNEA (SIAT - SIN)
+    // ==========================================
+    Route::get('facturacion/facturas', [FacturaController::class, 'index']);
+    Route::post('facturacion/facturas', [FacturaController::class, 'store']);
+    Route::post('facturacion/facturas/{id}/anular', [FacturaController::class, 'anular']);
+    Route::post('facturacion/facturas/{id}/enviar-correo', [FacturaController::class, 'enviarPorCorreo']);
+    Route::get('facturacion/facturas/{id}/verificar-estado-sin', [FacturaController::class, 'verificarEstadoSin']);
+    Route::get('facturacion/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
+    Route::get('facturacion/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);
+
+    Route::get('facturacion/clientes', [ClienteFacturaController::class, 'index']);
+    Route::post('facturacion/clientes', [ClienteFacturaController::class, 'store']);
+    Route::get('facturacion/clientes/{id}', [ClienteFacturaController::class, 'show']);
+    Route::delete('facturacion/clientes/{id}', [ClienteFacturaController::class, 'destroy']);
+
+    Route::get('facturacion/siat/estado-conexion', [SiatCodigoController::class, 'estadoConexion']);
+    Route::get('facturacion/siat/sincronizar-hora', [SiatCodigoController::class, 'sincronizarHora']);
+    Route::get('facturacion/siat/verificar-nit/{nit}', [SiatCodigoController::class, 'verificarNit']);
+    Route::get('facturacion/siat/catalogos', [SiatCodigoController::class, 'catalogos']);
+    Route::get('facturacion/siat/sucursales', [SiatCodigoController::class, 'sucursales']);
+    Route::get('facturacion/siat/productos', [SiatCodigoController::class, 'productos']);
+    Route::post('facturacion/siat/productos', [SiatCodigoController::class, 'guardarProducto']);
+    Route::post('facturacion/siat/puntos-venta', [SiatCodigoController::class, 'registrarPuntoVenta']);
+    Route::post('facturacion/siat/puntos-venta/{id}/cierre', [SiatCodigoController::class, 'cerrarPuntoVenta']);
+    Route::post('facturacion/siat/puntos-venta/{id}/cuis', [SiatCodigoController::class, 'solicitarCuisPuntoVenta']);
+
+    Route::get('facturacion/eventos-significativos', [EventoSignificativoController::class, 'index']);
+    Route::post('facturacion/eventos-significativos', [EventoSignificativoController::class, 'store']);
+    Route::post('facturacion/eventos-significativos/{id}/cerrar', [EventoSignificativoController::class, 'cerrar']);
+    Route::post('facturacion/eventos-significativos/paquetes/{id}/validar', [EventoSignificativoController::class, 'validarPaquete']);
+
+    Route::get('facturacion/reportes/libro-ventas', [ReporteFacturacionController::class, 'libroVentas']);
+    Route::get('facturacion/reportes/libro-ventas/csv', [ReporteFacturacionController::class, 'exportarCsvLibroVentas']);
+    Route::get('facturacion/reportes/ventas-mensuales', [ReporteFacturacionController::class, 'ventasMensuales']);
+
+    // ==========================================
+    // MÓDULO COMERCIAL Y OPERATIVO DE AGUA POTABLE
+    // ==========================================
+    // 1. Abonados
+    Route::get('comercial/abonados', [AbonadoController::class, 'index']);
+    Route::post('comercial/abonados', [AbonadoController::class, 'store']);
+    Route::get('comercial/abonados/{id}', [AbonadoController::class, 'show']);
+    Route::put('comercial/abonados/{id}', [AbonadoController::class, 'update']);
+    Route::post('comercial/abonados/{id}/cambiar-medidor', [AbonadoController::class, 'cambiarMedidor']);
+    Route::post('comercial/abonados/{id}/dar-baja', [AbonadoController::class, 'darDeBaja']);
+    Route::get('comercial/abonados/{id}/extracto/pdf', [AbonadoController::class, 'descargarExtractoPdf']);
+
+    // 2. Ciclos y Lecturas
+    Route::get('comercial/periodos', [LecturaController::class, 'indexPeriodos']);
+    Route::post('comercial/periodos/abrir', [LecturaController::class, 'abrirPeriodo']);
+    Route::get('comercial/periodos/{id}/planilla', [LecturaController::class, 'obtenerPlanilla']);
+    Route::get('comercial/periodos/{id}/avisos-cobranza/pdf', [LecturaController::class, 'descargarAvisosLote']);
+    Route::post('comercial/lecturas/{id}', [LecturaController::class, 'guardarLectura']);
+    Route::post('comercial/lecturas/lote', [LecturaController::class, 'guardarLote']);
+    Route::post('comercial/periodos/{id}/liquidar', [LecturaController::class, 'liquidarPeriodo']);
+
+    // 3. Ventanilla de Cobranzas y Recaudación (con emisión de Factura SIAT)
+    Route::get('comercial/caja/buscar-abonados', [CobranzaCajaController::class, 'buscarAbonados']);
+    Route::get('comercial/caja/estado-cuenta/{codigo}', [CobranzaCajaController::class, 'estadoCuenta']);
+    Route::post('comercial/caja/cobrar', [CobranzaCajaController::class, 'cobrar']);
+    Route::post('comercial/caja/recibos', [CobranzaCajaController::class, 'emitirReciboCaja']);
+    Route::get('comercial/caja/recibos/{id}/pdf', [CobranzaCajaController::class, 'descargarReciboCaja']);
+    Route::get('comercial/caja/aviso-cobranza/{id}/pdf', [CobranzaCajaController::class, 'descargarAvisoCobranza']);
+
+    // 4. Convenios de Pago
+    Route::get('comercial/convenios', [ConvenioController::class, 'index']);
+    Route::post('comercial/convenios/simular', [ConvenioController::class, 'simular']);
+    Route::post('comercial/convenios', [ConvenioController::class, 'store']);
+
+    // 5. Cuadrillas Operativas: Cortes y Reconexiones
+    Route::get('comercial/cortes/ordenes', [CorteReconexionController::class, 'indexOrdenes']);
+    Route::get('comercial/cortes/ordenes/{id}/pdf', [CorteReconexionController::class, 'descargarOrdenTrabajo']);
+    Route::get('comercial/cortes/candidatos', [CorteReconexionController::class, 'candidatosCorte']);
+    Route::post('comercial/cortes/generar', [CorteReconexionController::class, 'generarCortes']);
+    Route::post('comercial/cortes/{id}/ejecutar', [CorteReconexionController::class, 'ejecutarCorte']);
+    Route::post('comercial/reconexiones/{id}/ejecutar', [CorteReconexionController::class, 'ejecutarReconexion']);
+
+    // 6. Catastro: Tarifas, Zonas y Calles
+    Route::get('comercial/tarifas', [TarifaZonaController::class, 'indexCategorias']);
+    Route::put('comercial/tarifas/{id}', [TarifaZonaController::class, 'updateCategoria']);
+    Route::get('comercial/zonas', [TarifaZonaController::class, 'indexZonas']);
+    Route::get('comercial/calles', [TarifaZonaController::class, 'indexCalles']);
+    Route::post('comercial/calles', [TarifaZonaController::class, 'storeCalle']);
+
+    // 7. Reportes Comerciales
+    Route::get('comercial/reportes/recaudacion-diaria', [ReporteComercialController::class, 'recaudacionDiaria']);
+    Route::get('comercial/reportes/morosidad', [ReporteComercialController::class, 'morosidad']);
+    Route::get('comercial/reportes/balance-consumo', [ReporteComercialController::class, 'balanceConsumo']);
 });
 
 // Rutas Públicas (Sin Autenticación Requerida)
-Route::get('correspondencia/publico/verificar-documento/{codigo}', [\App\Http\Controllers\Correspondencia\VerificacionPublicaController::class, 'verificarDocumento']);
-Route::get('correspondencia/publico/verificar-hoja-ruta', [\App\Http\Controllers\Correspondencia\VerificacionPublicaController::class, 'verificarHojaRuta']);
-Route::post('correspondencia/publico/solicitud-ciudadana', [\App\Http\Controllers\Correspondencia\SolicitudCiudadanaController::class, 'registrarPublico']);
+Route::get('correspondencia/publico/verificar-documento/{codigo}', [VerificacionPublicaController::class, 'verificarDocumento'])->where('codigo', '.*');
+Route::get('correspondencia/publico/verificar-hoja-ruta', [VerificacionPublicaController::class, 'verificarHojaRuta']);
+Route::get('correspondencia/publico/seguimiento/{codigo}', [SeguimientoController::class, 'publico'])->where('codigo', '.*');
+Route::post('correspondencia/publico/solicitud-ciudadana', [SolicitudCiudadanaController::class, 'registrarPublico']);
 
-
+// Facturas Públicas (Descarga directa por QR o Correo)
+Route::get('facturacion/publico/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
+Route::get('facturacion/publico/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);

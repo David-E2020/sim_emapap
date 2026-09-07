@@ -11,7 +11,7 @@ class FeriadoSeeder extends Seeder
 {
     public function run(): void
     {
-        $anio = (int)date('Y');
+        $anio = (int) date('Y');
 
         $feriados = [
             // Feriados Nacionales

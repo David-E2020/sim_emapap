@@ -10,6 +10,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class MenuTest extends TestCase
 {
     protected $token;
+
     protected $admin;
 
     protected function setUp(): void
@@ -24,7 +25,7 @@ class MenuTest extends TestCase
      */
     public function test_listar_menus()
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson('/api/menu');
 
         $response->assertStatus(200);
@@ -36,8 +37,8 @@ class MenuTest extends TestCase
      */
     public function test_obtener_menu_navegacion_usuario()
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->getJson('/api/usuario/menu-navegacion/' . $this->admin->id);
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->getJson('/api/usuario/menu-navegacion/'.$this->admin->id);
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -46,8 +47,8 @@ class MenuTest extends TestCase
                         'id',
                         'label',
                         'sub_menu',
-                    ]
-                ]
+                    ],
+                ],
             ]);
     }
 
@@ -57,7 +58,7 @@ class MenuTest extends TestCase
     public function test_crud_menu()
     {
         // 1. Crear menú temporal
-        $responseCreate = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $responseCreate = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/menu', [
                 'label' => 'Módulo Test',
                 'icon' => 'mdiTest',
@@ -69,8 +70,8 @@ class MenuTest extends TestCase
         $menuId = $responseCreate->json('id');
 
         // 2. Actualizar menú
-        $responseUpdate = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->putJson('/api/menu/' . $menuId, [
+        $responseUpdate = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->putJson('/api/menu/'.$menuId, [
                 'label' => 'Módulo Test Modificado',
                 'icon' => 'mdiTestModified',
                 'route' => 'test-route',
@@ -80,8 +81,8 @@ class MenuTest extends TestCase
         $this->assertEquals('Módulo Test Modificado', $responseUpdate->json('label'));
 
         // 3. Eliminar menú
-        $responseDelete = $this->withHeader('Authorization', 'Bearer ' . $this->token)
-            ->deleteJson('/api/menu/' . $menuId);
+        $responseDelete = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->deleteJson('/api/menu/'.$menuId);
 
         $responseDelete->assertStatus(200);
     }
@@ -92,11 +93,11 @@ class MenuTest extends TestCase
     public function test_crear_permiso_granular_submenu()
     {
         $submenu = Menu::whereNotNull('menu_id')->first();
-        if (!$submenu) {
+        if (! $submenu) {
             $this->markTestSkipped('No hay submenús en la BD.');
         }
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/menu/crear-permiso-submenu', [
                 'menu_id' => $submenu->id,
                 'nombre_accion' => 'exportar_excel',
