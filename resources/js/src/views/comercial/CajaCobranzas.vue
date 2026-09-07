@@ -498,6 +498,8 @@
           </v-btn>
         </v-card-text>
       </v-card>
+    </v-dialog>
+
     <!-- DIÁLOGO SELECCIÓN DE ABONADO CUANDO HAY MÚLTIPLES COINCIDENCIAS POR CI/NOMBRE -->
     <v-dialog v-model="dialogResultadosBusqueda" max-width="850" persistent>
       <v-card rounded="lg">
