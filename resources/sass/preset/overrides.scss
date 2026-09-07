@@ -784,3 +784,19 @@ $btn-custom-heights: (
     -webkit-text-fill-color: map-deep-get($material-dark, 'text', 'secondary') !important;
   }
 }
+
+// Sleek Global Scrollbars
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(94, 86, 105, 0.16);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 86, 105, 0.32);
+}

@@ -3,7 +3,7 @@
     <v-app> 
       <vertical-nav-menu :is-drawer-open.sync="isDrawerOpen"></vertical-nav-menu>
 
-      <v-app-bar app elevation="1">
+      <v-app-bar app elevation="1" height="62" class="app-top-bar">
 
         <v-progress-linear :active="$store.state.loadingProgressLinear"
           :indeterminate="$store.state.loadingProgressLinear" absolute top color="primary"></v-progress-linear>
@@ -11,14 +11,16 @@
         <div class="boxed-container w-full">
           <div class="d-flex align-center mx-6">
             <!-- Left Content -->
-            <v-app-bar-nav-icon class="d-block me-2" @click="isDrawerOpen = !isDrawerOpen"></v-app-bar-nav-icon>
+            <v-app-bar-nav-icon class="d-block me-2 rounded-lg" @click="isDrawerOpen = !isDrawerOpen"></v-app-bar-nav-icon>
             <v-spacer></v-spacer>
-            <v-icon left v-fullscreen > mdi mdi-monitor-screenshot </v-icon>
-            <theme-switcher class="ma-2"></theme-switcher>
+            <v-btn icon small class="mx-1" v-fullscreen title="Pantalla completa">
+              <v-icon>mdi-monitor-screenshot</v-icon>
+            </v-btn>
+            <theme-switcher class="ma-1"></theme-switcher>
             <v-tooltip v-if="puntoVentaUser">
               <template v-slot:activator="{ on: tooltip }">
-                <v-chip class="ma-2" :loading="!comex" label v-on="{ ...tooltip }">
-                  <v-icon left>
+                <v-chip class="mx-2 font-weight-medium" :loading="!comex" outlined color="primary" small v-on="{ ...tooltip }">
+                  <v-icon left small>
                     mdi-storefront-outline
                   </v-icon>
                   PLANTA {{puntoVentaUser.planta[0].codigo}}
@@ -28,8 +30,8 @@
                 {{puntoVentaUser.planta[0].nombre}}
               </span>
             </v-tooltip>
-            <v-chip class="ma-2" :loading="!rol" label>
-              <v-icon left>
+            <v-chip class="mx-2 font-weight-medium" :loading="!rol" outlined color="primary" small>
+              <v-icon left small>
                 mdi-shield-check
               </v-icon>
               {{ rol }}
@@ -39,7 +41,7 @@
         </div>
       </v-app-bar>
       <v-main>
-        <div class="app-content-container boxed-container">
+        <div class="app-content-container boxed-container px-6 py-5">
           <slot></slot>
         </div>
         <br />
@@ -153,6 +155,10 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.app-top-bar {
+  border-bottom: 1px solid rgba(94, 86, 105, 0.08) !important;
+}
+
 .v-app-bar ::v-deep {
   .v-toolbar__content {
     padding: 0;
@@ -163,5 +169,4 @@ export default {
     }
   }
 }
-
 </style>

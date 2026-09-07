@@ -3,80 +3,91 @@ body {
   font-weight: 500;
   font-size: 15px;
 }
+
 .toolbar {
-    font-weight: bold;
-    font-size: 18px;
-  }
+  font-weight: bold;
+  font-size: 18px;
+}
 
-  .toolbar .text {
-    padding-left: 15px;
-    color: white;
-    text-decoration:none;
-  }
+.toolbar .text {
+  padding-left: 15px;
+  color: white;
+  text-decoration: none;
+}
 
-  .item-title {
-    font-size: 17px;
-    font-weight: 500;
-  }
-  .item-sub-title {
-    font-size: 15px;
-    font-weight: 500;
-  }
+.item-title {
+  font-size: 17px;
+  font-weight: 500;
+}
 
-  .active {
-    font-weight: bold;
-  }
+.item-sub-title {
+  font-size: 15px;
+  font-weight: 500;
+}
 
-  .owl {
-    margin: auto;
-    width: 211px;
-    height: 108px;
-    background-image: url("https://dash.readme.io/img/owl-login.png");
-    position: relative;
-  }
-  .owl .hand {
-    width: 34px;
-    height: 34px;
-    border-radius: 40px;
-    background-color: #472d20;
-    transform: scaleY(0.6);
-    position: absolute;
-    left: 14px;
-    bottom: -8px;
-    transition: 0.3s ease-out;
-  }
-  .owl .hand.password {
-    transform: translateX(42px) translateY(-15px) scale(0.7);
-  }
-  .owl .hand.hand-r {
-    left: 170px;
-  }
-  .owl .hand.hand-r.password {
-    transform: translateX(-42px) translateY(-15px) scale(0.7);
-  }
-  .owl .arms {
-    position: absolute;
-    top: 58px;
-    height: 41px;
-    width: 100%;
-    overflow: hidden;
-  }
-  .owl .arms .arm {
-    width: 40px;
-    height: 65px;
-    background-image: url("https://dash.readme.io/img/owl-login-arm.png");
-    position: absolute;
-    left: 20px;
-    top: 40px;
-    transition: 0.3s ease-out;
-  }
-  .owl .arms .arm.password {
-    transform: translateX(40px) translateY(-40px);
-  }
-  .owl .arms .arm.arm-r {
-    left: 158px;
-    transform: scaleX(-1);
-  }
-  .owl .arms .arm.arm-r.password {
-    transform: translateX(-40px) translateY(-40px) scaleX(-1);
-  }
+.active {
+  font-weight: bold;
+}
+
+.owl {
+  margin: auto;
+  width: 211px;
+  height: 108px;
+  background-image: url("https://dash.readme.io/img/owl-login.png");
+  position: relative;
+}
+
+.owl .hand {
+  width: 34px;
+  height: 34px;
+  border-radius: 40px;
+  background-color: #472d20;
+  transform: scaleY(0.6);
+  position: absolute;
+  left: 14px;
+  bottom: -8px;
+  transition: 0.3s ease-out;
+}
+
+.owl .hand.password {
+  transform: translateX(42px) translateY(-15px) scale(0.7);
+}
+
+.owl .hand.hand-r {
+  left: 170px;
+}
+
+.owl .hand.hand-r.password {
+  transform: translateX(-42px) translateY(-15px) scale(0.7);
+}
+
+.owl .arms {
+  position: absolute;
+  top: 58px;
+  height: 41px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.owl .arms .arm {
+  width: 40px;
+  height: 65px;
+  background-image: url("https://dash.readme.io/img/owl-login-arm.png");
+  position: absolute;
+  left: 20px;
+  top: 40px;
+  transition: 0.3s ease-out;
+}
+
+.owl .arms .arm.password {
+  transform: translateX(40px) translateY(-40px);
+}
+
+.owl .arms .arm.arm-r {
+  left: 158px;
+  transform: scaleX(-1);
+}
+
+.owl .arms .arm.arm-r.password {
+  transform: translateX(-40px) translateY(-40px) scaleX(-1);
+}

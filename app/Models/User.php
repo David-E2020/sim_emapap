@@ -84,6 +84,11 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasOne(RolUser::class, 'usuario_id', 'id');
     }
 
+    public function persona(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Rrhh\Persona::class, 'usr_externo_id', 'id');
+    }
+
     public function getUser($id)
     {
         return $this->find($id);

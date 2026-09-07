@@ -766,8 +766,7 @@ export default {
 
 <style scoped>
 .config-empresa-siat-container {
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .erp-card-elevated {

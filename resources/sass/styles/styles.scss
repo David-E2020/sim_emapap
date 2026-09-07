@@ -9,7 +9,8 @@ $color-pack: true;
 // ————————————————————————————————————————————————————————————————————————————
 // 1. GLOBAL RESET & BASE TYPOGRAPHY
 // ————————————————————————————————————————————————————————————————————————————
-html, body {
+html,
+body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -43,9 +44,11 @@ html, body {
   ::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.02);
   }
+
   ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
   }
+
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.35);
   }
@@ -69,7 +72,7 @@ html, body {
 .theme--dark .erp-card-elevated {
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3) !important;
-  
+
   &:hover {
     box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.45) !important;
   }
@@ -150,6 +153,7 @@ html, body {
 
 // Modo oscuro para tablas
 .theme--dark {
+
   .styled-table,
   .erp-table-modern {
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -242,10 +246,12 @@ html, body {
     background: rgba(16, 185, 129, 0.2);
     color: #34d399;
   }
+
   &.status-inactive {
     background: rgba(239, 68, 68, 0.2);
     color: #f87171;
   }
+
   &.status-pending {
     background: rgba(245, 158, 11, 0.2);
     color: #fbbf24;
@@ -253,10 +259,13 @@ html, body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.6;
     transform: scale(1.15);
