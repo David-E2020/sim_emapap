@@ -54,12 +54,6 @@
 <script>
 import {
   mdiAccountOutline,
-  mdiEmailOutline,
-  mdiCheckboxMarkedOutline,
-  mdiChatOutline,
-  mdiCogOutline,
-  mdiCurrencyUsd,
-  mdiHelpCircleOutline,
   mdiLogoutVariant,
 } from '@mdi/js'
 
@@ -68,12 +62,6 @@ export default {
     return {
       icons: {
         mdiAccountOutline,
-        mdiEmailOutline,
-        mdiCheckboxMarkedOutline,
-        mdiChatOutline,
-        mdiCogOutline,
-        mdiCurrencyUsd,
-        mdiHelpCircleOutline,
         mdiLogoutVariant,
       },
     }

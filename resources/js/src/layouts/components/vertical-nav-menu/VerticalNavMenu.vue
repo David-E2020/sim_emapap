@@ -115,6 +115,15 @@ export default {
         }
       })
     },
+    setMenuList(rawMenus) {
+      this.menus = (rawMenus || []).map(item => ({
+        ...item,
+        isOpen: this.isGroupActive(item),
+      }))
+      this.$nextTick(() => {
+        this.syncActiveGroup()
+      })
+    },
     getMenu() {
       this.routeHome = localStorage.getItem('rute_home') || 'dashboard'
       this.menus = null
@@ -129,28 +138,14 @@ export default {
       axios
         .get(urlMenu)
         .then(response => {
-          const rawMenus = response.data && response.data.menus ? response.data.menus : []
-          this.menus = rawMenus.map(item => ({
-            ...item,
-            isOpen: this.isGroupActive(item),
-          }))
-          this.$nextTick(() => {
-            this.syncActiveGroup()
-          })
+          this.setMenuList(response.data && response.data.menus)
         })
         .catch(err => {
           console.warn('Fallback a /api/menu_usuario por:', err)
           axios
             .get('/api/menu_usuario')
             .then(res => {
-              const rawMenus = res.data && res.data.menus ? res.data.menus : []
-              this.menus = rawMenus.map(item => ({
-                ...item,
-                isOpen: this.isGroupActive(item),
-              }))
-              this.$nextTick(() => {
-                this.syncActiveGroup()
-              })
+              this.setMenuList(res.data && res.data.menus)
             })
             .catch(err2 => {
               console.error('Error al cargar menús:', err2)
@@ -300,7 +295,12 @@ export default {
   }
 }
 
+.app-navigation-menu {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
 /* Light Theme Specific Styling for Sidebar */
+.theme--light .app-navigation-menu,
 .theme--light.app-navigation-menu {
   background-color: #ffffff !important;
   border-right: 1px solid rgba(15, 23, 42, 0.08) !important;
@@ -404,6 +404,7 @@ export default {
 }
 
 /* Dark Theme Specific Styling for Sidebar */
+.theme--dark .app-navigation-menu,
 .theme--dark.app-navigation-menu {
   background-color: #16171d !important;
   border-right: 1px solid rgba(255, 255, 255, 0.07) !important;

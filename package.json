@@ -3,6 +3,10 @@
   "description": "Production Ready, Carefully Crafted, Extensive Vuetifty Admin Template",
   "version": "1.0.2",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0 <=22.x",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "npm run development",
     "development": "mix",

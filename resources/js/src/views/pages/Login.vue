@@ -278,8 +278,17 @@ export default {
   },
   methods: {
     toggleTheme() {
-      this.$vuetify.theme.dark = !this.$vuetify.theme.dark
-      localStorage.setItem('theme_dark', this.$vuetify.theme.dark)
+      const applyTheme = () => {
+        this.$vuetify.theme.dark = !this.$vuetify.theme.dark
+        localStorage.setItem('theme_dark', this.$vuetify.theme.dark)
+        return this.$nextTick()
+      }
+
+      if (document.startViewTransition) {
+        document.startViewTransition(() => applyTheme())
+      } else {
+        applyTheme()
+      }
     },
     login() {
       if (!this.usr_usuario.trim() || !this.password) {

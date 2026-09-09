@@ -74,7 +74,6 @@
 <script>
 import VueFullscreen from 'vue-fullscreen';
 import { ref } from "@vue/composition-api";
-import { mdiMagnify, mdiBellOutline, mdiGithub } from "@mdi/js";
 import VerticalNavMenu from "./components/vertical-nav-menu/VerticalNavMenu.vue";
 import ThemeSwitcher from "./components/ThemeSwitcher.vue";
 import AppBarUserMenu from "./components/AppBarUserMenu.vue";
@@ -92,32 +91,19 @@ export default {
 
     return {
       isDrawerOpen,
-
-      // Icons
-      icons: {
-        mdiMagnify,
-        mdiBellOutline,
-        mdiGithub,
-      },
     };
   },
 
   data: () => ({
-    loadingVerifica: false,
     comex: null,
     puntoVentaUser: null,
     loadingVerificaCufd: false,
-    loadingSincronizar: false,
     rol: "",
     snackbar: {
       status: false,
       text: "",
     },
-    siatEnLinea: false,
-    siatSincronizar: false,
-    siatcufdValido: false,
     puntVentaAsignado: true,
-
     dataPuntoVenta: null,
   }),
 
@@ -157,9 +143,9 @@ export default {
 <style lang="scss" scoped>
 /* Top Bar Styling with blur and border separation */
 .app-top-bar {
-  transition: all 0.2s ease-in-out;
 }
 
+.theme--light .app-top-bar,
 .theme--light.app-top-bar {
   background-color: rgba(255, 255, 255, 0.9) !important;
   backdrop-filter: blur(12px);
@@ -187,6 +173,7 @@ export default {
   }
 }
 
+.theme--dark .app-top-bar,
 .theme--dark.app-top-bar {
   background-color: rgba(21, 22, 27, 0.9) !important;
   backdrop-filter: blur(12px);
@@ -216,13 +203,12 @@ export default {
 
 /* Footer Styling */
 .app-footer {
-  transition: all 0.2s ease-in-out;
-
   .footer-link {
     transition: color 0.2s ease;
   }
 }
 
+.theme--light .app-footer,
 .theme--light.app-footer {
   background-color: rgba(255, 255, 255, 0.88) !important;
   backdrop-filter: blur(8px);
@@ -237,6 +223,7 @@ export default {
   }
 }
 
+.theme--dark .app-footer,
 .theme--dark.app-footer {
   background-color: rgba(21, 22, 27, 0.88) !important;
   backdrop-filter: blur(8px);

@@ -203,18 +203,26 @@ export default {
 
 <style scoped>
 .hover-elevation-card {
-  transition: all 0.25s ease-in-out;
-  border-color: #e2e8f0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-color: rgba(15, 23, 42, 0.08) !important;
 }
 .hover-elevation-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08) !important;
-  border-color: #00897b;
+  border-color: #00897b !important;
 }
 .cursor-pointer {
   cursor: pointer;
 }
 .border-top {
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.theme--dark .hover-elevation-card {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.theme--dark .border-top {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 </style>

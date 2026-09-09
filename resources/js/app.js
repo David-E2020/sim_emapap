@@ -9,8 +9,6 @@ import {storage} from './src/store'
 import {routes} from './src/routes'
 import {autentication} from './src/store_modules/autentication';
 import VueRouter from 'vue-router'
-import { BootstrapVue, IconsPlugin } from 'bootstrap-vue'
-import colors from 'vuetify/lib/util/colors'
 Vue.prototype.jQuery = jQuery;
 
 window.moment = require('moment');
@@ -60,28 +58,7 @@ const tokenJWT = localStorage.getItem('token')
 if (tokenJWT) {
   Vue.prototype.$http.defaults.headers.common['Authorization'] = tokenJWT
 }
-// Import Bootstrap and BootstrapVue CSS files (order is important)
 
-
-Vue.use(BootstrapVue);
-
-Vue.use(vuetify, {
-    theme: {
-        dark: true,
-         dark: {
-          primary: colors.blue.darken2,
-          accent: colors.grey.darken3,
-          secondary: colors.amber.darken3,
-          background: '#34358e'
-        },
-        light: {
-         primary: '#3f51b5',
-         secondary: '#b0bec5',
-         accent: '#8c9eff',
-         error: '#b71c1c',
-        }
-    }
-  })
 
 
 
