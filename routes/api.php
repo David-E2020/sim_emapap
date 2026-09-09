@@ -47,6 +47,7 @@ use App\Http\Controllers\Comercial\CorteReconexionController;
 use App\Http\Controllers\Comercial\TarifaZonaController;
 use App\Http\Controllers\Comercial\ReporteComercialController;
 use App\Http\Controllers\Contabilidad\ContabilidadController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Rrhh\SolicitudSalidaController;
 use Illuminate\Support\Facades\Route;
 
@@ -64,6 +65,9 @@ Route::group(['middleware' => ['jwt.auth']], function () {
 
     Route::post('logout', [AuthController::class, 'logout']);
     Route::post('update_user_password', [RolUserController::class, 'update_user_password']);
+
+    // Dashboard Operativo y Métricas Globales
+    Route::get('dashboard/metricas', [DashboardController::class, 'metricas']);
 
     // Rutas protegidas para administración de usuarios, accesos y menús
     Route::group(['middleware' => ['admin.access']], function () {
