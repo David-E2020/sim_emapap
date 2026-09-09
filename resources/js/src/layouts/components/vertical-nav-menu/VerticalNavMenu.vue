@@ -296,15 +296,29 @@ export default {
 }
 
 .app-navigation-menu {
+  top: 14px !important;
+  left: 14px !important;
+  height: calc(100vh - 28px) !important;
+  max-height: calc(100vh - 28px) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  @media (max-width: 1263.98px) {
+    top: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 14px 14px 0 !important;
+  }
 }
 
 /* Light Theme Specific Styling for Sidebar */
 .theme--light .app-navigation-menu,
 .theme--light.app-navigation-menu {
   background-color: #ffffff !important;
-  border-right: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 4px 0 24px -4px rgba(15, 23, 42, 0.04) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.02) !important;
 
   .brand-name {
     color: #0f172a;
@@ -407,8 +421,8 @@ export default {
 .theme--dark .app-navigation-menu,
 .theme--dark.app-navigation-menu {
   background-color: #16171d !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.07) !important;
-  box-shadow: 4px 0 24px -4px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35) !important;
 
   .brand-name {
     color: #f8fafc;

@@ -3,13 +3,19 @@
     <v-app> 
       <vertical-nav-menu :is-drawer-open.sync="isDrawerOpen"></vertical-nav-menu>
 
-      <v-app-bar app elevation="0" height="64" class="app-top-bar">
+      <v-app-bar
+        app
+        elevation="0"
+        height="62"
+        class="app-top-bar"
+        :class="{ 'app-top-bar--full': isDrawerOpen === false }"
+      >
 
         <v-progress-linear :active="$store.state.loadingProgressLinear"
           :indeterminate="$store.state.loadingProgressLinear" absolute top color="primary"></v-progress-linear>
 
         <div class="boxed-container w-full">
-          <div class="d-flex align-center mx-6">
+          <div class="d-flex align-center mx-3">
             <!-- Left Content -->
             <v-app-bar-nav-icon class="d-block me-2 topbar-icon-btn rounded-lg" @click="isDrawerOpen = !isDrawerOpen"></v-app-bar-nav-icon>
             <v-spacer></v-spacer>
@@ -40,15 +46,15 @@
           </div>
         </div>
       </v-app-bar>
-      <v-main>
-        <div class="app-content-container boxed-container px-6 py-5">
+      <v-main :class="{ 'v-main--full': isDrawerOpen === false }">
+        <div class="app-content-container pt-1 pb-4">
           <slot></slot>
         </div>
         <br />
       </v-main>
-      <v-footer app inset absolute height="56" class="px-0 app-footer">
+      <v-footer app inset absolute height="48" class="px-0 app-footer">
         <div class="boxed-container w-full">
-          <div class="mx-6 d-flex justify-space-between align-center">
+          <div class="mx-4 d-flex justify-space-between align-center">
             <span class="text-caption">
               &copy; 2024
               <a class="font-weight-medium text-decoration-none footer-link" target="_blank">SIE - GPI</a></span>
@@ -141,17 +147,34 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-/* Top Bar Styling with blur and border separation */
+/* Top Bar Styling - Modern Floating Island Card */
 .app-top-bar {
+  top: 14px !important;
+  height: 62px !important;
+  border-radius: 14px !important;
+  left: 14px !important;
+  right: 14px !important;
+  width: calc(100% - 28px) !important;
+  max-width: calc(100% - 28px) !important;
+  z-index: 6 !important;
+  transition: left 0.2s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  @media (min-width: 1264px) {
+    &:not(.app-top-bar--full) {
+      left: calc(290px + 28px) !important;
+      width: calc(100% - 290px - 42px) !important;
+      max-width: calc(100% - 290px - 42px) !important;
+    }
+  }
 }
 
 .theme--light .app-top-bar,
 .theme--light.app-top-bar {
-  background-color: rgba(255, 255, 255, 0.9) !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.03) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.02) !important;
 
   .topbar-icon-btn {
     color: #475569 !important;
@@ -175,11 +198,11 @@ export default {
 
 .theme--dark .app-top-bar,
 .theme--dark.app-top-bar {
-  background-color: rgba(21, 22, 27, 0.9) !important;
+  background-color: rgba(22, 23, 29, 0.95) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
-  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35) !important;
 
   .topbar-icon-btn {
     color: #94a3b8 !important;
@@ -201,8 +224,29 @@ export default {
   }
 }
 
-/* Footer Styling */
+/* Main Content Area Spacing & Alignment with Floating Island Topbar */
+.v-main {
+  padding-top: calc(62px + 24px) !important;
+  transition: padding-left 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  @media (min-width: 1264px) {
+    &:not(.v-main--full) {
+      padding-left: calc(290px + 14px) !important;
+    }
+  }
+}
+
+.app-content-container {
+  max-width: 100%;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+/* Footer Styling - Minimal Canvas Style */
 .app-footer {
+  background-color: transparent !important;
+  border-top: none !important;
+
   .footer-link {
     transition: color 0.2s ease;
   }
@@ -210,9 +254,6 @@ export default {
 
 .theme--light .app-footer,
 .theme--light.app-footer {
-  background-color: rgba(255, 255, 255, 0.88) !important;
-  backdrop-filter: blur(8px);
-  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
   color: #64748b !important;
 
   .footer-link {
@@ -225,9 +266,6 @@ export default {
 
 .theme--dark .app-footer,
 .theme--dark.app-footer {
-  background-color: rgba(21, 22, 27, 0.88) !important;
-  backdrop-filter: blur(8px);
-  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
   color: #94a3b8 !important;
 
   .footer-link {
