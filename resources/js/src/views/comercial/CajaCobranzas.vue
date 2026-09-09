@@ -26,35 +26,140 @@
       </div>
     </v-card>
 
-    <!-- BUSCADOR RÁPIDO DE ABONADO -->
+    <!-- BARRA DE ESTADO DE SESIÓN / TURNO DE CAJA -->
+    <v-card class="mb-5 py-3 px-4 rounded-lg erp-card-elevated" :class="tieneSesionActiva ? 'teal lighten-5 border-teal' : 'amber lighten-5 border-amber'">
+      <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+        <div class="d-flex align-center">
+          <v-badge
+            dot
+            bordered
+            :color="tieneSesionActiva ? 'success' : 'error'"
+            offset-x="8"
+            offset-y="8"
+          >
+            <v-avatar :color="tieneSesionActiva ? 'teal darken-1' : 'amber darken-3'" size="42" class="mr-3 text-white">
+              <v-icon color="white" small>{{ tieneSesionActiva ? 'mdi-cash-check' : 'mdi-lock-outline' }}</v-icon>
+            </v-avatar>
+          </v-badge>
+
+          <div v-if="tieneSesionActiva && sesionActiva">
+            <div class="d-flex align-center flex-wrap">
+              <span class="text-subtitle-1 font-weight-black mr-2 teal--text text--darken-4">
+                {{ sesionActiva.punto_venta ? sesionActiva.punto_venta.nombre : 'Caja Central' }}
+              </span>
+              <v-chip x-small color="teal darken-2" text-color="white" class="font-weight-bold mr-2">
+                PUNTO {{ sesionActiva.punto_venta ? sesionActiva.punto_venta.codigo_punto_venta : 0 }} (SIAT)
+              </v-chip>
+              <v-chip x-small color="primary" outlined class="font-weight-bold">
+                {{ sesionActiva.numero_sesion }}
+              </v-chip>
+            </div>
+            <div class="text-caption text-secondary mt-0">
+              <strong>Cajero:</strong> {{ sesionActiva.cajero ? sesionActiva.cajero.name : 'Usuario' }} |
+              <strong>Apertura:</strong> {{ formatearHora(sesionActiva.fecha_apertura) }} |
+              <strong>Fondo Inicial:</strong> Bs {{ (sesionActiva.monto_apertura || 0).toFixed(2) }} |
+              <strong>Total Cobrado:</strong> <span class="font-weight-bold text-success">Bs {{ ((sesionActiva.monto_ventas_efectivo || 0) + (sesionActiva.monto_ventas_qr_banco || 0)).toFixed(2) }}</span>
+            </div>
+          </div>
+
+          <div v-else>
+            <div class="text-subtitle-1 font-weight-black error--text">
+              CAJA CERRADA - VENTANILLA FUERA DE SERVICIO
+            </div>
+            <div class="text-caption text-secondary">
+              Debe realizar la apertura formal del turno con su fondo de gaveta para registrar cobros y emitir facturas SIAT.
+            </div>
+          </div>
+        </div>
+
+        <!-- Botones de Acción de Turno -->
+        <div class="d-flex align-center gap-2">
+          <template v-if="tieneSesionActiva">
+            <v-btn
+              small
+              outlined
+              color="teal darken-2"
+              class="rounded-pill font-weight-bold"
+              @click="mostrarModalMovimiento = true"
+            >
+              <v-icon left x-small>mdi-cash-fast</v-icon> Movimiento Gaveta
+            </v-btn>
+
+            <v-btn
+              small
+              color="teal darken-3"
+              class="rounded-pill font-weight-bold text-white elevation-1"
+              @click="mostrarModalCierre = true"
+            >
+              <v-icon left x-small>mdi-lock-check</v-icon> Cerrar Turno / Arqueo
+            </v-btn>
+          </template>
+
+          <template v-else>
+            <v-btn
+              color="teal darken-2"
+              class="rounded-pill font-weight-bold text-white elevation-2 px-4"
+              @click="mostrarModalApertura = true"
+            >
+              <v-icon left small>mdi-lock-open-variant</v-icon> ABRIR TURNO DE CAJA
+            </v-btn>
+          </template>
+        </div>
+      </div>
+    </v-card>
+
+    <!-- BUSCADOR SUPERIOR DE ABONADOS -->
     <v-card rounded="lg" class="mb-5 pa-4 erp-card-elevated">
       <v-row dense align="center">
-        <v-col cols="12" md="7">
+        <!-- Selector Tipo de Búsqueda -->
+        <v-col cols="12" sm="5" md="3">
+          <v-select
+            v-model="tipoBusqueda"
+            :items="tiposBusqueda"
+            item-text="texto"
+            item-value="valor"
+            label="Buscar por..."
+            prepend-inner-icon="mdi-format-list-bulleted-type"
+            dense
+            outlined
+            hide-details
+            @change="alCambiarTipoBusqueda"
+          ></v-select>
+        </v-col>
+
+        <!-- Campo de texto de búsqueda -->
+        <v-col cols="12" sm="7" :md="estadoCuenta ? 5 : 6">
           <v-text-field
             v-model="codigoBusqueda"
-            label="Buscar por Código (ej. 05001, 5105), Carnet (CI/NIT) o Nombres y Apellidos..."
+            :label="etiquetaBusqueda"
+            :placeholder="placeholderBusqueda"
             prepend-inner-icon="mdi-magnify"
             dense
             outlined
             hide-details
             clearable
             autofocus
-            placeholder="Ingrese código de abonado, carnet de identidad o apellido y presione Enter..."
             @keyup.enter="buscarAbonado"
+            @click:clear="limpiarBusqueda"
           ></v-text-field>
         </v-col>
-        <v-col cols="12" md="3">
+
+        <!-- Botón Consultar -->
+        <v-col cols="12" sm="6" :md="estadoCuenta ? 2 : 3">
           <v-btn
             color="primary"
             class="rounded-pill elevation-1"
             block
+            height="40"
             :loading="buscando"
             @click="buscarAbonado"
           >
-            <v-icon left small>mdi-account-search</v-icon> Consultar Abonado
+            <v-icon left small>mdi-account-search</v-icon> Consultar
           </v-btn>
         </v-col>
-        <v-col cols="12" md="2" class="text-right" v-if="estadoCuenta">
+
+        <!-- Botón Limpiar si hay cuenta cargada -->
+        <v-col cols="12" sm="6" md="2" class="text-right" v-if="estadoCuenta">
           <v-btn text color="secondary" small @click="limpiarBusqueda">
             <v-icon left x-small>mdi-close</v-icon> Limpiar
           </v-btn>
@@ -445,6 +550,168 @@
       </v-row>
     </div>
 
+    <!-- ESTADO EN REPOSO / PANEL DE TURNO Y ÚLTIMOS COBROS -->
+    <div v-else>
+      <!-- CASO 1: TURNO ABIERTO (PANEL DE OPERACIÓN Y ÚLTIMOS COBROS) -->
+      <div v-if="tieneSesionActiva && sesionActiva">
+        <!-- MÉTRICAS EN TIEMPO REAL DEL TURNO -->
+        <v-row dense class="mb-4">
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold text-uppercase">Fondo de Apertura</div>
+              <div class="text-h5 font-weight-black primary--text mt-1">
+                Bs {{ parseFloat(sesionActiva.monto_apertura || 0).toFixed(2) }}
+              </div>
+              <div class="text-caption text-secondary">Efectivo inicial asignado</div>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold text-uppercase">Cobrado en Efectivo</div>
+              <div class="text-h5 font-weight-black success--text mt-1">
+                Bs {{ parseFloat(sesionActiva.monto_ventas_efectivo || 0).toFixed(2) }}
+              </div>
+              <div class="text-caption text-secondary">Ingresos directos por ventanilla</div>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold text-uppercase">Cobrado en QR / Banco</div>
+              <div class="text-h5 font-weight-black info--text mt-1">
+                Bs {{ parseFloat(sesionActiva.monto_ventas_qr_banco || 0).toFixed(2) }}
+              </div>
+              <div class="text-caption text-secondary">Transferencias y pago digital</div>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="pa-3 text-center erp-card-elevated teal lighten-5" rounded="lg">
+              <div class="text-caption teal--text text--darken-3 font-weight-bold text-uppercase">Efectivo en Gaveta</div>
+              <div class="text-h5 font-weight-black teal--text text--darken-4 mt-1">
+                Bs {{ parseFloat(sesionActiva.monto_esperado_efectivo || 0).toFixed(2) }}
+              </div>
+              <div class="text-caption teal--text text--darken-2">Fondo + Ventas Efectivo</div>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- TABLA DE ÚLTIMOS COBROS DE ESTE TURNO CON BOTÓN DE REIMPRESIÓN RÁPIDA -->
+        <v-card rounded="lg" class="erp-card-elevated">
+          <v-card-title class="py-3 px-4 d-flex justify-space-between align-center grey lighten-4">
+            <div class="d-flex align-center">
+              <v-icon color="teal darken-2" left>mdi-history</v-icon>
+              <span class="text-subtitle-1 font-weight-bold">Últimos Cobros Realizados en este Turno</span>
+            </div>
+            <v-chip small color="teal darken-2" text-color="white" class="font-weight-bold">
+              Turno #{{ sesionActiva.numero_sesion }}
+            </v-chip>
+          </v-card-title>
+
+          <v-simple-table dense>
+            <template v-slot:default>
+              <thead>
+                <tr>
+                  <th class="font-weight-bold">N° Factura</th>
+                  <th class="font-weight-bold">Abonado / Cliente</th>
+                  <th class="font-weight-bold">NIT / CI</th>
+                  <th class="text-right font-weight-bold">Monto (Bs)</th>
+                  <th class="text-center font-weight-bold">Método de Pago</th>
+                  <th class="text-center font-weight-bold">Fecha y Hora</th>
+                  <th class="text-center font-weight-bold">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="fac in (sesionActiva.facturas || [])" :key="fac.id">
+                  <td>
+                    <v-chip small color="primary" label class="font-weight-bold">
+                      #{{ fac.numero_factura }}
+                    </v-chip>
+                  </td>
+                  <td>
+                    <div class="font-weight-bold text-caption">{{ fac.nombre_razon_social }}</div>
+                    <span v-if="fac.abonado" class="text-caption text-secondary">Cod: {{ fac.abonado.codigo }}</span>
+                  </td>
+                  <td class="text-caption">{{ fac.numero_documento || 'S/D' }}</td>
+                  <td class="text-right font-weight-black success--text text-caption">
+                    Bs {{ parseFloat(fac.monto_total).toFixed(2) }}
+                  </td>
+                  <td class="text-center">
+                    <v-chip x-small :color="fac.codigo_metodo_pago === 1 ? 'teal' : 'primary'" text-color="white">
+                      {{ fac.codigo_metodo_pago === 1 ? 'EFECTIVO' : 'QR / BANCO' }}
+                    </v-chip>
+                  </td>
+                  <td class="text-center text-caption text-secondary">
+                    {{ fac.fecha_emision ? fac.fecha_emision.substring(0, 19).replace('T', ' ') : '-' }}
+                  </td>
+                  <td class="text-center">
+                    <v-tooltip bottom>
+                      <template v-slot:activator="{ on, attrs }">
+                        <v-btn
+                          icon
+                          small
+                          color="teal darken-2"
+                          v-bind="attrs"
+                          v-on="on"
+                          @click="abrirVisorFactura(fac.id, 'rollo')"
+                        >
+                          <v-icon small>mdi-printer-pos</v-icon>
+                        </v-btn>
+                      </template>
+                      <span>Reimprimir Ticket 80mm</span>
+                    </v-tooltip>
+
+                    <v-tooltip bottom>
+                      <template v-slot:activator="{ on, attrs }">
+                        <v-btn
+                          icon
+                          small
+                          color="primary"
+                          v-bind="attrs"
+                          v-on="on"
+                          @click="abrirVisorFactura(fac.id, 'carta')"
+                        >
+                          <v-icon small>mdi-file-document-outline</v-icon>
+                        </v-btn>
+                      </template>
+                      <span>Ver Factura Carta</span>
+                    </v-tooltip>
+                  </td>
+                </tr>
+                <tr v-if="!sesionActiva.facturas || sesionActiva.facturas.length === 0">
+                  <td colspan="7" class="text-center py-6 text-secondary">
+                    <v-icon large color="grey lighten-1" class="d-block mb-2">mdi-receipt-text-outline</v-icon>
+                    Aún no se han registrado cobros en este turno.<br>
+                    Utilice el buscador superior para consultar abonados por Código, CI o Nombre y registrar pagos.
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+        </v-card>
+      </div>
+
+      <!-- CASO 2: TURNO CERRADO / NO INICIADO -->
+      <v-card v-else rounded="lg" class="pa-8 text-center erp-card-elevated">
+        <v-avatar color="amber lighten-4" size="72" class="mb-3">
+          <v-icon size="40" color="amber darken-3">mdi-cash-register</v-icon>
+        </v-avatar>
+        <h3 class="text-h5 font-weight-bold mb-2">Turno de Caja No Iniciado</h3>
+        <p class="text-body-2 text-secondary mb-5" style="max-width: 520px; margin: 0 auto;">
+          Para habilitar la ventanilla de cobranzas y emitir facturas electrónicas oficiales en línea con el SIAT, debe realizar la apertura formal de su turno.
+        </p>
+        <v-btn
+          color="teal darken-2"
+          class="rounded-pill font-weight-bold text-white elevation-2 px-6"
+          large
+          @click="mostrarModalApertura = true"
+        >
+          <v-icon left>mdi-lock-open-variant</v-icon> ABRIR TURNO DE CAJA AHORA
+        </v-btn>
+      </v-card>
+    </div>
+
     <!-- DIÁLOGO DE COBRO EXITOSO (NOTIFICACIÓN Y ACCESO AL VISOR) -->
     <v-dialog v-model="modalFacturaEmitida" max-width="520" persistent>
       <v-card rounded="lg" v-if="facturaResultado">
@@ -589,23 +856,70 @@
       :formato-inicial="formatoFacturaVisor"
       @cambio-formato="alCambiarFormatoFactura"
     ></modal-visor-pdf>
+
+    <!-- MODAL APERTURA DE CAJA -->
+    <modal-apertura-caja
+      v-model="mostrarModalApertura"
+      :caja-defecto-id="cajaDefectoId"
+      @cancelar="mostrarModalApertura = false"
+      @sesion-abierta="alAbrirSesion"
+    ></modal-apertura-caja>
+
+    <!-- MODAL CIERRE Y ARQUEO DE CAJA -->
+    <modal-cierre-arqueo-caja
+      v-model="mostrarModalCierre"
+      :sesion="sesionActiva"
+      @cancelar="mostrarModalCierre = false"
+      @sesion-cerrada="alCerrarSesion"
+    ></modal-cierre-arqueo-caja>
+
+    <!-- MODAL MOVIMIENTO MENOR DE CAJA CHICA -->
+    <modal-movimiento-caja
+      v-model="mostrarModalMovimiento"
+      :sesion-id="sesionActiva ? sesionActiva.id : null"
+      @cancelar="mostrarModalMovimiento = false"
+      @movimiento-registrado="alRegistrarMovimiento"
+    ></modal-movimiento-caja>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
 import ModalVisorPdf from '@/components/ModalVisorPdf.vue';
+import ModalAperturaCaja from './components/ModalAperturaCaja.vue';
+import ModalCierreArqueoCaja from './components/ModalCierreArqueoCaja.vue';
+import ModalMovimientoCaja from './components/ModalMovimientoCaja.vue';
 
 export default {
   name: 'CajaCobranzas',
   components: {
     ModalVisorPdf,
+    ModalAperturaCaja,
+    ModalCierreArqueoCaja,
+    ModalMovimientoCaja,
   },
   data() {
     return {
+      // Estado de Sesión / Turno de Caja
+      sesionActiva: null,
+      tieneSesionActiva: false,
+      cajaDefectoId: null,
+      cargandoSesion: false,
+      mostrarModalApertura: false,
+      mostrarModalCierre: false,
+      mostrarModalMovimiento: false,
+
       buscando: false,
       procesandoCobro: false,
       codigoBusqueda: '',
+      tipoBusqueda: 'todos',
+      tiposBusqueda: [
+        { valor: 'todos', texto: 'Todos los campos' },
+        { valor: 'codigo_abonado', texto: 'Código Abonado' },
+        { valor: 'carnet_nit', texto: 'C.I. / NIT' },
+        { valor: 'cliente', texto: 'Nombres / Apellidos' },
+        { valor: 'numero_factura', texto: 'N° de Factura' },
+      ],
       estadoCuenta: null,
       lecturasSeleccionadas: [],
       cuotasSeleccionadas: [],
@@ -680,6 +994,24 @@ export default {
     cambioEfectivo() {
       return this.efectivoRecibido - this.totalSeleccionado;
     },
+    etiquetaBusqueda() {
+      switch (this.tipoBusqueda) {
+        case 'codigo_abonado': return 'Código de Abonado';
+        case 'carnet_nit': return 'Cédula de Identidad o NIT';
+        case 'cliente': return 'Nombre / Razón Social del Abonado';
+        case 'numero_factura': return 'Número de Factura';
+        default: return 'Buscar por Código, CI/NIT, Nombre o N° Factura';
+      }
+    },
+    placeholderBusqueda() {
+      switch (this.tipoBusqueda) {
+        case 'codigo_abonado': return 'Ej: 00001, 5105...';
+        case 'carnet_nit': return 'Ej: 4582910, 1028394019...';
+        case 'cliente': return 'Ej: Emilio Sajama, Juan Perez...';
+        case 'numero_factura': return 'Ej: 36969...';
+        default: return 'Ingrese código, carnet, nombre o factura y presione Enter...';
+      }
+    },
   },
   watch: {
     '$route.query.codigo': {
@@ -692,6 +1024,7 @@ export default {
     },
   },
   mounted() {
+    this.verificarEstadoSesion();
     const qCod = this.$route.query.codigo;
     if (qCod) {
       this.codigoBusqueda = qCod;
@@ -699,6 +1032,48 @@ export default {
     }
   },
   methods: {
+    formatearHora(fecha) {
+      if (!fecha) return '';
+      const d = new Date(fecha);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+    async verificarEstadoSesion() {
+      this.cargandoSesion = true;
+      try {
+        const res = await axios.get('/api/comercial/caja-sesiones/estado-actual');
+        this.tieneSesionActiva = !!res.data?.tiene_sesion_activa;
+        this.sesionActiva = res.data?.sesion || null;
+        this.cajaDefectoId = res.data?.caja_defecto_id || null;
+      } catch (e) {
+        console.error('Error al verificar sesión de caja:', e);
+      } finally {
+        this.cargandoSesion = false;
+      }
+    },
+    alAbrirSesion(sesion) {
+      this.sesionActiva = sesion;
+      this.tieneSesionActiva = true;
+      this.mostrarModalApertura = false;
+    },
+    alCerrarSesion(sesion) {
+      this.mostrarModalCierre = false;
+      this.tieneSesionActiva = false;
+      this.sesionActiva = null;
+      this.estadoCuenta = null;
+      // Abrir reporte oficial de arqueo en el visor integrado
+      this.abrirVisorArqueo(sesion.id, sesion.numero_sesion);
+    },
+    alRegistrarMovimiento() {
+      this.mostrarModalMovimiento = false;
+      this.verificarEstadoSesion();
+    },
+    abrirVisorArqueo(sesionId, numeroSesion) {
+      this.esFacturaVisor = false;
+      this.urlVisorPdf = `/api/comercial/caja-sesiones/${sesionId}/reporte-pdf`;
+      this.tituloVisorPdf = `Planilla de Arqueo y Cierre - ${numeroSesion}`;
+      this.subtituloVisorPdf = 'Reporte Oficial de Cierre Diario de Caja';
+      this.mostrarVisorPdf = true;
+    },
     colorEstado(estado) {
       switch (estado) {
         case 'ACTIVO': return 'success';
@@ -755,15 +1130,23 @@ export default {
         this.efectivoRecibido = this.totalSeleccionado;
       });
     },
+    alCambiarTipoBusqueda() {
+      if (this.codigoBusqueda) {
+        this.buscarAbonado();
+      }
+    },
     async buscarAbonado() {
       const query = (this.codigoBusqueda || '').trim();
       if (!query) return;
 
       this.buscando = true;
       try {
-        // 1. Intentar búsqueda predictiva por Código, Carnet (CI/NIT) o Nombres/Apellidos
+        // 1. Intentar búsqueda predictiva por criterio seleccionado (Código, CI/NIT, Nombre o N° Factura)
         const searchRes = await axios.get('/api/comercial/caja/buscar-abonados', {
-          params: { q: query },
+          params: {
+            q: query,
+            tipo_busqueda: this.tipoBusqueda || 'todos',
+          },
         });
         const lista = searchRes.data?.data || [];
 
@@ -773,7 +1156,9 @@ export default {
           await this.cargarEstadoCuenta(lista[0].codigo);
         } else if (lista.length > 1) {
           // Si el query coincide exactamente con el código de uno de ellos, cargar directamente
-          const exacto = lista.find(x => x.codigo === query || x.codigo === query.padStart(5, '0'));
+          const exacto = (this.tipoBusqueda === 'todos' || this.tipoBusqueda === 'codigo_abonado')
+            ? lista.find(x => x.codigo === query || x.codigo === query.padStart(5, '0'))
+            : null;
           if (exacto) {
             this.codigoBusqueda = exacto.codigo;
             await this.cargarEstadoCuenta(exacto.codigo);
@@ -783,8 +1168,13 @@ export default {
             this.dialogResultadosBusqueda = true;
           }
         } else {
-          // Fallback a búsqueda directa por estado-cuenta
-          await this.cargarEstadoCuenta(query);
+          // Fallback a búsqueda directa por código solo si aplica
+          if (this.tipoBusqueda === 'todos' || this.tipoBusqueda === 'codigo_abonado') {
+            await this.cargarEstadoCuenta(query);
+          } else {
+            alert('No se encontraron abonados con el criterio ingresado.');
+            this.estadoCuenta = null;
+          }
         }
       } catch (e) {
         alert(e.response?.data?.message || 'Abonado no encontrado en el sistema.');
@@ -840,6 +1230,11 @@ export default {
     },
 
     async procesarCobro() {
+      if (!this.tieneSesionActiva) {
+        alert('Debe realizar la apertura formal del turno de caja antes de cobrar.');
+        this.mostrarModalApertura = true;
+        return;
+      }
       if (this.totalSeleccionado <= 0) {
         alert('Debe seleccionar al menos una factura para cobrar.');
         return;
@@ -874,8 +1269,9 @@ export default {
         // Abrir automáticamente el visor modal en formato rollo 80mm
         this.abrirVisorFactura(this.facturaResultado.id, 'rollo');
 
-        // Refrescar estado de cuenta del abonado
+        // Refrescar estado de cuenta del abonado y sesión de caja activa
         this.buscarAbonado();
+        this.verificarEstadoSesion();
       } catch (e) {
         alert(e.response?.data?.message || 'Error al procesar el cobro en ventanilla.');
       } finally {

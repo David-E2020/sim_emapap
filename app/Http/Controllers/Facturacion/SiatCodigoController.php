@@ -105,9 +105,13 @@ class SiatCodigoController extends Controller
      */
     public function sucursales(): JsonResponse
     {
-        $sucursales = SiatSucursal::with(['puntosVenta', 'cufd' => function ($q) {
-            $q->where('fecha_vigencia', '>', Carbon::now())->latest('id');
-        }])->get();
+        $sucursales = SiatSucursal::with([
+            'puntosVenta.cajeroDefecto',
+            'puntosVenta.sesionActiva.cajero',
+            'cufd' => function ($q) {
+                $q->where('fecha_vigencia', '>', Carbon::now())->latest('id');
+            }
+        ])->get();
 
         return response()->json([
             'success' => true,

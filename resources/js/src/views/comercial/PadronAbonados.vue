@@ -412,37 +412,64 @@
 
           <v-tabs-items v-model="tabFicha" class="pt-3">
             <v-tab-item>
-              <v-simple-table dense>
-                <template v-slot:default>
-                  <thead>
-                    <tr>
-                      <th>Periodo</th>
-                      <th class="text-right">Anterior</th>
-                      <th class="text-right">Actual</th>
-                      <th class="text-right">Consumo m³</th>
-                      <th class="text-right">Total Bs</th>
-                      <th class="text-center">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="lec in abonadoSeleccionado.lecturas" :key="lec.id">
-                      <td>{{ lec.periodo ? lec.periodo.periodo : '-' }}</td>
-                      <td class="text-right">{{ lec.lectura_anterior }}</td>
-                      <td class="text-right">{{ lec.lectura_actual }}</td>
-                      <td class="text-right font-weight-bold">{{ lec.consumo_m3 }}</td>
-                      <td class="text-right font-weight-bold">Bs {{ parseFloat(lec.total_facturado).toFixed(2) }}</td>
-                      <td class="text-center">
-                        <v-chip x-small :color="lec.estado_pago === 'PAGADO' ? 'success' : 'warning'" text-color="white">
-                          {{ lec.estado_pago }}
-                        </v-chip>
-                      </td>
-                    </tr>
-                    <tr v-if="!abonadoSeleccionado.lecturas || abonadoSeleccionado.lecturas.length === 0">
-                      <td colspan="6" class="text-center text-secondary py-3">No registra lecturas en el historial</td>
-                    </tr>
-                  </tbody>
-                </template>
-              </v-simple-table>
+              <div style="max-height: 420px; overflow-y: auto;">
+                <v-simple-table dense>
+                  <template v-slot:default>
+                    <thead>
+                      <tr>
+                        <th>Periodo</th>
+                        <th class="text-right">Anterior</th>
+                        <th class="text-right">Actual</th>
+                        <th class="text-right">Consumo m³</th>
+                        <th class="text-right">Total Bs</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Fecha Pago</th>
+                        <th class="text-center">N° Factura</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="lec in abonadoSeleccionado.lecturas" :key="lec.id">
+                        <td><strong>{{ lec.periodo ? lec.periodo.periodo : '-' }}</strong></td>
+                        <td class="text-right">{{ lec.lectura_anterior }}</td>
+                        <td class="text-right">{{ lec.lectura_actual }}</td>
+                        <td class="text-right font-weight-bold">{{ lec.consumo_m3 }}</td>
+                        <td class="text-right font-weight-bold">Bs {{ parseFloat(lec.total_facturado).toFixed(2) }}</td>
+                        <td class="text-center">
+                          <v-chip x-small :color="lec.estado_pago === 'PAGADO' ? 'success' : 'warning'" text-color="white">
+                            {{ lec.estado_pago }}
+                          </v-chip>
+                        </td>
+                        <td class="text-center text-caption font-weight-medium">
+                          <span v-if="lec.fecha_pago" class="success--text">
+                            <v-icon x-small color="success">mdi-calendar-check</v-icon> {{ formatearFecha(lec.fecha_pago) }}
+                          </span>
+                          <span v-else class="grey--text">-</span>
+                        </td>
+                        <td class="text-center text-caption">
+                          <template v-if="lec.factura_siat && lec.factura_siat.numero_factura">
+                            <v-btn
+                              x-small
+                              text
+                              color="primary"
+                              class="font-weight-bold"
+                              @click="abrirFacturaDesdeFicha(lec.factura_siat.id, lec.factura_siat.numero_factura)"
+                            >
+                              <v-icon x-small left>mdi-file-document-outline</v-icon> #{{ lec.factura_siat.numero_factura }}
+                            </v-btn>
+                          </template>
+                          <span v-else-if="lec.id_factura" class="font-weight-medium">
+                            #{{ lec.id_factura }}
+                          </span>
+                          <span v-else class="grey--text">-</span>
+                        </td>
+                      </tr>
+                      <tr v-if="!abonadoSeleccionado.lecturas || abonadoSeleccionado.lecturas.length === 0">
+                        <td colspan="8" class="text-center text-secondary py-3">No registra lecturas en el historial</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+              </div>
             </v-tab-item>
 
             <v-tab-item>
@@ -777,6 +804,12 @@ export default {
       this.subtituloVisorPdf = `${item.nombre_completo || ''} | NIT/CI: ${item.numero_documento || 'S/N'}`;
       this.mostrarVisorPdf = true;
     },
+    abrirFacturaDesdeFicha(facturaId, numeroFactura) {
+      this.urlVisorPdf = `/api/facturacion/facturas/${facturaId}/pdf?formato=rollo`;
+      this.tituloVisorPdf = `Factura Electrónica SIAT #${numeroFactura}`;
+      this.subtituloVisorPdf = 'Comprobante Oficial Autorizado por el SIN';
+      this.mostrarVisorPdf = true;
+    },
     abrirCambioMedidor(item) {
       this.formCambio = {
         lectura_final_anterior: item.medidor_actual?.lectura_inicial || 0,
@@ -829,6 +862,15 @@ export default {
       } finally {
         this.guardandoBaja = false;
       }
+    },
+    formatearFecha(fecha) {
+      if (!fecha) return '-';
+      const f = fecha.toString().substring(0, 10);
+      const partes = f.split('-');
+      if (partes.length === 3) {
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+      return f;
     },
   },
 };

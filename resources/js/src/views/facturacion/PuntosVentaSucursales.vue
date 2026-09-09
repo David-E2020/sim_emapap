@@ -71,11 +71,42 @@
                 <v-list-item-title class="font-weight-medium text-body-2">
                   Punto {{ pv.codigo_punto_venta }}: {{ pv.nombre }}
                 </v-list-item-title>
-                <v-list-item-subtitle class="text-caption text-success font-weight-bold">
-                  ● CUFD Vigente | Estado: {{ pv._estado }}
+                <v-list-item-subtitle class="text-caption">
+                  <span class="text-success font-weight-bold">● CUFD Vigente</span> |
+                  <span v-if="pv.sesion_activa" class="teal--text text--darken-2 font-weight-bold">
+                    <v-icon x-small color="teal darken-2">mdi-lock-open-variant</v-icon> Turno #{{ pv.sesion_activa.numero_sesion }} ({{ pv.sesion_activa.cajero ? pv.sesion_activa.cajero.name : 'En curso' }})
+                  </span>
+                  <span v-else class="grey--text">
+                    <v-icon x-small color="grey">mdi-lock-outline</v-icon> Caja Cerrada
+                  </span>
+                  |
+                  <span v-if="pv.cajero_defecto" class="primary--text font-weight-bold">
+                    <v-icon x-small color="primary">mdi-account-check</v-icon> {{ pv.cajero_defecto.name }}
+                  </span>
+                  <span v-else class="text-secondary">Sin cajero habitual</span>
                 </v-list-item-subtitle>
               </v-list-item-content>
               <v-list-item-action class="my-0 d-flex flex-row align-center gap-1">
+                <!-- Ir a Cobranzas / Ventanilla -->
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn icon small color="teal darken-2" v-bind="attrs" v-on="on" :to="{ path: '/comercial/caja' }">
+                      <v-icon small>mdi-cash-register</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Ir a Ventanilla de Cobranzas</span>
+                </v-tooltip>
+
+                <!-- Asignar Cajero Habitual -->
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn icon small color="indigo" v-bind="attrs" v-on="on" @click="abrirAsignarCajero(pv)">
+                      <v-icon small>mdi-account-cog</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Asignar Cajero Habitual a esta Caja</span>
+                </v-tooltip>
+
                 <!-- Solicitar CUIS -->
                 <v-tooltip bottom>
                   <template v-slot:activator="{ on, attrs }">
@@ -157,6 +188,54 @@
         </div>
       </v-card>
     </v-dialog>
+
+    <!-- DIÁLOGO ASIGNAR CAJERO HABITUAL -->
+    <v-dialog v-model="dialogoAsignarCajero" max-width="480">
+      <v-card rounded="lg" v-if="puntoSeleccionado" class="pa-4">
+        <div class="d-flex align-center mb-3">
+          <v-avatar color="indigo" size="36" class="mr-2 text-white">
+            <v-icon small color="white">mdi-account-cog</v-icon>
+          </v-avatar>
+          <div>
+            <h3 class="text-subtitle-1 font-weight-bold mb-0">Asignar Cajero Habitual</h3>
+            <span class="text-caption text-secondary">
+              Punto {{ puntoSeleccionado.codigo_punto_venta }}: {{ puntoSeleccionado.nombre }}
+            </span>
+          </div>
+        </div>
+
+        <p class="text-caption text-secondary mb-3">
+          Seleccione el funcionario que operará habitualmente esta ventanilla física al abrir su turno de recaudación:
+        </p>
+
+        <v-select
+          v-model="cajeroSeleccionadoId"
+          :items="cajeros"
+          item-text="name"
+          item-value="id"
+          label="Funcionario / Cajero Asignado"
+          placeholder="Seleccione o deje sin asignar..."
+          outlined
+          dense
+          clearable
+          prepend-inner-icon="mdi-account"
+        >
+          <template v-slot:item="{ item }">
+            <div class="d-flex flex-column py-1">
+              <span class="font-weight-bold text-body-2">{{ item.name }}</span>
+              <span class="text-caption text-secondary">Usuario: {{ item.usr_usuario }}</span>
+            </div>
+          </template>
+        </v-select>
+
+        <div class="d-flex justify-end gap-2 mt-4">
+          <v-btn text @click="dialogoAsignarCajero = false">Cancelar</v-btn>
+          <v-btn color="indigo" class="text-white rounded-pill font-weight-bold" :loading="guardandoAsignacion" @click="guardarAsignacionCajero">
+            Guardar Asignación
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -168,6 +247,11 @@ export default {
       cargando: false,
       guardandoPunto: false,
       dialogoNuevoPunto: false,
+      dialogoAsignarCajero: false,
+      puntoSeleccionado: null,
+      cajeroSeleccionadoId: null,
+      guardandoAsignacion: false,
+      cajeros: [],
       sucursales: [],
       sucursalSeleccionada: null,
       formPunto: {
@@ -259,6 +343,45 @@ export default {
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
         this.$message.error(msg);
+      }
+    },
+    async cargarCajeros() {
+      try {
+        const res = await window.axios.get('/api/comercial/caja-sesiones/cajeros');
+        this.cajeros = res.data?.data || [];
+      } catch (e) {
+        console.error('Error al cargar cajeros:', e);
+      }
+    },
+    abrirAsignarCajero(pv) {
+      this.puntoSeleccionado = pv;
+      this.cajeroSeleccionadoId = pv.id_cajero_defecto || null;
+      this.cargarCajeros();
+      this.dialogoAsignarCajero = true;
+    },
+    async guardarAsignacionCajero() {
+      if (!this.puntoSeleccionado) return;
+      this.guardandoAsignacion = true;
+      try {
+        await window.axios.post(`/api/comercial/cajas/${this.puntoSeleccionado.id}/asignar-cajero`, {
+          id_cajero: this.cajeroSeleccionadoId,
+        });
+        if (this.$message) {
+          this.$message.success('Cajero habitual asignado a la caja correctamente.');
+        } else {
+          alert('Cajero habitual asignado a la caja correctamente.');
+        }
+        this.dialogoAsignarCajero = false;
+        this.cargarDatos();
+      } catch (e) {
+        const msg = e.response?.data?.message || 'Error al asignar cajero a la caja.';
+        if (this.$message) {
+          this.$message.error(msg);
+        } else {
+          alert(msg);
+        }
+      } finally {
+        this.guardandoAsignacion = false;
       }
     },
   },

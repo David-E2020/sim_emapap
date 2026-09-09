@@ -46,7 +46,8 @@ class CobranzaCajaController extends Controller
     public function buscarAbonados(Request $request): JsonResponse
     {
         $criterio = (string) $request->input('q', '');
-        $resultados = $this->cobranzaService->buscarAbonadosParaCaja($criterio);
+        $tipo = (string) $request->input('tipo_busqueda', 'todos');
+        $resultados = $this->cobranzaService->buscarAbonadosParaCaja($criterio, $tipo);
 
         return response()->json([
             'success' => true,
@@ -133,12 +134,21 @@ class CobranzaCajaController extends Controller
 
         $correlativo = ReciboCaja::count() + 1;
         $numeroRecibo = sprintf('REC-%s-%05d', date('Y'), $correlativo);
+        $userId = $request->user()?->id ?? 1;
+
+        $sesionActiva = \App\Models\Comercial\CajaSesion::where('id_cajero', $userId)
+            ->where('estado', 'ABIERTA')
+            ->latest('id')
+            ->first();
 
         $recibo = ReciboCaja::create(array_merge($request->all(), [
             'numero_recibo' => $numeroRecibo,
-            'id_cajero' => $request->user()?->id ?? 1,
+            'id_cajero' => $userId,
+            'id_sesion_caja' => $sesionActiva?->id,
             'estado' => 'VALIDO',
         ]));
+
+        $sesionActiva?->recalcularTotales();
 
         return response()->json([
             'success' => true,

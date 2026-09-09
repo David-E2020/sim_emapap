@@ -117,9 +117,9 @@ class FoxProMigradorService
 
         $header = fread($fp, 32);
         $unpacked = unpack('Vnum_records/vheader_len/vrecord_len', substr($header, 4, 8));
-        $numRecords = $unpacked['num_records'];
-        $headerLen = $unpacked['header_len'];
-        $recordLen = $unpacked['record_len'];
+        $numRecords = (int) ($unpacked['num_records'] ?? 0);
+        $headerLen = (int) ($unpacked['header_len'] ?? 0);
+        $recordLen = (int) ($unpacked['record_len'] ?? 0);
 
         $fields = [];
         while (true) {
@@ -717,6 +717,198 @@ class FoxProMigradorService
             'dry_run' => $dryRun,
             'total_en_dbf' => $totalRecords,
             'facturas_migradas' => $insertados,
+        ];
+    }
+
+    /**
+     * Migra lecturas mensuales históricas y pagos desde operacio.DBF hacia comercial.lecturas_mensuales.
+     */
+    public function migrarOperacionesDbf(
+        string $rutaOperacioDbf,
+        bool $dryRun = true,
+        ?string $fechaLimite = null,
+        int $limite = 0,
+        ?callable $progressCallback = null
+    ): array {
+        if (!file_exists($rutaOperacioDbf)) {
+            throw new Exception("El archivo operacio.DBF no existe en: {$rutaOperacioDbf}");
+        }
+
+        $abonadosMap = DB::table('comercial.abonados')->pluck('id', 'codigo')->toArray();
+        $periodosMap = DB::table('comercial.periodos_facturacion')->pluck('id', 'periodo')->toArray();
+
+        $insertados = 0;
+        $omitidos = 0;
+        $ahora = now();
+
+        $chunkHandler = function (array $chunk, int $totalProcesados, int $totalRecordsDbf) use (
+            &$abonadosMap,
+            &$periodosMap,
+            $dryRun,
+            $fechaLimite,
+            &$insertados,
+            &$omitidos,
+            $ahora,
+            $progressCallback
+        ) {
+            $batch = [];
+
+            foreach ($chunk as $r) {
+                $codigo = trim($r['CODIGO'] ?? '');
+                if (empty($codigo)) {
+                    $omitidos++;
+                    continue;
+                }
+
+                $codigoPad = str_pad($codigo, 5, '0', STR_PAD_LEFT);
+                $idAbonado = $abonadosMap[$codigoPad] ?? null;
+                if (!$idAbonado) {
+                    $omitidos++;
+                    continue;
+                }
+
+                $perStr = trim($r['PERIODO'] ?? '');
+                if (empty($perStr) || !str_contains($perStr, '/')) {
+                    $omitidos++;
+                    continue;
+                }
+
+                $fechapaRaw = trim($r['FECHAPA'] ?? '');
+                $fechaPago = null;
+                if (!empty($fechapaRaw)) {
+                    if (strlen($fechapaRaw) === 8 && ctype_digit($fechapaRaw)) {
+                        $y = substr($fechapaRaw, 0, 4);
+                        $m = substr($fechapaRaw, 4, 2);
+                        $d = substr($fechapaRaw, 6, 2);
+                        if ((int)$m >= 1 && (int)$m <= 12 && (int)$d >= 1 && (int)$d <= 31) {
+                            $fechaPago = "{$y}-{$m}-{$d}";
+                        }
+                    } elseif (preg_match('/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/', $fechapaRaw, $m)) {
+                        $fechaPago = "{$m[1]}-{$m[2]}-{$m[3]}";
+                    } elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $fechapaRaw, $m)) {
+                        $fechaPago = "{$m[3]}-{$m[2]}-{$m[1]}";
+                    }
+                }
+
+                $fechaLecturaRaw = trim($r['FECHA'] ?? '');
+                $fechaLectura = null;
+                if (!empty($fechaLecturaRaw)) {
+                    if (strlen($fechaLecturaRaw) === 8 && ctype_digit($fechaLecturaRaw)) {
+                        $y = substr($fechaLecturaRaw, 0, 4);
+                        $m = substr($fechaLecturaRaw, 4, 2);
+                        $d = substr($fechaLecturaRaw, 6, 2);
+                        if ((int)$m >= 1 && (int)$m <= 12 && (int)$d >= 1 && (int)$d <= 31) {
+                            $fechaLectura = "{$y}-{$m}-{$d}";
+                        }
+                    } elseif (preg_match('/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/', $fechaLecturaRaw, $m)) {
+                        $fechaLectura = "{$m[1]}-{$m[2]}-{$m[3]}";
+                    }
+                }
+
+                $partesPer = explode('/', $perStr);
+                $mesPer = max(1, min(12, (int) ($partesPer[0] ?? 1)));
+                $gestionPer = max(2000, (int) ($partesPer[1] ?? 2026));
+                $fechaPeriodoFin = date('Y-m-t', strtotime(sprintf('%04d-%02d-01', $gestionPer, $mesPer)));
+
+                if ($fechaLimite) {
+                    $fechaComparacion = $fechaPago ?: $fechaPeriodoFin;
+                    if ($fechaComparacion > $fechaLimite) {
+                        $omitidos++;
+                        continue;
+                    }
+                }
+
+                if (!isset($periodosMap[$perStr])) {
+                    if (!$dryRun) {
+                        $nuevoPeriodoId = DB::table('comercial.periodos_facturacion')->insertGetId([
+                            'periodo' => $perStr,
+                            'mes' => $mesPer,
+                            'gestion' => $gestionPer,
+                            'fecha_inicio_consumo' => sprintf('%04d-%02d-01', $gestionPer, $mesPer),
+                            'fecha_fin_consumo' => $fechaPeriodoFin,
+                            'fecha_vencimiento_pago' => sprintf('%04d-%02d-25', $gestionPer, $mesPer),
+                            'estado' => ($gestionPer < 2026 || ($gestionPer == 2026 && $mesPer < 8)) ? 'CERRADO' : 'ABIERTO',
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIG_OPERACIO',
+                            '_usuario_creacion' => 1,
+                            '_fecha_creacion' => $ahora,
+                        ]);
+                        $periodosMap[$perStr] = $nuevoPeriodoId;
+                    } else {
+                        $periodosMap[$perStr] = 999999;
+                    }
+                }
+                $idPeriodo = $periodosMap[$perStr];
+
+                $anterior = (float) trim($r['ANTERIOR'] ?? 0);
+                $actual = (float) trim($r['ACTUAL'] ?? 0);
+                $consumo = (float) trim($r['CONSUMO'] ?? 0);
+                $montoAgua = (float) trim($r['IMPAGUA'] ?? 0);
+                $montoAlca = (float) trim($r['IMPALCA'] ?? 0);
+                $descto = (float) trim($r['DESCTO3'] ?? ($r['DESCTO'] ?? 0));
+                $otros = (float) trim($r['OTROS'] ?? 0);
+                $totalFacturado = $montoAgua + $montoAlca + $otros - $descto;
+
+                $pagado = strtoupper(trim($r['PAGADO'] ?? ''));
+                $esPagado = ($pagado === 'S');
+
+                $batch[] = [
+                    'id_periodo' => $idPeriodo,
+                    'id_abonado' => $idAbonado,
+                    'lectura_anterior' => $anterior,
+                    'lectura_actual' => $actual,
+                    'consumo_m3' => max(0, $consumo),
+                    'es_estimada' => false,
+                    'fecha_lectura' => $fechaLectura,
+                    'monto_agua' => $montoAgua,
+                    'monto_alcantarillado' => $montoAlca,
+                    'monto_descuento_ley1886' => $descto,
+                    'monto_otros' => $otros,
+                    'total_facturado' => max(0, $totalFacturado),
+                    'estado_pago' => $esPagado ? 'PAGADO' : 'PENDIENTE',
+                    'fecha_pago' => $fechaPago,
+                    '_estado' => 'ACTIVO',
+                    '_transaccion' => 'MIG_OPERACIO',
+                    '_usuario_creacion' => 1,
+                    '_fecha_creacion' => $ahora,
+                ];
+            }
+
+            if (!$dryRun && !empty($batch)) {
+                DB::table('comercial.lecturas_mensuales')->upsert(
+                    $batch,
+                    ['id_periodo', 'id_abonado'],
+                    [
+                        'lectura_anterior',
+                        'lectura_actual',
+                        'consumo_m3',
+                        'fecha_lectura',
+                        'monto_agua',
+                        'monto_alcantarillado',
+                        'monto_descuento_ley1886',
+                        'monto_otros',
+                        'total_facturado',
+                        'estado_pago',
+                        'fecha_pago',
+                        '_fecha_modificacion' => $ahora,
+                    ]
+                );
+            }
+
+            $insertados += count($batch);
+
+            if ($progressCallback) {
+                $progressCallback($totalProcesados, $totalRecordsDbf);
+            }
+        };
+
+        $totalEnDbf = $this->iterarDbf($rutaOperacioDbf, $chunkHandler, 1000, $limite);
+
+        return [
+            'dry_run' => $dryRun,
+            'total_en_dbf' => $totalEnDbf,
+            'lecturas_migradas' => $insertados,
+            'omitidos' => $omitidos,
         ];
     }
 }

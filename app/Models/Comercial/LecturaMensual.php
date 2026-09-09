@@ -35,6 +35,7 @@ class LecturaMensual extends Model
         'id_factura',
         'fecha_pago',
         'id_cajero',
+        'id_sesion_caja',
         '_estado',
         '_transaccion',
         '_usuario_creacion',
@@ -74,7 +75,12 @@ class LecturaMensual extends Model
 
     public function facturaSiat(): BelongsTo
     {
-        return $this->belongsTo(Factura::class, 'id_factura');
+        return $this->belongsTo(\App\Models\Facturacion\Factura::class, 'id_factura');
+    }
+
+    public function sesionCaja(): BelongsTo
+    {
+        return $this->belongsTo(CajaSesion::class, 'id_sesion_caja');
     }
 
     public function factura(): BelongsTo

@@ -56,7 +56,7 @@ export default {
   setup() {
     const ins = getCurrentInstance()?.proxy
     const $vuetify = ins && ins.$vuetify ? ins.$vuetify : null
-    const customChartColor = $vuetify.theme.isDark ? '#3b3559' : '#f5f5f5'
+    const customChartColor = $vuetify.theme.isDark ? '#22242c' : '#f5f5f5'
 
     const chartOptions = {
       colors: [

@@ -1,178 +1,1021 @@
 <template>
-  <div class="auth-wrapper auth-v1">
-    <div class="auth-inner">
-      <v-card class="auth-card">
-        <v-form @submit.prevent="login">
-          <v-window>
-            <v-window-item :value="1">
-              <v-row>
-                <v-col cols="12" md="6">
-                  <v-card-text class="mt-12">
-                    <h2 class="text-2xl font-weight-semibold">
-                      SIE - PLANTAS INDUSTRIALES</h2>
-                    <v-row align="center" justify="center">
-                      <v-col cols="12" sm="8">
-                        <v-text-field v-model="usr_usuario" outlined label="Usuario" placeholder="Ingrese el usuario"
-                          hide-details class="mt-6"
-                          :append-icon="icons.mdiAccount"
-                          ></v-text-field>
-                        <v-text-field v-model="password" outlined :type="isPasswordVisible ? 'text' : 'password'"
-                          label="Contraseña" placeholder="············"
-                          :append-icon="isPasswordVisible ? icons.mdiEyeOffOutline : icons.mdiEyeOutline" hide-details
-                          @click:append="isPasswordVisible = !isPasswordVisible" class="mt-6"></v-text-field>
-                        <v-btn block color="primary" :disabled="loaderLogin" :loading="loaderLogin" class="mt-6"
-                          type="submit">
-                          Ingresar
-                        </v-btn>
-                        <br>
-                        <h6 class="text-center  grey--text ">Para poder ingresar al sistema de gestion de plantas <br>debe
-                          estar registrado en el sistema de facturacion SIE - COMERCIALIZACION</h6>
-                      </v-col>
-                    </v-row>
-                  </v-card-text>
-                </v-col>
-                <v-col cols="12" md="6" class="rounded-bl-xl" style="background:#dbdadb">
-                  <div style="  text-align: center; padding: 180px 0;">
-                    <v-img :src="require('@/assets/images/logos/logoEmapa2.png').default" width="430" height="100%"
-                      alt="logo" contain class="me-3"></v-img>
-                  </div>
-                </v-col>
-              </v-row>
-            </v-window-item>
-          </v-window>
-        </v-form>
-      </v-card>
-    </div>
-    <!-- background triangle shape  -->
+  <div
+    class="claude-login-page"
+    :class="{ 'is-dark': isDarkMode, 'is-light': !isDarkMode }"
+  >
+    <!-- Header / Brand Top Left & Theme Switcher Top Right -->
+    <header class="claude-header">
+      <div class="brand-container">
+        <img
+          :src="require('@/assets/images/logos/logoEmapa2.png').default"
+          alt="EMAPA Logo"
+          class="brand-logo-img"
+        />
+        <div class="brand-divider"></div>
+        <div class="brand-text-block">
+          <span class="brand-title">EMAPA</span>
+          <span class="brand-badge">SIE 2025</span>
+        </div>
+      </div>
 
-    <img class="auth-mask-bg" height="173"
-      :src="require(`@/assets/images/misc/mask-${$vuetify.theme.dark ? 'dark' : 'light'}.png`).default" />
+      <!-- Theme Switcher in Header -->
+      <button
+        type="button"
+        class="theme-toggle-btn"
+        @click="toggleTheme"
+        :title="isDarkMode ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
+        aria-label="Cambiar tema"
+      >
+        <v-icon size="18" :color="isDarkMode ? '#e5e3dd' : '#3d3b36'">
+          {{ isDarkMode ? icons.mdiWeatherSunny : icons.mdiWeatherNight }}
+        </v-icon>
+        <span class="theme-toggle-text">{{ isDarkMode ? 'Modo Claro' : 'Modo Oscuro' }}</span>
+      </button>
+    </header>
 
-    <!-- tree -->
-    <v-img class="auth-tree" width="247" height="185" :src="require('@/assets/images/misc/tree.png').default"></v-img>
+    <!-- Main Layout Container -->
+    <main class="claude-main-layout">
+      <!-- Left Column: Authentication Form -->
+      <section class="auth-column">
+        <div class="auth-content-wrapper">
+          <!-- Editorial Serif Heading -->
+          <div class="heading-block">
+            <h1 class="editorial-title">Gestión y Producción</h1>
+            <p class="editorial-subtitle">
+              Plataforma integral para plantas industriales y comercialización
+            </p>
+          </div>
 
-    <!-- tree  -->
-    <v-img class="auth-tree-3" width="377" height="289" :src="require('@/assets/images/misc/tree-3.png').default"></v-img>
+          <!-- Main Auth Card -->
+          <div class="claude-card">
+            <!-- Institutional Info Pill -->
+            <div class="card-status-pill">
+              <span class="status-indicator"></span>
+              <span class="status-text">Servidor Central Conectado</span>
+            </div>
 
+            <!-- Login Form -->
+            <form @submit.prevent="login" class="claude-form" autocomplete="on">
+              <!-- Field: Usuario -->
+              <div class="form-group">
+                <label for="username" class="input-label">Usuario</label>
+                <div class="input-wrapper" :class="{ 'has-focus': focusedField === 'user' }">
+                  <v-icon class="input-icon" size="20" :color="isDarkMode ? '#7c7a74' : '#6b6962'">
+                    {{ icons.mdiAccount }}
+                  </v-icon>
+                  <input
+                    id="username"
+                    v-model="usr_usuario"
+                    type="text"
+                    placeholder="Ingresa tu usuario institucional"
+                    autocomplete="username"
+                    required
+                    @focus="focusedField = 'user'"
+                    @blur="focusedField = null"
+                    class="custom-input"
+                  />
+                </div>
+              </div>
 
+              <!-- Field: Contraseña -->
+              <div class="form-group">
+                <label for="password" class="input-label">Contraseña</label>
+                <div class="input-wrapper" :class="{ 'has-focus': focusedField === 'pass' }">
+                  <v-icon class="input-icon" size="20" :color="isDarkMode ? '#7c7a74' : '#6b6962'">
+                    {{ icons.mdiLockOutline }}
+                  </v-icon>
+                  <input
+                    id="password"
+                    v-model="password"
+                    :type="isPasswordVisible ? 'text' : 'password'"
+                    placeholder="••••••••••••"
+                    autocomplete="current-password"
+                    required
+                    @focus="focusedField = 'pass'"
+                    @blur="focusedField = null"
+                    class="custom-input"
+                  />
+                  <button
+                    type="button"
+                    class="password-toggle-btn"
+                    @click="isPasswordVisible = !isPasswordVisible"
+                    aria-label="Alternar visibilidad de contraseña"
+                  >
+                    <v-icon size="19" :color="isDarkMode ? '#8c8a84' : '#6b6962'">
+                      {{ isPasswordVisible ? icons.mdiEyeOffOutline : icons.mdiEyeOutline }}
+                    </v-icon>
+                  </button>
+                </div>
+              </div>
 
-    <v-snackbar v-model="snackbar.status" bottom :color="snackbar.color" :timeout="1800">
-      {{ snackbar.text }}
+              <!-- Primary Submit Button -->
+              <button
+                type="submit"
+                class="claude-btn-primary"
+                :disabled="loaderLogin"
+              >
+                <span v-if="!loaderLogin" class="btn-text">Ingresar al sistema</span>
+                <v-progress-circular
+                  v-else
+                  indeterminate
+                  size="20"
+                  width="2.2"
+                  :color="isDarkMode ? '#141413' : '#ffffff'"
+                ></v-progress-circular>
+              </button>
+
+              <!-- Footer Legal / Policy Note -->
+              <p class="card-footer-text">
+                Para acceder al sistema de gestión de plantas debe estar registrado en el sistema
+                <span class="highlight-link">SIE · COMERCIALIZACIÓN</span>.
+              </p>
+            </form>
+          </div>
+
+          <!-- Bottom Pill Button (Secondary Action) -->
+          <div class="secondary-action-container">
+            <button
+              type="button"
+              class="claude-btn-secondary"
+              @click="showHelpDialog = true"
+            >
+              <v-icon size="16" class="me-2" :color="isDarkMode ? '#9e9c96' : '#5a5852'">
+                {{ icons.mdiHelpCircleOutline }}
+              </v-icon>
+              Manual de usuario y asistencia técnica
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Rounded Hero Image -->
+      <section class="hero-column d-none d-lg-flex">
+        <div class="hero-image-card">
+          <img
+            :src="require('@/assets/images/logos/login_emapa.jpeg').default"
+            alt="Planta Industrial EMAPA"
+            class="hero-img"
+          />
+          <div class="hero-overlay"></div>
+          <div class="hero-caption">
+            <span class="caption-tag">Planta Industrial & Silos</span>
+            <h3 class="caption-title">Soberanía y Seguridad Alimentaria</h3>
+            <p class="caption-subtitle">Empresa de Apoyo a la Producción de Alimentos · Bolivia</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Help & Support Dialog -->
+    <v-dialog v-model="showHelpDialog" max-width="500" content-class="claude-dialog">
+      <div class="dialog-card" :class="{ 'is-dark': isDarkMode, 'is-light': !isDarkMode }">
+        <div class="dialog-header">
+          <div class="dialog-title-group">
+            <v-icon color="#e07a5f" class="me-2">{{ icons.mdiInformationOutline }}</v-icon>
+            <h3 class="dialog-title">Asistencia & Soporte SIE</h3>
+          </div>
+          <button class="dialog-close-btn" @click="showHelpDialog = false">
+            <v-icon :color="isDarkMode ? '#a09e96' : '#6b6962'" size="20">{{ icons.mdiClose }}</v-icon>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <p class="dialog-desc">
+            Si tiene problemas para acceder al sistema o requiere la creación de un nuevo usuario, por favor contacte al área de Tecnologías de Información:
+          </p>
+          <div class="dialog-info-box">
+            <div class="info-row">
+              <span class="info-label">Soporte Técnico:</span>
+              <span class="info-val">Unidad de Tecnologías de la Información</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Correo:</span>
+              <span class="info-val">soporte.sistemas@emapa.gob.bo</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Central Telefónica:</span>
+              <span class="info-val">(+591) 2-2188800 Interno 104</span>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="claude-btn-primary dialog-btn" @click="showHelpDialog = false">
+            Entendido
+          </button>
+        </div>
+      </div>
+    </v-dialog>
+
+    <!-- Sleek Theme Snackbar Notification -->
+    <v-snackbar
+      v-model="snackbar.status"
+      bottom
+      :timeout="3500"
+      content-class="claude-snackbar"
+    >
+      <div class="snackbar-content">
+        <span class="snackbar-dot" :class="snackbar.color"></span>
+        <span class="snackbar-text">{{ snackbar.text }}</span>
+      </div>
       <template v-slot:action="{ attrs }">
-        <v-btn color="blue" text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
+        <v-btn
+          text
+          small
+          v-bind="attrs"
+          :color="isDarkMode ? '#ffffff' : '#141413'"
+          class="snackbar-close-btn"
+          @click="snackbar.status = false"
+        >
+          Cerrar
+        </v-btn>
       </template>
     </v-snackbar>
   </div>
 </template>
 
 <script>
-// eslint-disable-next-line object-curly-newline
-import { mdiFacebook, mdiTwitter, mdiGithub, mdiGoogle, mdiEyeOutline, mdiEyeOffOutline, mdiAccount } from '@mdi/js'
-import { ref } from '@vue/composition-api'
+import {
+  mdiAccount,
+  mdiLockOutline,
+  mdiEyeOutline,
+  mdiEyeOffOutline,
+  mdiHelpCircleOutline,
+  mdiInformationOutline,
+  mdiClose,
+  mdiWeatherNight,
+  mdiWeatherSunny,
+} from '@mdi/js'
 
 export default {
+  name: 'LoginPage',
   data: () => ({
-    owl_hide: false,
     usr_usuario: '',
     password: '',
+    isPasswordVisible: false,
+    focusedField: null,
     loaderLogin: false,
+    showHelpDialog: false,
     snackbar: {
       status: false,
       text: '',
       color: '',
     },
+    icons: {
+      mdiAccount,
+      mdiLockOutline,
+      mdiEyeOutline,
+      mdiEyeOffOutline,
+      mdiHelpCircleOutline,
+      mdiInformationOutline,
+      mdiClose,
+      mdiWeatherNight,
+      mdiWeatherSunny,
+    },
   }),
-  mounted() { },
-  setup() {
-    const isPasswordVisible = ref(false)
-    const email = ref('')
-    const password = ref('')
-    const socialLink = [
-      {
-        icon: mdiFacebook,
-        color: '#4267b2',
-        colorInDark: '#4267b2',
-      },
-      {
-        icon: mdiTwitter,
-        color: '#1da1f2',
-        colorInDark: '#1da1f2',
-      },
-      {
-        icon: mdiGithub,
-        color: '#272727',
-        colorInDark: '#fff',
-      },
-      {
-        icon: mdiGoogle,
-        color: '#db4437',
-        colorInDark: '#db4437',
-      },
-    ]
-
-    return {
-      isPasswordVisible,
-      email,
-      password,
-      socialLink,
-      icons: {
-        mdiEyeOutline,
-        mdiEyeOffOutline,
-        mdiAccount,
-      },
-    }
+  computed: {
+    isDarkMode() {
+      return this.$vuetify.theme.dark
+    },
   },
   methods: {
+    toggleTheme() {
+      this.$vuetify.theme.dark = !this.$vuetify.theme.dark
+      localStorage.setItem('theme_dark', this.$vuetify.theme.dark)
+    },
     login() {
+      if (!this.usr_usuario.trim() || !this.password) {
+        this.snackbar = {
+          status: true,
+          text: 'Por favor, ingrese usuario y contraseña.',
+          color: 'error',
+        }
+        return
+      }
+
       this.loaderLogin = true
-      let usr_usuario = this.usr_usuario
-      let password = this.password
+      const usr_usuario = this.usr_usuario.trim()
+      const password = this.password
+
       this.$store
         .dispatch('auth/login', { usr_usuario, password })
         .then(res => {
-          this.loaderLogin = false;
-          var route_ = res.data.rute_home;
-          this.$router.push({ name: route_ });
+          this.loaderLogin = false
+          const route_ = res.data.rute_home || 'dashboard'
+          this.$router.push({ name: route_ })
         })
         .catch(err => {
-          this.loaderLogin = false;
-          if (err.response) {
+          this.loaderLogin = false
+          if (err.response && err.response.data && err.response.data.message) {
             this.snackbar = {
               status: true,
               text: err.response.data.message,
-              color: 'blue',
+              color: 'error',
             }
           } else {
             this.snackbar = {
               status: true,
-              text: "Error Login",
-              color: 'blue',
+              text: 'Credenciales inválidas o error de conexión con el servidor.',
+              color: 'error',
             }
           }
-
-          /*
-          iziToast.success({
-            position: 'topRight',
-            title: 'Credenciales invalidas',
-            message: err,
-            theme: 'light', // dark
-            color: 'red', // blue, red, green, yellow
-          })
-*/
         })
     },
   },
 }
 </script>
 
-<style lang="scss">
-@import '~@resources/sass/preset/pages/auth.scss';
+<style lang="scss" scoped>
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Inter:wght@400;500;600&display=swap');
 
-.v-application .rounded-bl-xl {
-  border-bottom-left-radius: 300px !important;
+/* Main Page Container - Supports Dark and Light Themes seamlessly via CSS variables */
+.claude-login-page {
+  /* Dark Theme Tokens (Default) */
+  --claude-bg: #141413;
+  --claude-text-title: #f7f6f2;
+  --claude-text-sub: #9c9a92;
+  --claude-card-bg: #1c1b18;
+  --claude-card-border: rgba(255, 255, 255, 0.08);
+  --claude-card-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.5);
+  --claude-pill-bg: #23221f;
+  --claude-pill-border: rgba(255, 255, 255, 0.06);
+  --claude-pill-text: #b5b3ab;
+  --claude-input-bg: #232220;
+  --claude-input-border: rgba(255, 255, 255, 0.11);
+  --claude-input-focus-border: rgba(255, 255, 255, 0.38);
+  --claude-input-focus-bg: #272623;
+  --claude-input-text: #f5f4f0;
+  --claude-input-placeholder: #6e6c66;
+  --claude-input-label: #b0ada6;
+  --claude-btn-primary-bg: #ffffff;
+  --claude-btn-primary-text: #141413;
+  --claude-btn-primary-hover: #eae9e5;
+  --claude-btn-sec-bg: #232220;
+  --claude-btn-sec-border: rgba(255, 255, 255, 0.08);
+  --claude-btn-sec-text: #b5b3ac;
+  --claude-btn-sec-hover-bg: #2a2926;
+  --claude-btn-sec-hover-text: #f5f4ef;
+  --claude-footer-text: #787670;
+  --claude-footer-highlight: #b5b2aa;
+  --claude-divider: rgba(255, 255, 255, 0.12);
+  --claude-brand-badge-bg: #242321;
+  --claude-brand-badge-border: rgba(255, 255, 255, 0.08);
+  --claude-brand-badge-text: #9c9a92;
+  --claude-brand-title: #e5e3dd;
+  --claude-hero-border: rgba(255, 255, 255, 0.08);
+  --claude-hero-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.65);
+  --claude-toggle-bg: #232220;
+  --claude-toggle-border: rgba(255, 255, 255, 0.08);
+  --claude-toggle-text: #b5b3ab;
+
+  /* Light Theme Tokens */
+  &.is-light {
+    --claude-bg: #faf9f5;
+    --claude-text-title: #141413;
+    --claude-text-sub: #686660;
+    --claude-card-bg: #ffffff;
+    --claude-card-border: rgba(0, 0, 0, 0.08);
+    --claude-card-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.08);
+    --claude-pill-bg: #f5f4ef;
+    --claude-pill-border: rgba(0, 0, 0, 0.06);
+    --claude-pill-text: #5c5a54;
+    --claude-input-bg: #fbfbfa;
+    --claude-input-border: rgba(0, 0, 0, 0.14);
+    --claude-input-focus-border: #141413;
+    --claude-input-focus-bg: #ffffff;
+    --claude-input-text: #141413;
+    --claude-input-placeholder: #8e8b83;
+    --claude-input-label: #4a4843;
+    --claude-btn-primary-bg: #141413;
+    --claude-btn-primary-text: #ffffff;
+    --claude-btn-primary-hover: #2b2a27;
+    --claude-btn-sec-bg: #ffffff;
+    --claude-btn-sec-border: rgba(0, 0, 0, 0.12);
+    --claude-btn-sec-text: #4e4c46;
+    --claude-btn-sec-hover-bg: #f4f3ed;
+    --claude-btn-sec-hover-text: #141413;
+    --claude-footer-text: #807e77;
+    --claude-footer-highlight: #3b3935;
+    --claude-divider: rgba(0, 0, 0, 0.12);
+    --claude-brand-badge-bg: #f0ede4;
+    --claude-brand-badge-border: rgba(0, 0, 0, 0.08);
+    --claude-brand-badge-text: #6a6861;
+    --claude-brand-title: #141413;
+    --claude-hero-border: rgba(0, 0, 0, 0.08);
+    --claude-hero-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.16);
+    --claude-toggle-bg: #ffffff;
+    --claude-toggle-border: rgba(0, 0, 0, 0.1);
+    --claude-toggle-text: #4a4843;
+  }
+
+  background-color: var(--claude-bg) !important;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--claude-text-title);
+  box-sizing: border-box;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.v-application .rounded-br-xl {
-  border-bottom-right-radius: 300px !important;
+/* Header / Brand & Switcher */
+.claude-header {
+  padding: 24px 36px;
+  width: 100%;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .brand-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-logo-img {
+    height: 38px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+  }
+
+  .brand-divider {
+    width: 1px;
+    height: 24px;
+    background-color: var(--claude-divider);
+    transition: background-color 0.3s ease;
+  }
+
+  .brand-text-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .brand-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--claude-brand-title);
+    transition: color 0.3s ease;
+  }
+
+  .brand-badge {
+    background-color: var(--claude-brand-badge-bg);
+    color: var(--claude-brand-badge-text);
+    border: 1px solid var(--claude-brand-badge-border);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+  }
+
+  .theme-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--claude-toggle-bg);
+    border: 1px solid var(--claude-toggle-border);
+    color: var(--claude-toggle-text);
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+
+    &:hover {
+      opacity: 0.85;
+      transform: translateY(-1px);
+    }
+
+    .theme-toggle-text {
+      letter-spacing: 0.01em;
+    }
+  }
+}
+
+/* Split Main Layout */
+.claude-main-layout {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-height: calc(100vh - 86px);
+  padding: 0 24px 24px 36px;
+  box-sizing: border-box;
+
+  @media (max-width: 960px) {
+    padding: 12px 20px 32px 20px;
+    justify-content: center;
+  }
+}
+
+/* Left Column: Form Section */
+.auth-column {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px 32px 0;
+
+  @media (max-width: 960px) {
+    padding: 0;
+    width: 100%;
+  }
+
+  .auth-content-wrapper {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Editorial Title & Subtitle */
+.heading-block {
+  text-align: center;
+  margin-bottom: 28px;
+  width: 100%;
+
+  .editorial-title {
+    font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+    font-size: 2.25rem;
+    font-weight: 400;
+    line-height: 1.25;
+    color: var(--claude-text-title);
+    margin-bottom: 10px;
+    letter-spacing: -0.015em;
+    transition: color 0.3s ease;
+
+    @media (max-width: 600px) {
+      font-size: 1.85rem;
+    }
+  }
+
+  .editorial-subtitle {
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    color: var(--claude-text-sub);
+    margin: 0 auto;
+    max-width: 360px;
+    transition: color 0.3s ease;
+  }
+}
+
+/* Main Card Container */
+.claude-card {
+  width: 100%;
+  background-color: var(--claude-card-bg);
+  border: 1px solid var(--claude-card-border);
+  border-radius: 24px;
+  padding: 26px 26px 24px 26px;
+  box-shadow: var(--claude-card-shadow);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+/* Status Pill in Card Header */
+.card-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--claude-pill-bg);
+  border: 1px solid var(--claude-pill-border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  margin: 0 auto 22px auto;
+  transition: all 0.3s ease;
+
+  .status-indicator {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #16a34a;
+    box-shadow: 0 0 8px rgba(22, 163, 74, 0.6);
+  }
+
+  .status-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--claude-pill-text);
+    transition: color 0.3s ease;
+  }
+}
+
+/* Form Styles */
+.claude-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+
+  .input-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--claude-input-label);
+    letter-spacing: 0.01em;
+    transition: color 0.3s ease;
+  }
+}
+
+/* Custom Input Field */
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  background-color: var(--claude-input-bg);
+  border: 1px solid var(--claude-input-border);
+  border-radius: 12px;
+  padding: 0 14px;
+  height: 48px;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+
+  &.has-focus {
+    border-color: var(--claude-input-focus-border);
+    background-color: var(--claude-input-focus-bg);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .input-icon {
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+
+  .custom-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--claude-input-text);
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+
+    &::placeholder {
+      color: var(--claude-input-placeholder);
+    }
+  }
+
+  .password-toggle-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+}
+
+/* Primary Button (White in Dark Mode, Black in Light Mode) */
+.claude-btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  background-color: var(--claude-btn-primary-bg);
+  color: var(--claude-btn-primary-text);
+  border: none;
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background-color 0.2s ease, transform 0.15s ease, color 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background-color: var(--claude-btn-primary-hover);
+    transform: translateY(-1px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+  }
+
+  .btn-text {
+    letter-spacing: 0.01em;
+  }
+}
+
+/* Footer text inside card */
+.card-footer-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--claude-footer-text);
+  text-align: center;
+  margin: 6px 0 0 0;
+  transition: color 0.3s ease;
+
+  .highlight-link {
+    color: var(--claude-footer-highlight);
+    font-weight: 500;
+    transition: color 0.3s ease;
+  }
+}
+
+/* Secondary Button Below Card */
+.secondary-action-container {
+  margin-top: 22px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.claude-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--claude-btn-sec-bg);
+  border: 1px solid var(--claude-btn-sec-border);
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--claude-btn-sec-text);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: var(--claude-btn-sec-hover-bg);
+    color: var(--claude-btn-sec-hover-text);
+    transform: translateY(-1px);
+  }
+}
+
+/* Right Column: Hero Image Card */
+.hero-column {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  min-height: calc(100vh - 120px);
+  padding: 4px 0 8px 16px;
+}
+
+.hero-image-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid var(--claude-hero-border);
+  box-shadow: var(--claude-hero-shadow);
+  background-color: #1a1917;
+  transition: all 0.3s ease;
+
+  .hero-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    transition: transform 0.6s ease;
+  }
+
+  &:hover .hero-img {
+    transform: scale(1.02);
+  }
+
+  .hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.05) 0%,
+      rgba(0, 0, 0, 0.2) 60%,
+      rgba(0, 0, 0, 0.85) 100%
+    );
+    pointer-events: none;
+  }
+
+  .hero-caption {
+    position: absolute;
+    bottom: 36px;
+    left: 36px;
+    right: 36px;
+    z-index: 2;
+    color: #ffffff;
+
+    .caption-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(12px);
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .caption-title {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 1.75rem;
+      font-weight: 400;
+      margin-bottom: 6px;
+      color: #faf9f5;
+    }
+
+    .caption-subtitle {
+      font-size: 13.5px;
+      color: #cfcdc7;
+      margin: 0;
+    }
+  }
+}
+
+/* Dialog Styles */
+::v-deep .claude-dialog {
+  border-radius: 20px !important;
+  overflow: hidden;
+}
+
+.dialog-card {
+  padding: 24px;
+  border-radius: 20px;
+
+  &.is-dark {
+    background-color: #1b1a18;
+    color: #f4f3ef;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    .dialog-title {
+      color: #f5f4ef;
+    }
+    .dialog-desc {
+      color: #a8a69e;
+    }
+    .dialog-info-box {
+      background: #232220;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .info-label {
+      color: #8c8a82;
+    }
+    .info-val {
+      color: #e3e2dd;
+    }
+    .dialog-btn {
+      background-color: #ffffff;
+      color: #141413;
+    }
+  }
+
+  &.is-light {
+    background-color: #ffffff;
+    color: #141413;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+
+    .dialog-title {
+      color: #141413;
+    }
+    .dialog-desc {
+      color: #686660;
+    }
+    .dialog-info-box {
+      background: #fbfbfa;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .info-label {
+      color: #787670;
+    }
+    .info-val {
+      color: #141413;
+    }
+    .dialog-btn {
+      background-color: #141413;
+      color: #ffffff;
+    }
+  }
+
+  .dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+
+    .dialog-title-group {
+      display: flex;
+      align-items: center;
+    }
+
+    .dialog-title {
+      font-size: 17px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .dialog-close-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+    }
+  }
+
+  .dialog-desc {
+    font-size: 13.5px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+
+  .dialog-info-box {
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+
+    .info-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      .info-label {
+        font-size: 11.5px;
+        font-weight: 500;
+      }
+
+      .info-val {
+        font-size: 13px;
+        font-weight: 500;
+      }
+    }
+  }
+
+  .dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+
+    .dialog-btn {
+      height: 42px;
+      padding: 0 24px;
+      font-size: 13.5px;
+      width: auto;
+    }
+  }
+}
+
+/* Snackbar custom styling */
+::v-deep .claude-snackbar {
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+
+  .snackbar-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .snackbar-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #ef4444;
+
+      &.warning {
+        background-color: #f59e0b;
+      }
+
+      &.success {
+        background-color: #10b981;
+      }
+    }
+
+    .snackbar-text {
+      font-size: 13px;
+    }
+  }
 }
 </style>

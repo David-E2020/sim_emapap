@@ -31,12 +31,31 @@
     </v-card>
 
     <!-- FILTROS Y BÚSQUEDA -->
+    <!-- FILTROS Y BÚSQUEDA -->
     <v-card rounded="lg" class="mb-5 pa-4 erp-card-elevated">
       <v-row dense align="center">
-        <v-col cols="12" md="4">
+        <!-- Criterio / Tipo de búsqueda -->
+        <v-col cols="12" sm="5" md="3">
+          <v-select
+            v-model="tipoBusqueda"
+            :items="tiposBusqueda"
+            item-text="texto"
+            item-value="valor"
+            label="Buscar por..."
+            prepend-inner-icon="mdi-format-list-bulleted-type"
+            dense
+            outlined
+            hide-details
+            @change="cargarFacturas"
+          ></v-select>
+        </v-col>
+
+        <!-- Campo de texto de búsqueda -->
+        <v-col cols="12" sm="7" md="4">
           <v-text-field
             v-model="busqueda"
-            label="Buscar por N° Factura, Razón Social, NIT o CUF..."
+            :label="etiquetaBusqueda"
+            :placeholder="placeholderBusqueda"
             prepend-inner-icon="mdi-magnify"
             dense
             outlined
@@ -47,7 +66,8 @@
           ></v-text-field>
         </v-col>
 
-        <v-col cols="12" sm="6" md="3">
+        <!-- Estado Fiscal -->
+        <v-col cols="12" sm="6" md="2">
           <v-select
             v-model="filtroEstado"
             :items="['TODOS', 'VALIDADA', 'ANULADA', 'OBSERVADA', 'CONTINGENCIA']"
@@ -59,7 +79,8 @@
           ></v-select>
         </v-col>
 
-        <v-col cols="12" sm="6" md="3">
+        <!-- Fecha Emisión -->
+        <v-col cols="12" sm="6" md="2">
           <v-text-field
             v-model="filtroFecha"
             label="Fecha Emisión"
@@ -72,9 +93,10 @@
           ></v-text-field>
         </v-col>
 
-        <v-col cols="12" md="2" class="text-right">
-          <v-btn color="secondary" outlined dense block @click="cargarFacturas">
-            <v-icon left small>mdi-filter-variant</v-icon> Filtrar
+        <!-- Botón Filtrar -->
+        <v-col cols="12" md="1">
+          <v-btn color="primary" dense block height="40" class="elevation-1" @click="cargarFacturas" title="Buscar">
+            <v-icon>mdi-magnify</v-icon>
           </v-btn>
         </v-col>
       </v-row>
@@ -101,10 +123,16 @@
           <span class="text-caption">{{ formatearFecha(item.fecha_emision) }}</span>
         </template>
 
-        <!-- Cliente / NIT -->
+        <!-- Cliente / NIT / Abonado -->
         <template v-slot:item.nombre_razon_social="{ item }">
           <div class="font-weight-medium">{{ item.nombre_razon_social }}</div>
-          <span class="text-caption text-secondary">Doc: {{ item.numero_documento }} {{ item.complemento ? '-' + item.complemento : '' }}</span>
+          <div class="d-flex align-center gap-1 text-caption text-secondary flex-wrap mt-1">
+            <span>Doc: {{ item.numero_documento }} {{ item.complemento ? '-' + item.complemento : '' }}</span>
+            <v-chip v-if="item.abonado" x-small outlined color="primary" class="font-weight-bold ml-1">
+              <v-icon x-small left>mdi-water</v-icon>
+              Abonado #{{ item.abonado.codigo }}
+            </v-chip>
+          </div>
         </template>
 
         <!-- Monto Total -->
@@ -312,6 +340,14 @@ export default {
       enviandoCorreo: false,
       correoDestino: '',
       busqueda: '',
+      tipoBusqueda: 'todos',
+      tiposBusqueda: [
+        { texto: 'Todos los campos', valor: 'todos' },
+        { texto: 'N° de Factura', valor: 'numero_factura' },
+        { texto: 'C.I. / NIT', valor: 'carnet_nit' },
+        { texto: 'Código de Abonado', valor: 'codigo_abonado' },
+        { texto: 'Razón Social / Nombre', valor: 'cliente' },
+      ],
       filtroEstado: 'TODOS',
       filtroFecha: null,
       totalFacturas: 0,
@@ -334,6 +370,26 @@ export default {
       ],
     };
   },
+  computed: {
+    etiquetaBusqueda() {
+      switch (this.tipoBusqueda) {
+        case 'numero_factura': return 'Número de Factura';
+        case 'carnet_nit': return 'C.I. / NIT del Cliente';
+        case 'codigo_abonado': return 'Código de Abonado';
+        case 'cliente': return 'Razón Social / Nombre';
+        default: return 'Buscar factura...';
+      }
+    },
+    placeholderBusqueda() {
+      switch (this.tipoBusqueda) {
+        case 'numero_factura': return 'Ej. 1045, 23010...';
+        case 'carnet_nit': return 'Ej. 4582910, 10239401...';
+        case 'codigo_abonado': return 'Ej. 00001, 5105...';
+        case 'cliente': return 'Ej. Juan Pérez, Empresa...';
+        default: return 'N° Factura, Carnet, Código o Nombre...';
+      }
+    },
+  },
   watch: {
     opciones: {
       handler() {
@@ -354,6 +410,7 @@ export default {
           page: page || 1,
           per_page: itemsPerPage || 15,
           search: this.busqueda || '',
+          tipo_busqueda: this.tipoBusqueda || 'todos',
           estado: this.filtroEstado === 'TODOS' ? '' : this.filtroEstado,
           fecha_inicio: this.filtroFecha || '',
           fecha_fin: this.filtroFecha || '',

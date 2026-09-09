@@ -24,6 +24,7 @@ class ReciboCaja extends Model
         'monto_total',
         'fecha_cobro',
         'id_cajero',
+        'id_sesion_caja',
         'estado',
         '_estado',
         '_transaccion',
@@ -46,5 +47,10 @@ class ReciboCaja extends Model
     public function cajero(): BelongsTo
     {
         return $this->belongsTo(User::class, 'id_cajero');
+    }
+
+    public function sesionCaja(): BelongsTo
+    {
+        return $this->belongsTo(CajaSesion::class, 'id_sesion_caja');
     }
 }

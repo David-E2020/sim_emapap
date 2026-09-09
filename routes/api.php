@@ -41,10 +41,12 @@ use App\Http\Controllers\Facturacion\SiatCodigoController;
 use App\Http\Controllers\Comercial\AbonadoController;
 use App\Http\Controllers\Comercial\LecturaController;
 use App\Http\Controllers\Comercial\CobranzaCajaController;
+use App\Http\Controllers\Comercial\CajaSesionController;
 use App\Http\Controllers\Comercial\ConvenioController;
 use App\Http\Controllers\Comercial\CorteReconexionController;
 use App\Http\Controllers\Comercial\TarifaZonaController;
 use App\Http\Controllers\Comercial\ReporteComercialController;
+use App\Http\Controllers\Contabilidad\ContabilidadController;
 use App\Http\Controllers\Rrhh\SolicitudSalidaController;
 use Illuminate\Support\Facades\Route;
 
@@ -165,6 +167,21 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::get('rrhh/reportes/certificado-trabajo/{personaId}/html', [ReporteRrhhController::class, 'certificadoTrabajoHtml']);
 
     // Rutas para Obtener Estructura de Menú (Según Usuario/Rol Autenticado)
+    Route::get('menu_usuario', function () {
+        $user = auth()->user();
+        $userId = $user ? $user->id : (request()->user('api') ? request()->user('api')->id : 1);
+        return app(UsuarioController::class)->menuUsuario($userId);
+    });
+    Route::get('usuario/menu-acopio', function () {
+        $user = auth()->user();
+        $userId = $user ? $user->id : (request()->user('api') ? request()->user('api')->id : 1);
+        return app(UsuarioController::class)->menuUsuario($userId);
+    });
+    Route::get('usuario/menu-usuario', function () {
+        $user = auth()->user();
+        $userId = $user ? $user->id : (request()->user('api') ? request()->user('api')->id : 1);
+        return app(UsuarioController::class)->menuUsuario($userId);
+    });
     Route::get('usuario/menu-rol/{rolId}', [UsuarioController::class, 'menuRol']);
     Route::get('usuario/menu-usuario/{usuarioId}', [UsuarioController::class, 'menuUsuario']);
     Route::get('usuario/menu-navegacion/{usuarioId}', [UsuarioController::class, 'menuUsuario']);
@@ -338,6 +355,18 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::get('comercial/caja/recibos/{id}/pdf', [CobranzaCajaController::class, 'descargarReciboCaja']);
     Route::get('comercial/caja/aviso-cobranza/{id}/pdf', [CobranzaCajaController::class, 'descargarAvisoCobranza']);
 
+    // 3.1 Sesiones de Caja, Apertura, Cierre, Arqueo y Asignación
+    Route::get('comercial/caja-sesiones/estado-actual', [CajaSesionController::class, 'estadoActual']);
+    Route::get('comercial/caja-sesiones/cajas-disponibles', [CajaSesionController::class, 'cajasDisponibles']);
+    Route::post('comercial/caja-sesiones/abrir', [CajaSesionController::class, 'abrir']);
+    Route::get('comercial/caja-sesiones/resumen-arqueo', [CajaSesionController::class, 'resumenArqueo']);
+    Route::post('comercial/caja-sesiones/cerrar', [CajaSesionController::class, 'cerrar']);
+    Route::post('comercial/caja-sesiones/movimiento', [CajaSesionController::class, 'registrarMovimiento']);
+    Route::get('comercial/caja-sesiones/{id}/reporte-pdf', [CajaSesionController::class, 'descargarReportePdf']);
+    Route::get('comercial/caja-sesiones/historial', [CajaSesionController::class, 'historial']);
+    Route::get('comercial/caja-sesiones/cajeros', [CajaSesionController::class, 'listarCajeros']);
+    Route::post('comercial/cajas/{idPuntoVenta}/asignar-cajero', [CajaSesionController::class, 'asignarCajeroDefecto']);
+
     // 4. Convenios de Pago
     Route::get('comercial/convenios', [ConvenioController::class, 'index']);
     Route::post('comercial/convenios/simular', [ConvenioController::class, 'simular']);
@@ -358,10 +387,46 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::get('comercial/calles', [TarifaZonaController::class, 'indexCalles']);
     Route::post('comercial/calles', [TarifaZonaController::class, 'storeCalle']);
 
-    // 7. Reportes Comerciales
+    // 7. Reportes Comerciales y Cuadre de Caja
     Route::get('comercial/reportes/recaudacion-diaria', [ReporteComercialController::class, 'recaudacionDiaria']);
+    Route::get('comercial/reportes/recaudacion-consolidada', [ReporteComercialController::class, 'recaudacionConsolidada']);
+    Route::get('comercial/reportes/recaudacion-consolidada/pdf', [ReporteComercialController::class, 'descargarPdfConsolidado']);
+    Route::get('comercial/reportes/recaudacion-consolidada/csv', [ReporteComercialController::class, 'exportarCsvConsolidado']);
     Route::get('comercial/reportes/morosidad', [ReporteComercialController::class, 'morosidad']);
     Route::get('comercial/reportes/balance-consumo', [ReporteComercialController::class, 'balanceConsumo']);
+
+    // ==========================================
+    // MÓDULO DE CONTABILIDAD GUBERNAMENTAL E INTEGRADA (LEY 1178 SAFCO)
+    // ==========================================
+    // 1. Plan de Cuentas
+    Route::get('contabilidad/plan-cuentas', [ContabilidadController::class, 'planCuentas']);
+    Route::get('contabilidad/plan-cuentas/imputables', [ContabilidadController::class, 'cuentasImputables']);
+    Route::post('contabilidad/plan-cuentas', [ContabilidadController::class, 'guardarCuenta']);
+
+    // 2. Comprobantes Contables (CI, CE, CD)
+    Route::get('contabilidad/comprobantes', [ContabilidadController::class, 'comprobantes']);
+    Route::post('contabilidad/comprobantes', [ContabilidadController::class, 'guardarComprobante']);
+    Route::get('contabilidad/comprobantes/{id}', [ContabilidadController::class, 'showComprobante']);
+    Route::get('contabilidad/comprobantes/{id}/pdf', [ContabilidadController::class, 'descargarComprobantePdf']);
+    Route::put('contabilidad/comprobantes/{id}/anular', [ContabilidadController::class, 'anularComprobante']);
+
+    // 3. Consola de Interfases Automáticas (Comercial, Cajas, RRHH)
+    Route::get('contabilidad/interfases/pendientes', [ContabilidadController::class, 'pendientesInterfases']);
+    Route::post('contabilidad/interfases/contabilizar-caja', [ContabilidadController::class, 'contabilizarCaja']);
+    Route::post('contabilidad/interfases/contabilizar-lecturas', [ContabilidadController::class, 'contabilizarLecturasAgua']);
+    Route::post('contabilidad/interfases/contabilizar-planilla-sueldos', [ContabilidadController::class, 'contabilizarPlanillaRrhh']);
+
+    // 4. Libros y Estados Financieros
+    Route::get('contabilidad/reportes/libro-diario', [ContabilidadController::class, 'libroDiario']);
+    Route::get('contabilidad/reportes/libro-mayor', [ContabilidadController::class, 'libroMayor']);
+    Route::get('contabilidad/reportes/balance-comprobacion', [ContabilidadController::class, 'balanceComprobacion']);
+    Route::get('contabilidad/reportes/balance-general', [ContabilidadController::class, 'balanceGeneral']);
+    Route::get('contabilidad/reportes/estado-resultados', [ContabilidadController::class, 'estadoResultados']);
+
+    // 5. Parámetros
+    Route::get('contabilidad/centros-costo', [ContabilidadController::class, 'centrosCosto']);
+    Route::get('contabilidad/gestiones', [ContabilidadController::class, 'gestiones']);
+    Route::get('contabilidad/mapeos', [ContabilidadController::class, 'mapeos']);
 });
 
 // Rutas Públicas (Sin Autenticación Requerida)

@@ -20,6 +20,7 @@ class SiatPuntoVenta extends Model
         'nombre',
         'tipo_punto_venta',
         'descripcion',
+        'id_cajero_defecto',
         '_estado',
         '_transaccion',
         '_usuario_creacion',
@@ -31,6 +32,23 @@ class SiatPuntoVenta extends Model
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(SiatSucursal::class, 'id_sucursal');
+    }
+
+    public function cajeroDefecto(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'id_cajero_defecto');
+    }
+
+    public function sesiones(): HasMany
+    {
+        return $this->hasMany(\App\Models\Comercial\CajaSesion::class, 'id_punto_venta');
+    }
+
+    public function sesionActiva(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\Comercial\CajaSesion::class, 'id_punto_venta')
+            ->where('estado', 'ABIERTA')
+            ->latest('id');
     }
 
     public function cuis(): HasMany

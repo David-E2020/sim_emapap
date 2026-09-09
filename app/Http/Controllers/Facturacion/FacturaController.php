@@ -49,20 +49,41 @@ class FacturaController extends Controller
     {
         $perPage = (int) $request->input('per_page', 15);
         $search = $request->input('search');
+        $tipoBusqueda = (string) $request->input('tipo_busqueda', 'todos');
         $estado = $request->input('estado');
         $idSucursal = $request->input('id_sucursal');
         $fechaInicio = $request->input('fecha_inicio');
         $fechaFin = $request->input('fecha_fin');
 
-        $query = Factura::with(['detalles', 'sucursal', 'puntoVenta'])
+        $query = Factura::with(['detalles', 'sucursal', 'puntoVenta', 'abonado'])
             ->orderByDesc('id');
 
         if (!empty($search)) {
-            $query->where(function ($q) use ($search) {
-                $q->where('numero_documento', 'like', "%{$search}%")
-                    ->orWhere('nombre_razon_social', 'ilike', "%{$search}%")
-                    ->orWhere('numero_factura', 'like', "%{$search}%")
-                    ->orWhere('cuf', 'like', "%{$search}%");
+            $searchTrim = trim((string) $search);
+            $query->where(function ($q) use ($searchTrim, $tipoBusqueda) {
+                if ($tipoBusqueda === 'numero_factura') {
+                    $q->where('numero_factura', 'like', "%{$searchTrim}%");
+                } elseif ($tipoBusqueda === 'carnet_nit') {
+                    $q->where('numero_documento', 'like', "%{$searchTrim}%");
+                } elseif ($tipoBusqueda === 'codigo_abonado') {
+                    $codigoPad = str_pad($searchTrim, 5, '0', STR_PAD_LEFT);
+                    $q->whereHas('abonado', function ($qa) use ($searchTrim, $codigoPad) {
+                        $qa->where('codigo', $codigoPad)
+                            ->orWhere('codigo', 'like', "%{$searchTrim}%");
+                    });
+                } elseif ($tipoBusqueda === 'cliente') {
+                    $q->where('nombre_razon_social', 'ilike', "%{$searchTrim}%");
+                } else {
+                    $codigoPad = str_pad($searchTrim, 5, '0', STR_PAD_LEFT);
+                    $q->where('numero_documento', 'like', "%{$searchTrim}%")
+                        ->orWhere('nombre_razon_social', 'ilike', "%{$searchTrim}%")
+                        ->orWhere('numero_factura', 'like', "%{$searchTrim}%")
+                        ->orWhere('cuf', 'like', "%{$searchTrim}%")
+                        ->orWhereHas('abonado', function ($qa) use ($searchTrim, $codigoPad) {
+                            $qa->where('codigo', $codigoPad)
+                                ->orWhere('codigo', 'like', "%{$searchTrim}%");
+                        });
+                }
             });
         }
 

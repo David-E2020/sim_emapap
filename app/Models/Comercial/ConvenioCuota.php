@@ -25,6 +25,7 @@ class ConvenioCuota extends Model
         'id_factura',
         'fecha_pago',
         'id_cajero',
+        'id_sesion_caja',
         '_estado',
         '_transaccion',
         '_usuario_creacion',
@@ -53,5 +54,10 @@ class ConvenioCuota extends Model
     public function cajero(): BelongsTo
     {
         return $this->belongsTo(User::class, 'id_cajero');
+    }
+
+    public function sesionCaja(): BelongsTo
+    {
+        return $this->belongsTo(CajaSesion::class, 'id_sesion_caja');
     }
 }

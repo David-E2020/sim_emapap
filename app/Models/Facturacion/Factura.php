@@ -17,6 +17,7 @@ class Factura extends Model
     protected $fillable = [
         'id_sucursal',
         'id_punto_venta',
+        'id_sesion_caja',
         'id_cliente',
         'id_abonado',
         'id_cufd',
@@ -107,6 +108,11 @@ class Factura extends Model
     public function puntoVenta(): BelongsTo
     {
         return $this->belongsTo(SiatPuntoVenta::class, 'id_punto_venta');
+    }
+
+    public function sesionCaja(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Comercial\CajaSesion::class, 'id_sesion_caja');
     }
 
     public function cliente(): BelongsTo

@@ -390,6 +390,62 @@ export const routes = [
       requiresAuth: true,
     },
   },
+  {
+    path: '/comercial/sesiones-caja',
+    name: 'comercial_sesiones_caja',
+    component: () => import('@/views/comercial/ReportesComerciales.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Historial de Sesiones y Arqueos de Caja',
+    },
+  },
+
+  // MÓDULO DE CONTABILIDAD GUBERNAMENTAL E INTEGRADA (LEY 1178 SAFCO)
+  {
+    path: '/contabilidad/plan-cuentas',
+    name: 'contabilidad_plan_cuentas',
+    component: () => import('@/views/contabilidad/PlanCuentas.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Plan Único de Cuentas',
+    },
+  },
+  {
+    path: '/contabilidad/comprobantes',
+    name: 'contabilidad_comprobantes',
+    component: () => import('@/views/contabilidad/ComprobantesContables.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Comprobantes Contables (CI/CE/CD)',
+    },
+  },
+  {
+    path: '/contabilidad/interfases',
+    name: 'contabilidad_interfases',
+    component: () => import('@/views/contabilidad/InterfasesAutomaticas.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Consola de Integración Contable',
+    },
+  },
+  {
+    path: '/contabilidad/libros',
+    name: 'contabilidad_libros',
+    component: () => import('@/views/contabilidad/LibroMayorDiario.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Libros Diario y Mayor Analítico',
+    },
+  },
+  {
+    path: '/contabilidad/estados-financieros',
+    name: 'contabilidad_estados_financieros',
+    component: () => import('@/views/contabilidad/EstadosFinancieros.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Estados Financieros SAFCO',
+    },
+  },
 
   // VALIDACIÓN PÚBLICA QR
   {
@@ -427,8 +483,16 @@ export const routes = [
     },
   },
   {
+    path: '/error-404',
+    name: 'error-404',
+    component: () => import('@/views/pages/Error404.vue'),
+    meta: {
+      layout: 'blank',
+    },
+  },
+  {
     path: '*',
-    redirect: 'error-404',
+    redirect: '/error-404',
   },
 ];
 

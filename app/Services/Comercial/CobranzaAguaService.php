@@ -102,7 +102,7 @@ class CobranzaAguaService
      *
      * @return array<array<string, mixed>>
      */
-    public function buscarAbonadosParaCaja(string $criterio): array
+    public function buscarAbonadosParaCaja(string $criterio, string $tipo = 'todos'): array
     {
         $criterio = trim($criterio);
         if (strlen($criterio) < 1) {
@@ -110,9 +110,36 @@ class CobranzaAguaService
         }
 
         $codigoPad = str_pad($criterio, 5, '0', STR_PAD_LEFT);
+        $query = Abonado::with(['zona', 'categoria', 'medidorActual']);
 
-        return Abonado::with(['zona', 'categoria', 'medidorActual'])
-            ->where(function ($q) use ($criterio, $codigoPad) {
+        if ($tipo === 'codigo_abonado') {
+            $query->where(function ($q) use ($criterio, $codigoPad) {
+                $q->where('codigo', $criterio)
+                    ->orWhere('codigo', $codigoPad)
+                    ->orWhere('codigo', 'like', "%{$criterio}%");
+            })->orderByRaw("CASE WHEN codigo = ? THEN 1 WHEN codigo = ? THEN 2 ELSE 3 END", [$criterio, $codigoPad]);
+        } elseif ($tipo === 'carnet_nit') {
+            $query->where('numero_documento', 'like', "%{$criterio}%");
+        } elseif ($tipo === 'numero_factura') {
+            $query->where(function ($q) use ($criterio) {
+                $q->whereHas('facturas', function ($qf) use ($criterio) {
+                    $qf->where('numero_factura', 'like', "%{$criterio}%");
+                })->orWhereHas('lecturas', function ($ql) use ($criterio) {
+                    $ql->whereHas('facturaSiat', function ($qf) use ($criterio) {
+                        $qf->where('numero_factura', 'like', "%{$criterio}%");
+                    });
+                });
+            });
+        } elseif ($tipo === 'cliente' || $tipo === 'nombre') {
+            $query->where(function ($q) use ($criterio) {
+                $q->where('nombre_completo', 'ilike', "%{$criterio}%")
+                    ->orWhere('primer_apellido', 'ilike', "%{$criterio}%")
+                    ->orWhere('segundo_apellido', 'ilike', "%{$criterio}%")
+                    ->orWhere('nombres', 'ilike', "%{$criterio}%");
+            })->orderBy('nombre_completo');
+        } else {
+            // Todos los campos
+            $query->where(function ($q) use ($criterio, $codigoPad) {
                 $q->where('codigo', $criterio)
                     ->orWhere('codigo', $codigoPad)
                     ->orWhere('codigo', 'like', "%{$criterio}%")
@@ -120,14 +147,18 @@ class CobranzaAguaService
                     ->orWhere('nombre_completo', 'ilike', "%{$criterio}%")
                     ->orWhere('primer_apellido', 'ilike', "%{$criterio}%")
                     ->orWhere('segundo_apellido', 'ilike', "%{$criterio}%")
-                    ->orWhere('nombres', 'ilike', "%{$criterio}%");
-            })
-            ->orderByRaw("CASE 
+                    ->orWhere('nombres', 'ilike', "%{$criterio}%")
+                    ->orWhereHas('facturas', function ($qf) use ($criterio) {
+                        $qf->where('numero_factura', 'like', "%{$criterio}%");
+                    });
+            })->orderByRaw("CASE 
                 WHEN codigo = ? THEN 1 
                 WHEN codigo = ? THEN 2 
                 WHEN numero_documento = ? THEN 3 
-                ELSE 4 END", [$criterio, $codigoPad, $criterio])
-            ->orderBy('codigo')
+                ELSE 4 END", [$criterio, $codigoPad, $criterio]);
+        }
+
+        return $query->orderBy('codigo')
             ->limit(15)
             ->get()
             ->toArray();
@@ -173,6 +204,19 @@ class CobranzaAguaService
         ) {
             /** @var Abonado $abonado */
             $abonado = Abonado::findOrFail($idAbonado);
+
+            // Identificar sesión activa de caja para este cajero
+            $sesionActiva = \App\Models\Comercial\CajaSesion::with('puntoVenta')
+                ->where('id_cajero', $idCajero)
+                ->where('estado', 'ABIERTA')
+                ->latest('id')
+                ->first();
+
+            $idSesionCaja = $sesionActiva?->id;
+            if ($sesionActiva) {
+                $idSucursal = (int) $sesionActiva->id_sucursal;
+                $idPuntoVenta = (int) ($sesionActiva->puntoVenta?->codigo_punto_venta ?? $idPuntoVenta);
+            }
 
             // Validar cobro en estricto orden cronológico (de la más antigua a la más moderna)
             if (!empty($lecturasIds)) {
@@ -271,6 +315,7 @@ class CobranzaAguaService
             $facturaData = [
                 'id_sucursal' => $idSucursal,
                 'id_punto_venta' => $idPuntoVenta,
+                'id_sesion_caja' => $idSesionCaja,
                 'id_abonado' => $abonado->id,
                 'codigo_documento_sector' => 13, // Servicios Básicos
                 'mes' => $nombreMes,
@@ -306,6 +351,7 @@ class CobranzaAguaService
                     'id_factura' => $idFactura,
                     'fecha_pago' => $ahora,
                     'id_cajero' => $idCajero,
+                    'id_sesion_caja' => $idSesionCaja,
                 ]);
             }
 
@@ -316,8 +362,12 @@ class CobranzaAguaService
                     'id_factura' => $idFactura,
                     'fecha_pago' => $ahora,
                     'id_cajero' => $idCajero,
+                    'id_sesion_caja' => $idSesionCaja,
                 ]);
             }
+
+            // Actualizar acumulados de la sesión de caja en tiempo real
+            $sesionActiva?->recalcularTotales();
 
             // 4. Recalcular deuda y meses de mora del abonado
             $lecturasRestantes = LecturaMensual::where('id_abonado', $abonado->id)
@@ -350,7 +400,7 @@ class CobranzaAguaService
                     'numero_orden' => 'REC-' . date('Y') . '-' . sprintf('%04d', $abonado->id),
                     'id_abonado' => $abonado->id,
                     'tipo_orden' => 'RECONEXION',
-                    'motivo' => "Reconexión automática tras liquidación total de mora en Caja (Factura #{$respContent['data']['numero_factura']})",
+                    'motivo' => "Reconexión automática tras liquidación total de mora en Caja (Factura #{$factura->numero_factura})",
                     'fecha_programada' => $ahora->toDateString(),
                     'estado' => 'PENDIENTE',
                 ]);

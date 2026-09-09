@@ -1,11 +1,10 @@
 <template>
   <v-fade-transition mode="out-in">
-    <v-icon
-      :key="$vuetify.theme.dark"
-      @click="$vuetify.theme.dark = !$vuetify.theme.dark"
-    >
-      {{ $vuetify.theme.dark ? icons.mdiWeatherSunny : icons.mdiWeatherNight }}
-    </v-icon>
+    <v-btn icon @click="toggleTheme" title="Cambiar tema">
+      <v-icon :key="$vuetify.theme.dark">
+        {{ $vuetify.theme.dark ? icons.mdiWeatherSunny : icons.mdiWeatherNight }}
+      </v-icon>
+    </v-btn>
   </v-fade-transition>
 </template>
 
@@ -21,8 +20,15 @@ export default {
       },
     }
   },
+  methods: {
+    toggleTheme() {
+      this.$vuetify.theme.dark = !this.$vuetify.theme.dark
+      localStorage.setItem('theme_dark', this.$vuetify.theme.dark)
+    },
+  },
 }
 </script>
 
 <style>
 </style>
+

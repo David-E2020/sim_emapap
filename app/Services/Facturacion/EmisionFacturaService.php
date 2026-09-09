@@ -34,13 +34,16 @@ class EmisionFacturaService
      */
     public function emitir(array $datos): Factura
     {
-        $idSucursalCodigo = (int) ($datos['codigo_sucursal'] ?? $datos['id_sucursal'] ?? 0);
-        $idPuntoVentaCodigo = (int) ($datos['codigo_punto_venta'] ?? $datos['id_punto_venta'] ?? 0);
-
         // 1. Sucursal y Punto de Venta
-        $sucursal = SiatSucursal::where('codigo_sucursal', $idSucursalCodigo)->first();
+        $sucursal = null;
+        if (!empty($datos['id_sucursal'])) {
+            $sucursal = SiatSucursal::find((int) $datos['id_sucursal']);
+        }
+        if (!$sucursal && isset($datos['codigo_sucursal'])) {
+            $sucursal = SiatSucursal::where('codigo_sucursal', (int) $datos['codigo_sucursal'])->first();
+        }
         if (!$sucursal) {
-            $sucursal = SiatSucursal::create([
+            $sucursal = SiatSucursal::where('codigo_sucursal', 0)->first() ?? SiatSucursal::create([
                 'codigo_sucursal' => 0,
                 'nombre' => 'Casa Matriz EMAPAP',
                 'direccion' => 'Av. Panamericana s/n, Plaza 15 de Agosto',
@@ -50,17 +53,24 @@ class EmisionFacturaService
             ]);
         }
 
-        $puntoVenta = SiatPuntoVenta::where('id_sucursal', $sucursal->id)
-            ->where('codigo_punto_venta', $idPuntoVentaCodigo)
-            ->first();
-
+        $puntoVenta = null;
+        if (!empty($datos['id_punto_venta'])) {
+            $puntoVenta = SiatPuntoVenta::find((int) $datos['id_punto_venta']);
+        }
+        if (!$puntoVenta && isset($datos['codigo_punto_venta'])) {
+            $puntoVenta = SiatPuntoVenta::where('id_sucursal', $sucursal->id)
+                ->where('codigo_punto_venta', (int) $datos['codigo_punto_venta'])
+                ->first();
+        }
         if (!$puntoVenta) {
-            $puntoVenta = SiatPuntoVenta::create([
-                'id_sucursal' => $sucursal->id,
-                'codigo_punto_venta' => 0,
-                'nombre' => 'Punto de Venta 0 - Ventanilla General',
-                'tipo_punto_venta' => 0,
-            ]);
+            $puntoVenta = SiatPuntoVenta::where('id_sucursal', $sucursal->id)
+                ->where('codigo_punto_venta', 0)
+                ->first() ?? SiatPuntoVenta::create([
+                    'id_sucursal' => $sucursal->id,
+                    'codigo_punto_venta' => 0,
+                    'nombre' => 'Punto de Venta 0 - Ventanilla General',
+                    'tipo_punto_venta' => 0,
+                ]);
         }
 
         // 2. Obtener o Generar CUFD Vigente

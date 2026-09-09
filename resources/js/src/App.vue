@@ -94,8 +94,16 @@ export default {
         return this.$store.state.auth.token;
       }
   },
-  
+  watch: {
+    '$vuetify.theme.dark'(val) {
+      localStorage.setItem('theme_dark', val);
+    },
+  },
   created(){
+    const savedDark = localStorage.getItem('theme_dark');
+    if (savedDark !== null) {
+      this.$vuetify.theme.dark = savedDark === 'true';
+    }
     axios.defaults.headers.common['Authorization'] = 'Bearer '+this.getToken;
     axios.interceptors.response.use(undefined,(err) => {
     return new Promise( (resolve, reject) => {

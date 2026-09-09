@@ -74,7 +74,7 @@ class AbonadoController extends Controller
             'calle',
             'categoria',
             'medidorActual',
-            'lecturas' => fn($q) => $q->with('periodo')->orderByDesc('id')->limit(12),
+            'lecturas' => fn($q) => $q->with(['periodo', 'facturaSiat'])->orderByDesc('id')->limit(48),
             'convenios' => fn($q) => $q->with('cuotas')->orderByDesc('id'),
             'ordenesTrabajo' => fn($q) => $q->orderByDesc('id')->limit(10),
         ])->findOrFail($id);
