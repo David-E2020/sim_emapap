@@ -3,36 +3,6 @@
     class="claude-login-page"
     :class="{ 'is-dark': isDarkMode, 'is-light': !isDarkMode }"
   >
-    <!-- Header / Brand Top Left & Theme Switcher Top Right -->
-    <header class="claude-header">
-      <div class="brand-container">
-        <img
-          :src="require('@/assets/images/logos/logoEmapa2.png').default"
-          alt="EMAPA Logo"
-          class="brand-logo-img"
-        />
-        <div class="brand-divider"></div>
-        <div class="brand-text-block">
-          <span class="brand-title">EMAPA</span>
-          <span class="brand-badge">SIE 2025</span>
-        </div>
-      </div>
-
-      <!-- Theme Switcher in Header -->
-      <button
-        type="button"
-        class="theme-toggle-btn"
-        @click="toggleTheme"
-        :title="isDarkMode ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
-        aria-label="Cambiar tema"
-      >
-        <v-icon size="18" :color="isDarkMode ? '#e5e3dd' : '#3d3b36'">
-          {{ isDarkMode ? icons.mdiWeatherSunny : icons.mdiWeatherNight }}
-        </v-icon>
-        <span class="theme-toggle-text">{{ isDarkMode ? 'Modo Claro' : 'Modo Oscuro' }}</span>
-      </button>
-    </header>
-
     <!-- Main Layout Container -->
     <main class="claude-main-layout">
       <!-- Left Column: Authentication Form -->
@@ -40,9 +10,9 @@
         <div class="auth-content-wrapper">
           <!-- Editorial Serif Heading -->
           <div class="heading-block">
-            <h1 class="editorial-title">Gestión y Producción</h1>
+            <h1 class="editorial-title">Gestión y Distribución</h1>
             <p class="editorial-subtitle">
-              Plataforma integral para plantas industriales y comercialización
+              Plataforma integral de agua potable, alcantarillado y comercialización
             </p>
           </div>
 
@@ -126,8 +96,8 @@
 
               <!-- Footer Legal / Policy Note -->
               <p class="card-footer-text">
-                Para acceder al sistema de gestión de plantas debe estar registrado en el sistema
-                <span class="highlight-link">SIE · COMERCIALIZACIÓN</span>.
+                Para acceder al sistema debe contar con credenciales autorizadas en
+                <span class="highlight-link">EMAPAP · PATACAMAYA</span>.
               </p>
             </form>
           </div>
@@ -144,6 +114,18 @@
               </v-icon>
               Manual de usuario y asistencia técnica
             </button>
+            <button
+              type="button"
+              class="theme-toggle-btn"
+              @click="toggleTheme"
+              :title="isDarkMode ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
+              aria-label="Cambiar tema"
+            >
+              <v-icon size="18" :color="isDarkMode ? '#e5e3dd' : '#3d3b36'">
+                {{ isDarkMode ? icons.mdiWeatherSunny : icons.mdiWeatherNight }}
+              </v-icon>
+              <span class="theme-toggle-text">{{ isDarkMode ? 'Modo Claro' : 'Modo Oscuro' }}</span>
+            </button>
           </div>
         </div>
       </section>
@@ -152,15 +134,15 @@
       <section class="hero-column d-none d-lg-flex">
         <div class="hero-image-card">
           <img
-            :src="require('@/assets/images/logos/login_emapa.jpeg').default"
-            alt="Planta Industrial EMAPA"
+            :src="require('@/assets/images/logos/login_emapap.jpg').default"
+            alt="Planta de Tratamiento y Distribución EMAPAP"
             class="hero-img"
           />
           <div class="hero-overlay"></div>
           <div class="hero-caption">
-            <span class="caption-tag">Planta Industrial & Silos</span>
-            <h3 class="caption-title">Soberanía y Seguridad Alimentaria</h3>
-            <p class="caption-subtitle">Empresa de Apoyo a la Producción de Alimentos · Bolivia</p>
+            <span class="caption-tag">Planta de Tratamiento & Distribución</span>
+            <h3 class="caption-title">Agua Potable y Alcantarillado</h3>
+            <p class="caption-subtitle">Empresa Municipal de Agua Potable y Alcantarillado · Patacamaya</p>
           </div>
         </div>
       </section>
@@ -171,8 +153,8 @@
       <div class="dialog-card" :class="{ 'is-dark': isDarkMode, 'is-light': !isDarkMode }">
         <div class="dialog-header">
           <div class="dialog-title-group">
-            <v-icon color="#e07a5f" class="me-2">{{ icons.mdiInformationOutline }}</v-icon>
-            <h3 class="dialog-title">Asistencia & Soporte SIE</h3>
+            <v-icon color="#0284c7" class="me-2">{{ icons.mdiInformationOutline }}</v-icon>
+            <h3 class="dialog-title">Asistencia & Soporte EMAPAP</h3>
           </div>
           <button class="dialog-close-btn" @click="showHelpDialog = false">
             <v-icon :color="isDarkMode ? '#a09e96' : '#6b6962'" size="20">{{ icons.mdiClose }}</v-icon>
@@ -180,20 +162,20 @@
         </div>
         <div class="dialog-body">
           <p class="dialog-desc">
-            Si tiene problemas para acceder al sistema o requiere la creación de un nuevo usuario, por favor contacte al área de Tecnologías de Información:
+            Si tiene problemas para acceder al sistema o requiere la creación o habilitación de su usuario institucional, contacte a la administración:
           </p>
           <div class="dialog-info-box">
             <div class="info-row">
+              <span class="info-label">Institución:</span>
+              <span class="info-val">EMAPAP · G.A.M. Patacamaya</span>
+            </div>
+            <div class="info-row">
               <span class="info-label">Soporte Técnico:</span>
-              <span class="info-val">Unidad de Tecnologías de la Información</span>
+              <span class="info-val">Unidad de Informática y Sistemas</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Correo:</span>
-              <span class="info-val">soporte.sistemas@emapa.gob.bo</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Central Telefónica:</span>
-              <span class="info-val">(+591) 2-2188800 Interno 104</span>
+              <span class="info-label">Oficinas Centrales:</span>
+              <span class="info-val">Av. Panamericana s/n, Patacamaya - La Paz</span>
             </div>
           </div>
         </div>
@@ -428,109 +410,35 @@ export default {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Header / Brand & Switcher */
-.claude-header {
-  padding: 24px 36px;
-  width: 100%;
-  position: relative;
-  z-index: 10;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  .brand-container {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .brand-logo-img {
-    height: 38px;
-    width: auto;
-    object-fit: contain;
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
-  }
-
-  .brand-divider {
-    width: 1px;
-    height: 24px;
-    background-color: var(--claude-divider);
-    transition: background-color 0.3s ease;
-  }
-
-  .brand-text-block {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .brand-title {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    color: var(--claude-brand-title);
-    transition: color 0.3s ease;
-  }
-
-  .brand-badge {
-    background-color: var(--claude-brand-badge-bg);
-    color: var(--claude-brand-badge-text);
-    border: 1px solid var(--claude-brand-badge-border);
-    font-size: 11px;
-    font-weight: 500;
-    padding: 2px 8px;
-    border-radius: 6px;
-    transition: all 0.3s ease;
-  }
-
-  .theme-toggle-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background-color: var(--claude-toggle-bg);
-    border: 1px solid var(--claude-toggle-border);
-    color: var(--claude-toggle-text);
-    padding: 7px 14px;
-    border-radius: 20px;
-    font-size: 12.5px;
-    font-weight: 500;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    transition: all 0.2s ease;
-
-    &:hover {
-      opacity: 0.85;
-      transform: translateY(-1px);
-    }
-
-    .theme-toggle-text {
-      letter-spacing: 0.01em;
-    }
-  }
-}
-
 /* Split Main Layout */
 .claude-main-layout {
   display: flex;
   flex: 1;
   width: 100%;
-  min-height: calc(100vh - 86px);
-  padding: 0 24px 24px 36px;
+  max-width: 1180px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 32px 24px;
   box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
 
   @media (max-width: 960px) {
-    padding: 12px 20px 32px 20px;
+    padding: 24px 16px;
     justify-content: center;
+    gap: 0;
   }
 }
 
 /* Left Column: Form Section */
 .auth-column {
   flex: 1;
+  max-width: 440px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 24px 32px 0;
+  padding: 0;
 
   @media (max-width: 960px) {
     padding: 0;
@@ -750,11 +658,13 @@ export default {
   }
 }
 
-/* Secondary Button Below Card */
+/* Secondary Actions Below Card */
 .secondary-action-container {
-  margin-top: 22px;
+  margin-top: 18px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   width: 100%;
 }
 
@@ -765,7 +675,7 @@ export default {
   background-color: var(--claude-btn-sec-bg);
   border: 1px solid var(--claude-btn-sec-border);
   border-radius: 12px;
-  padding: 10px 20px;
+  padding: 9px 20px;
   font-size: 13px;
   font-weight: 500;
   color: var(--claude-btn-sec-text);
@@ -780,21 +690,50 @@ export default {
   }
 }
 
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--claude-toggle-bg);
+  border: 1px solid var(--claude-toggle-border);
+  color: var(--claude-toggle-text);
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: var(--claude-btn-sec-hover-bg);
+    color: var(--claude-btn-sec-hover-text);
+    transform: translateY(-1px);
+  }
+
+  .theme-toggle-text {
+    letter-spacing: 0.01em;
+  }
+}
+
 /* Right Column: Hero Image Card */
 .hero-column {
   flex: 1;
+  max-width: 520px;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 120px);
-  padding: 4px 0 8px 16px;
+  height: calc(100vh - 64px);
+  max-height: 680px;
+  padding: 0;
 }
 
 .hero-image-card {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 28px;
+  border-radius: 24px;
   overflow: hidden;
   border: 1px solid var(--claude-hero-border);
   box-shadow: var(--claude-hero-shadow);
@@ -820,17 +759,17 @@ export default {
     background: linear-gradient(
       180deg,
       rgba(0, 0, 0, 0.05) 0%,
-      rgba(0, 0, 0, 0.2) 60%,
-      rgba(0, 0, 0, 0.85) 100%
+      rgba(0, 0, 0, 0.25) 55%,
+      rgba(0, 0, 0, 0.88) 100%
     );
     pointer-events: none;
   }
 
   .hero-caption {
     position: absolute;
-    bottom: 36px;
-    left: 36px;
-    right: 36px;
+    bottom: 28px;
+    left: 28px;
+    right: 28px;
     z-index: 2;
     color: #ffffff;
 
@@ -844,22 +783,24 @@ export default {
       backdrop-filter: blur(12px);
       padding: 4px 10px;
       border-radius: 20px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       border: 1px solid rgba(255, 255, 255, 0.25);
     }
 
     .caption-title {
       font-family: 'Newsreader', Georgia, serif;
-      font-size: 1.75rem;
+      font-size: 1.5rem;
       font-weight: 400;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       color: #faf9f5;
+      line-height: 1.25;
     }
 
     .caption-subtitle {
-      font-size: 13.5px;
+      font-size: 12.5px;
       color: #cfcdc7;
       margin: 0;
+      line-height: 1.35;
     }
   }
 }
