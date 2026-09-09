@@ -215,7 +215,7 @@
             <v-tooltip bottom>
               <template v-slot:activator="{ on, attrs }">
                 <v-btn icon small color="info" v-bind="attrs" v-on="on" @click="abrirDialogoCorreo(item)">
-                  <v-icon small>mdi-email-send-outline</v-icon>
+                  <v-icon small>mdi-email-fast-outline</v-icon>
                 </v-btn>
               </template>
               <span>Enviar Factura por Correo</span>

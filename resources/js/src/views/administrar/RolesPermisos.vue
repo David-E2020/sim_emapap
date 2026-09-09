@@ -75,13 +75,13 @@
 
         <div class="d-flex align-center gap-2 mt-2 mt-sm-0 flex-wrap">
           <v-btn color="info" outlined class="text-capitalize font-weight-medium rounded-pill mr-2" @click="abrirModalReorganizar()">
-            <v-icon left small>mdi-swap-vertical</v-icon> ↕️ Reorganizar Menús
+            <v-icon left small>mdi-swap-vertical</v-icon> Reorganizar Menús
           </v-btn>
           <v-btn color="secondary" outlined class="text-capitalize font-weight-medium rounded-pill mr-2" @click="abrirModalCrearMenu(null)">
-            <v-icon left small>mdi-folder-plus-outline</v-icon> + Nuevo Menú
+            <v-icon left small>mdi-folder-plus-outline</v-icon> Nuevo Menú
           </v-btn>
           <v-btn color="primary" class="text-capitalize font-weight-medium rounded-pill" @click="abrirModalCrearRol()">
-            <v-icon left small>mdi-shield-plus-outline</v-icon> + Nuevo Rol
+            <v-icon left small>mdi-shield-plus-outline</v-icon> Nuevo Rol
           </v-btn>
         </div>
       </div>
@@ -143,14 +143,14 @@
                     <template v-slot:activator="{ on, attrs }">
                       <v-btn
                         icon
-                        x-small
+                        small
                         color="secondary"
                         v-bind="attrs"
                         v-on="on"
                         @click.stop="abrirModalEditarRol(rol)"
                         class="mr-1"
                       >
-                        <v-icon x-small>mdi-pencil</v-icon>
+                        <v-icon small>mdi-pencil-outline</v-icon>
                       </v-btn>
                     </template>
                     <span>Editar Nombre del Rol</span>
@@ -160,13 +160,13 @@
                     <template v-slot:activator="{ on, attrs }">
                       <v-btn
                         icon
-                        x-small
+                        small
                         color="error"
                         v-bind="attrs"
                         v-on="on"
                         @click.stop="confirmarEliminarRol(rol)"
                       >
-                        <v-icon x-small>mdi-delete</v-icon>
+                        <v-icon small>mdi-delete-outline</v-icon>
                       </v-btn>
                     </template>
                     <span>Eliminar Rol</span>
@@ -266,7 +266,7 @@
                           <template v-slot:activator="{ on, attrs }">
                             <v-btn
                               icon
-                              x-small
+                              small
                               color="primary"
                               class="mr-1"
                               :disabled="mIdx === 0"
@@ -274,7 +274,7 @@
                               v-on="on"
                               @click.stop="moverMenu(menu, -1)"
                             >
-                              <v-icon x-small>mdi-arrow-up-bold</v-icon>
+                              <v-icon small>mdi-arrow-up-bold</v-icon>
                             </v-btn>
                           </template>
                           <span>Subir Menú Principal</span>
@@ -284,7 +284,7 @@
                           <template v-slot:activator="{ on, attrs }">
                             <v-btn
                               icon
-                              x-small
+                              small
                               color="primary"
                               class="mr-2"
                               :disabled="mIdx === menusMatriz.length - 1"
@@ -292,7 +292,7 @@
                               v-on="on"
                               @click.stop="moverMenu(menu, 1)"
                             >
-                              <v-icon x-small>mdi-arrow-down-bold</v-icon>
+                              <v-icon small>mdi-arrow-down-bold</v-icon>
                             </v-btn>
                           </template>
                           <span>Bajar Menú Principal</span>
@@ -303,14 +303,14 @@
                           <template v-slot:activator="{ on, attrs }">
                             <v-btn
                               icon
-                              x-small
+                              small
                               color="primary"
                               class="mr-1"
                               v-bind="attrs"
                               v-on="on"
                               @click.stop="abrirModalCrearMenu(menu)"
                             >
-                              <v-icon x-small>mdi-plus-circle-outline</v-icon>
+                              <v-icon small>mdi-plus-circle-outline</v-icon>
                             </v-btn>
                           </template>
                           <span>Añadir Submódulo a {{ menu.label }}</span>
@@ -320,14 +320,14 @@
                           <template v-slot:activator="{ on, attrs }">
                             <v-btn
                               icon
-                              x-small
+                              small
                               color="secondary"
                               class="mr-1"
                               v-bind="attrs"
                               v-on="on"
                               @click.stop="abrirModalEditarMenu(menu)"
                             >
-                              <v-icon x-small>mdi-pencil</v-icon>
+                              <v-icon small>mdi-pencil-outline</v-icon>
                             </v-btn>
                           </template>
                           <span>Editar Menú Principal</span>

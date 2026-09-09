@@ -49,17 +49,12 @@
             class="submenu-item my-1 rounded-lg"
             active-class="submenu-item--active"
           >
-            <!-- Left subtle guide bullet -->
-            <v-list-item-icon class="me-2 my-auto submenu-bullet-icon">
-              <span class="submenu-bullet"></span>
+            <!-- Left icon aligned with parent navigation -->
+            <v-list-item-icon class="me-3 my-auto submenu-icon-wrap">
+              <v-icon small class="submenu-icon-inner">{{ itemN2.icon_mdi || 'mdi-circle-small' }}</v-icon>
             </v-list-item-icon>
 
             <v-list-item-title class="submenu-title text-body-2 font-weight-medium">{{ itemN2.label }}</v-list-item-title>
-            
-            <!-- Right action icon -->
-            <v-list-item-icon class="my-auto submenu-right-icon">
-              <v-icon v-text="itemN2.icon_mdi" small class="submenu-icon-inner"></v-icon>
-            </v-list-item-icon>
           </v-list-item>
         </div>
       </v-list-group>
@@ -253,43 +248,34 @@ export default {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0 12px !important;
 
-  .submenu-bullet-icon {
-    min-width: 14px !important;
-    margin-right: 8px !important;
-  }
-
-  .submenu-bullet {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+  .submenu-icon-wrap {
+    min-width: 22px !important;
+    margin-right: 10px !important;
+    opacity: 0.8;
     transition: all 0.2s ease;
+
+    .submenu-icon-inner {
+      font-size: 1.15rem !important;
+      transition: color 0.2s ease, transform 0.2s ease;
+    }
   }
 
   .submenu-title {
     font-size: 0.84rem !important;
     transition: color 0.2s ease;
-  }
-
-  .submenu-right-icon {
-    min-width: 24px !important;
-    opacity: 0.65;
-    transition: transform 0.2s ease, opacity 0.2s ease;
+    white-space: normal !important;
+    line-height: 1.25 !important;
   }
 
   &:hover {
-    .submenu-bullet {
-      transform: scale(1.35);
-    }
-
-    .submenu-right-icon {
+    .submenu-icon-wrap {
       opacity: 1;
       transform: translateX(2px);
     }
   }
 
   &--active {
-    .submenu-right-icon {
+    .submenu-icon-wrap {
       opacity: 1;
     }
   }
@@ -377,8 +363,8 @@ export default {
   }
 
   .submenu-item {
-    .submenu-bullet {
-      background-color: rgba(37, 99, 235, 0.35);
+    .submenu-icon-wrap .submenu-icon-inner {
+      color: #64748b;
     }
 
     .submenu-title {
@@ -388,10 +374,7 @@ export default {
     &:hover {
       background-color: rgba(37, 99, 235, 0.05) !important;
 
-      .submenu-bullet {
-        background-color: #2563eb;
-      }
-
+      .submenu-icon-wrap .submenu-icon-inner,
       .submenu-title {
         color: #1d4ed8;
       }
@@ -400,18 +383,13 @@ export default {
     &--active {
       background: linear-gradient(98deg, rgba(37, 99, 235, 0.12), rgba(37, 99, 235, 0.03) 94%) !important;
 
-      .submenu-bullet {
-        background-color: #2563eb;
-        box-shadow: 0 0 8px rgba(37, 99, 235, 0.5);
+      .submenu-icon-wrap .submenu-icon-inner {
+        color: #2563eb !important;
       }
 
       .submenu-title {
         color: #1d4ed8 !important;
         font-weight: 600 !important;
-      }
-
-      .submenu-right-icon .submenu-icon-inner {
-        color: #2563eb !important;
       }
     }
   }
@@ -481,8 +459,8 @@ export default {
   }
 
   .submenu-item {
-    .submenu-bullet {
-      background-color: rgba(59, 130, 246, 0.35);
+    .submenu-icon-wrap .submenu-icon-inner {
+      color: #94a3b8;
     }
 
     .submenu-title {
@@ -492,10 +470,7 @@ export default {
     &:hover {
       background-color: rgba(59, 130, 246, 0.08) !important;
 
-      .submenu-bullet {
-        background-color: #3b82f6;
-      }
-
+      .submenu-icon-wrap .submenu-icon-inner,
       .submenu-title {
         color: #93c5fd;
       }
@@ -504,18 +479,13 @@ export default {
     &--active {
       background: linear-gradient(98deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.05) 94%) !important;
 
-      .submenu-bullet {
-        background-color: #3b82f6;
-        box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+      .submenu-icon-wrap .submenu-icon-inner {
+        color: #60a5fa !important;
       }
 
       .submenu-title {
         color: #60a5fa !important;
         font-weight: 600 !important;
-      }
-
-      .submenu-right-icon .submenu-icon-inner {
-        color: #60a5fa !important;
       }
     }
   }

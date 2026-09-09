@@ -46,7 +46,7 @@
         <v-card elevation="2" rounded="lg" class="fill-height erp-card-elevated">
           <v-card-title class="d-flex align-center justify-space-between py-3">
             <div class="d-flex align-center">
-              <v-icon color="primary" left>mdi-folder-navigation-outline</v-icon>
+              <v-icon color="primary" left>mdi-folder-cog-outline</v-icon>
               <span class="text-subtitle-1 font-weight-bold">Menús Principales</span>
             </div>
             <v-btn color="primary" x-small elevation="1" @click="btnNuevoMenu(0)" class="text-capitalize rounded-pill">

@@ -85,8 +85,8 @@
         <!-- COLUMNA USUARIO -->
         <template v-slot:item.user="{ item }">
           <div v-if="item.user" class="d-flex align-center py-1">
-            <v-avatar size="28" color="primary lighten-5" class="mr-2">
-              <v-icon x-small color="primary">mdi-account</v-icon>
+            <v-avatar size="30" color="primary lighten-5" class="mr-2">
+              <v-icon small color="primary">mdi-account-outline</v-icon>
             </v-avatar>
             <div>
               <div class="font-weight-bold text-caption">{{ item.user.usr_usuario }}</div>
@@ -107,8 +107,8 @@
 
         <!-- COLUMNA IP / CLIENTE -->
         <template v-slot:item.ip_address="{ item }">
-          <div class="text-caption">
-            <v-icon x-small color="secondary" left>mdi-ip-network-outline</v-icon>
+          <div class="text-caption d-flex align-center">
+            <v-icon small color="secondary" left>mdi-lan</v-icon>
             <code>{{ item.ip_address || '127.0.0.1' }}</code>
           </div>
         </template>

@@ -111,7 +111,7 @@
                 <v-tooltip bottom>
                   <template v-slot:activator="{ on, attrs }">
                     <v-btn icon small color="teal" v-bind="attrs" v-on="on" @click="renovarCuis(pv)">
-                      <v-icon small>mdi-key-sync</v-icon>
+                      <v-icon small>mdi-key-change</v-icon>
                     </v-btn>
                   </template>
                   <span>Solicitar / Renovar CUIS</span>

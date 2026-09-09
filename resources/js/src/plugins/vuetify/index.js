@@ -16,7 +16,7 @@ export default new Vuetify({
     dark: isDark,
     options: {
       customProperties: true,
-      variations: false,
+      variations: true,
     },
   },
 })

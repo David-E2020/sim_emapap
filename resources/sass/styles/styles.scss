@@ -318,3 +318,80 @@ body {
     transform: translateY(0);
   }
 }
+
+// ————————————————————————————————————————————————————————————————————————————
+// 8. UNIVERSAL THEME-AWARE SOFT-TINT SYSTEM (LIGHTEN-5, AVATARS & CHIPS)
+// Ensures icons, initials, and badges always have rich contrast in light & dark modes
+// ————————————————————————————————————————————————————————————————————————————
+.primary.lighten-5,
+.v-avatar.primary.lighten-5 {
+  background-color: rgba(37, 99, 235, 0.12) !important;
+}
+
+.success.lighten-5,
+.v-avatar.success.lighten-5 {
+  background-color: rgba(22, 163, 74, 0.14) !important;
+}
+
+.info.lighten-5,
+.v-avatar.info.lighten-5 {
+  background-color: rgba(2, 132, 199, 0.14) !important;
+}
+
+.warning.lighten-5,
+.v-avatar.warning.lighten-5 {
+  background-color: rgba(217, 119, 6, 0.14) !important;
+}
+
+.error.lighten-5,
+.v-avatar.error.lighten-5 {
+  background-color: rgba(220, 38, 38, 0.14) !important;
+}
+
+.amber.lighten-5,
+.v-avatar.amber.lighten-5 {
+  background-color: rgba(217, 119, 6, 0.14) !important;
+}
+
+.deep-purple.lighten-5,
+.v-avatar.deep-purple.lighten-5 {
+  background-color: rgba(124, 58, 237, 0.14) !important;
+}
+
+// Dark Mode Soft Overlays (Semi-translucent with enhanced luminosity)
+.theme--dark {
+  .primary.lighten-5,
+  .v-avatar.primary.lighten-5 {
+    background-color: rgba(59, 130, 246, 0.22) !important;
+  }
+
+  .success.lighten-5,
+  .v-avatar.success.lighten-5 {
+    background-color: rgba(34, 197, 94, 0.22) !important;
+  }
+
+  .info.lighten-5,
+  .v-avatar.info.lighten-5 {
+    background-color: rgba(56, 189, 248, 0.22) !important;
+  }
+
+  .warning.lighten-5,
+  .v-avatar.warning.lighten-5 {
+    background-color: rgba(245, 158, 11, 0.22) !important;
+  }
+
+  .error.lighten-5,
+  .v-avatar.error.lighten-5 {
+    background-color: rgba(239, 68, 68, 0.22) !important;
+  }
+
+  .amber.lighten-5,
+  .v-avatar.amber.lighten-5 {
+    background-color: rgba(245, 158, 11, 0.22) !important;
+  }
+
+  .deep-purple.lighten-5,
+  .v-avatar.deep-purple.lighten-5 {
+    background-color: rgba(168, 85, 247, 0.22) !important;
+  }
+}
