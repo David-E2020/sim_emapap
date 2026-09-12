@@ -258,6 +258,28 @@ class FacturaController extends Controller
     }
 
     /**
+     * Previsualización HTML de la representación gráfica oficial (Carta o Rollo 80mm).
+     */
+    public function previsualizarHtml(Request $request, int $id): HttpResponse
+    {
+        $factura = Factura::with(['detalles', 'sucursal', 'puntoVenta'])->findOrFail($id);
+        $formato = (string) $request->input('formato', 'rollo');
+
+        $urlQr = $this->representacionGraficaService->generarUrlQr($factura);
+        $qrBase64 = $this->representacionGraficaService->generarQrBase64($urlQr);
+        $literal = $this->representacionGraficaService->convertirMontoALiteral((float) $factura->monto_total);
+
+        $viewName = ($formato === 'rollo') ? 'facturacion.factura-rollo-pdf' : 'facturacion.factura-pdf';
+
+        return response()->view($viewName, [
+            'factura' => $factura,
+            'urlQr' => $urlQr,
+            'qrBase64' => $qrBase64,
+            'literal' => $literal,
+        ]);
+    }
+
+    /**
      * Descarga del XML oficial de la factura.
      */
     public function descargarXml(int $id): HttpResponse
@@ -366,5 +388,35 @@ class FacturaController extends Controller
         ];
 
         return $leyendas[array_rand($leyendas)];
+    }
+
+    /**
+     * Emisión masiva de facturas electrónicas por lotes.
+     */
+    public function emisionMasiva(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'facturas' => 'required|array|min:1',
+            'facturas.*.nombre_razon_social' => 'required|string',
+            'facturas.*.numero_documento' => 'required|string',
+            'facturas.*.codigo_metodo_pago' => 'required|integer',
+            'facturas.*.items' => 'required|array|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $lote = $request->input('facturas', []);
+        $resultado = $this->emisionFacturaService->emitirLoteMasivo($lote);
+
+        return response()->json([
+            'success' => $resultado['total_emitidas'] > 0,
+            'message' => "Lote procesado: {$resultado['total_emitidas']} facturas emitidas, {$resultado['total_errores']} errores.",
+            'data' => $resultado,
+        ], $resultado['total_emitidas'] > 0 ? Response::HTTP_CREATED : Response::HTTP_BAD_REQUEST);
     }
 }

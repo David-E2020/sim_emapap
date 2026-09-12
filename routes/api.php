@@ -299,10 +299,12 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     // ==========================================
     Route::get('facturacion/facturas', [FacturaController::class, 'index']);
     Route::post('facturacion/facturas', [FacturaController::class, 'store']);
+    Route::post('facturacion/facturas/emision-masiva', [FacturaController::class, 'emisionMasiva']);
     Route::post('facturacion/facturas/{id}/anular', [FacturaController::class, 'anular']);
     Route::post('facturacion/facturas/{id}/enviar-correo', [FacturaController::class, 'enviarPorCorreo']);
     Route::get('facturacion/facturas/{id}/verificar-estado-sin', [FacturaController::class, 'verificarEstadoSin']);
     Route::get('facturacion/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
+    Route::get('facturacion/facturas/{id}/preview', [FacturaController::class, 'previsualizarHtml']);
     Route::get('facturacion/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);
 
     Route::get('facturacion/clientes', [ClienteFacturaController::class, 'index']);
@@ -441,4 +443,5 @@ Route::post('correspondencia/publico/solicitud-ciudadana', [SolicitudCiudadanaCo
 
 // Facturas Públicas (Descarga directa por QR o Correo)
 Route::get('facturacion/publico/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
+Route::get('facturacion/publico/facturas/{id}/preview', [FacturaController::class, 'previsualizarHtml']);
 Route::get('facturacion/publico/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);

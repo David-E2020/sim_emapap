@@ -186,21 +186,30 @@ export default {
       const f = new Date(str);
       return f.toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' });
     },
+    mostrarMensaje(tipo, texto) {
+      if (this.$message && typeof this.$message[tipo] === 'function') {
+        this.$message[tipo](texto);
+      } else if (tipo === 'error') {
+        console.error(texto);
+      } else {
+        console.log(texto);
+      }
+    },
     async iniciarEvento() {
       if (!this.formEvento.descripcion) {
-        this.$message.warning('Ingrese una descripción.');
+        this.mostrarMensaje('warning', 'Ingrese una descripción.');
         return;
       }
       this.guardando = true;
       try {
         const res = await window.axios.post('/api/facturacion/eventos-significativos', this.formEvento);
         if (res.data.success) {
-          this.$message.success('Evento de contingencia iniciado.');
+          this.mostrarMensaje('success', 'Evento de contingencia iniciado.');
           this.dialogoNuevo = false;
           this.cargarEventos();
         }
       } catch (e) {
-        this.$message.error('Error al iniciar contingencia');
+        this.mostrarMensaje('error', 'Error al iniciar contingencia');
       } finally {
         this.guardando = false;
       }
@@ -210,11 +219,11 @@ export default {
       try {
         const res = await window.axios.post(`/api/facturacion/eventos-significativos/${id}/cerrar`);
         if (res.data.success) {
-          this.$message.success(res.data.message);
+          this.mostrarMensaje('success', res.data.message);
           this.cargarEventos();
         }
       } catch (e) {
-        this.$message.error('Error al cerrar contingencia');
+        this.mostrarMensaje('error', 'Error al cerrar contingencia');
       } finally {
         this.cerrandoId = null;
       }

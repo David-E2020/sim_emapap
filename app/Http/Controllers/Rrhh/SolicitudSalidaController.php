@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Rrhh;
 use App\Http\Controllers\Controller;
 use App\Models\Rrhh\Justificacion;
 use App\Models\Rrhh\Permiso;
+use App\Models\Rrhh\Persona;
 use App\Models\Rrhh\SolicitudSalida;
 use App\Services\Audit\AuditService;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 class SolicitudSalidaController extends Controller
@@ -51,8 +53,8 @@ class SolicitudSalidaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'id_permiso' => 'required|integer|exists:rrhh.permisos,id',
-            'id_persona' => 'required|integer|exists:rrhh.personas,id',
+            'id_permiso' => ['required', 'integer', Rule::exists(Permiso::class, 'id')],
+            'id_persona' => ['required', 'integer', Rule::exists(Persona::class, 'id')],
             'motivo' => 'required|string',
             'fecha_inicio' => 'required|date',
             'fecha_fin' => 'required|date',

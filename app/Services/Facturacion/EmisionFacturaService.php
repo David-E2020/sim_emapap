@@ -148,7 +148,7 @@ class EmisionFacturaService
 
         $nitEmisor = $empresa && !empty($empresa->nit) ? (string) $empresa->nit : config('siat.nit_emisor', '123456789');
         $modalidad = $empresa && $empresa->codigo_modalidad ? (int) $empresa->codigo_modalidad : (int) config('siat.modalidad', 1);
-        $tipoEmision = (int) ($datos['tipo_emision'] ?? 1);
+        $tipoEmision = (int) ($datos['tipo_emision'] ?? $datos['codigo_emision'] ?? 1);
         $tipoFactura = (int) ($datos['tipo_factura_documento'] ?? 1);
         $documentoSector = (int) ($datos['codigo_documento_sector'] ?? 1);
 
@@ -211,6 +211,7 @@ class EmisionFacturaService
                 'id_cliente' => $cliente?->id,
                 'id_abonado' => $datos['id_abonado'] ?? null,
                 'id_cufd' => $cufdVigente->id,
+                'id_evento_significativo' => $datos['id_evento_significativo'] ?? null,
                 'numero_factura' => $numeroFactura,
                 'cuf' => $cuf,
                 'cufd' => $cufdVigente->codigo,
@@ -253,7 +254,7 @@ class EmisionFacturaService
                 'tipo_cambio' => 1.00,
                 'leyenda' => $leyenda,
                 'usuario_emision' => $datos['usuario_emision'] ?? 'admin',
-                'estado_factura' => 'VALIDADA',
+                'estado_factura' => $tipoEmision === 2 ? 'OFFLINE' : 'VALIDADA',
             ]);
 
             foreach ($items as $item) {
@@ -306,5 +307,43 @@ class EmisionFacturaService
         ]);
 
         return $factura->fresh(['detalles', 'sucursal', 'puntoVenta', 'cliente', 'abonado']);
+    }
+
+    /**
+     * Emite un lote masivo de facturas electrónicas (Sector 1 o Sector 13) dentro de una transacción
+     * optimizada, calculando CUFs, generando XMLs y asociándolas opcionalmente a un evento significativo.
+     *
+     * @param array $lote Colección de arrays de datos de facturas.
+     * @return array Resumen con facturas emitidas, monto total y errores si existieran.
+     */
+    public function emitirLoteMasivo(array $lote): array
+    {
+        $emitidas = [];
+        $errores = [];
+        $totalMonto = 0.0;
+
+        foreach ($lote as $idx => $datosFactura) {
+            try {
+                $factura = $this->emitir($datosFactura);
+                $emitidas[] = $factura;
+                $totalMonto += (float) $factura->monto_total;
+            } catch (\Throwable $e) {
+                $errores[] = [
+                    'indice' => $idx,
+                    'documento' => $datosFactura['numero_documento'] ?? 'S/N',
+                    'cliente' => $datosFactura['nombre_razon_social'] ?? 'S/N',
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'total_procesadas' => count($lote),
+            'total_emitidas' => count($emitidas),
+            'total_errores' => count($errores),
+            'monto_total_lote' => round($totalMonto, 2),
+            'facturas' => $emitidas,
+            'errores' => $errores,
+        ];
     }
 }

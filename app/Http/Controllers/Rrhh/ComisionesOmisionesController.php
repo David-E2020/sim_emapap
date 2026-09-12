@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Rrhh;
 
 use App\Http\Controllers\Controller;
+use App\Models\Rrhh\Persona;
 use App\Models\Rrhh\SolicitudSalida;
 use App\Services\Audit\AuditService;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 class ComisionesOmisionesController extends Controller
@@ -44,7 +46,7 @@ class ComisionesOmisionesController extends Controller
     public function storeComision(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'id_persona' => 'required|integer|exists:rrhh.personas,id',
+            'id_persona' => ['required', 'integer', Rule::exists(Persona::class, 'id')],
             'lugar' => 'required|string|max:255',
             'motivo' => 'required|string',
             'fecha_inicio' => 'required|date',
@@ -133,7 +135,7 @@ class ComisionesOmisionesController extends Controller
     public function storeOmision(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'id_persona' => 'required|integer|exists:rrhh.personas,id',
+            'id_persona' => ['required', 'integer', Rule::exists(Persona::class, 'id')],
             'fecha' => 'required|date',
             'turno_periodo' => 'required|string', // ENTRADA_MANANA, SALIDA_MANANA, ENTRADA_TARDE, SALIDA_TARDE
             'hora_marcado_omision' => 'required|string',

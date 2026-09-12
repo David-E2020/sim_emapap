@@ -512,15 +512,17 @@ export default {
         });
 
         if (res.data.success) {
-          this.$message.success('Factura anulada satisfactoriamente.');
+          const msg = 'Factura anulada satisfactoriamente.';
+          this.$message && this.$message.success ? this.$message.success(msg) : alert(msg);
           this.dialogoAnular = false;
           this.cargarFacturas();
         } else {
-          this.$message.error(res.data.message || 'Error al anular');
+          const msg = res.data.message || 'Error al anular';
+          this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message.error(msg);
+        this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
       } finally {
         this.anulando = false;
       }
