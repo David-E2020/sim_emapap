@@ -93,11 +93,11 @@ class RolUserController extends Controller
         if (! $targetUserId || (int) $targetUserId === (int) $authUser->id) {
             $userToUpdate = User::findOrFail($authUser->id);
 
-            // Verificar contraseña actual si fue provista
-            if ($request->has('current_password') && ! Hash::check($request->current_password, $userToUpdate->password)) {
+            // Validar de forma obligatoria la contraseña actual para cambio de credencial propio
+            if (! $request->filled('current_password') || ! Hash::check((string) $request->input('current_password'), $userToUpdate->password)) {
                 return response()->json([
                     'success' => false,
-                    'mensaje' => 'La contraseña actual es incorrecta',
+                    'mensaje' => 'La contraseña actual es requerida y debe ser correcta para efectuar el cambio.',
                 ], Response::HTTP_BAD_REQUEST);
             }
         } else {

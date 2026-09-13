@@ -62,6 +62,28 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
+
+        // Validar estado de la cuenta institucional (solo usuarios activos 'A')
+        if ($user->usr_estado !== 'A') {
+            try {
+                JWTAuth::invalidate($token);
+            } catch (\Exception $e) {
+                // Token invalidation failure fallback
+            }
+
+            $this->auditService->log(
+                event: 'auth_login_blocked_inactive',
+                model: $user,
+                userId: $user->id,
+                newValues: ['username_attempted' => $credentials['usr_usuario']]
+            );
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Su cuenta institucional se encuentra inactiva o suspendida. Contacte con Administración.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         $usuarioId_ = $user->id;
         $rolUser_ = RolUser::where('usuario_id', $usuarioId_)->first();
         $rol_ = $rolUser_ ? Rol::find($rolUser_->rol_id) : null;

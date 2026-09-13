@@ -57,8 +57,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-// Rutas Públicas
-Route::post('login', [AuthController::class, 'login']);
+// Rutas Públicas (Protegidas con Rate Limiting estricto anti-fuerza bruta)
+Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
 // Rutas Autenticadas (JWT)
 Route::group(['middleware' => ['jwt.auth']], function () {

@@ -57,12 +57,19 @@ export const autentication = {
             })
         },
         logout({commit}){
-            return new Promise((resolve, reject) => {
-                commit('logout')
-                localStorage.removeItem('token')
-                localStorage.clear()
-                delete axios.defaults.headers.common['Authorization']
-                resolve()
+            return new Promise((resolve) => {
+                const clearLocalSession = () => {
+                    commit('logout')
+                    localStorage.removeItem('token')
+                    localStorage.clear()
+                    delete axios.defaults.headers.common['Authorization']
+                    resolve()
+                }
+
+                // Invalidar token JWT en blacklist del servidor antes de destruir sesión local
+                axios.post('api/logout')
+                    .then(() => clearLocalSession())
+                    .catch(() => clearLocalSession())
             })
         }
     },

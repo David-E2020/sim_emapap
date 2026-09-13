@@ -28,7 +28,7 @@ class AdminAccessMiddleware
         }
 
         // 1. Verificación de rol y permisos Spatie
-        $hasSpatieAdmin = $user->hasRole('Administrador General') ||
+        $hasSpatieAdmin = $user->hasAnyRole(['Administrador General', 'Administrador', 'Super Admin']) ||
                           $user->hasAnyPermission([
                               'SIGP',
                               'admin.usuarios.ver',
@@ -36,9 +36,12 @@ class AdminAccessMiddleware
                               'admin.control_acceso.ver',
                           ]);
 
-        // 2. Verificación de rol activo en tabla pivote
+        // 2. Verificación de rol administrativo activo en tabla pivote legacy
         $hasActiveRolUser = RolUser::where('usuario_id', $user->id)
             ->where('estado', true)
+            ->whereHas('rol', function ($query) {
+                $query->whereIn('name', ['Administrador General', 'Administrador', 'Super Admin']);
+            })
             ->exists();
 
         if (! $hasSpatieAdmin && ! $hasActiveRolUser) {

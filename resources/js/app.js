@@ -56,11 +56,8 @@ const tokenJWT = localStorage.getItem('token')
  * or customize the JavaScript scaffolding to fit your unique needs.
  */
 if (tokenJWT) {
-  Vue.prototype.$http.defaults.headers.common['Authorization'] = tokenJWT
+  Vue.prototype.$http.defaults.headers.common['Authorization'] = 'Bearer ' + tokenJWT
 }
-
-
-
 
 router.beforeEach((to, from, next) => {
     if(to.matched.some(record => record.meta.requiresAuth)) {
@@ -95,19 +92,7 @@ const app = new Vue({
     vuetify,
     data: {
         themeColor: '#000',
-        userEmail: 'primo@gmail.com',
-        userPassword: '123456'
     },
     router,
-    render: h => h(App),				
-    mounted()
-    {
-        axios.get('api/auth/user_check')
-             .then(response=>{
-                if (response.success=="true") {
-                }else if(response.success=="false"){
-                  location.href = 'login';
-                }
-             })
-    },
+    render: h => h(App),
 }).$mount('#app')
