@@ -10,9 +10,9 @@
         <div class="auth-content-wrapper">
           <!-- Editorial Serif Heading -->
           <div class="heading-block">
-            <h1 class="editorial-title">Gestión y Distribución</h1>
+            <h1 class="editorial-title">Empresa Municipal de Agua Potable y Alcantarillado</h1>
             <p class="editorial-subtitle">
-              Plataforma integral de agua potable, alcantarillado y comercialización
+              PATACAMAYA
             </p>
           </div>
 
@@ -130,20 +130,21 @@
         </div>
       </section>
 
-      <!-- Right Column: Rounded Hero Image -->
+      <!-- Right Column: Rounded Hero Video Card (Claude Authentic Proportions) -->
       <section class="hero-column d-none d-lg-flex">
         <div class="hero-image-card">
-          <img
-            :src="require('@/assets/images/logos/login_emapap.jpg').default"
-            alt="Planta de Tratamiento y Distribución EMAPAP"
-            class="hero-img"
-          />
-          <div class="hero-overlay"></div>
-          <div class="hero-caption">
-            <span class="caption-tag">Planta de Tratamiento & Distribución</span>
-            <h3 class="caption-title">Agua Potable y Alcantarillado</h3>
-            <p class="caption-subtitle">Empresa Municipal de Agua Potable y Alcantarillado · Patacamaya</p>
-          </div>
+          <video
+            ref="heroVideo"
+            class="hero-video"
+            autoplay
+            loop
+            muted
+            playsinline
+            poster="/images/logo-ciclo-poster.jpg"
+          >
+            <source src="/images/logo-ciclo.mp4" type="video/mp4" />
+            <source src="/images/logo%20ciclo.mp4" type="video/mp4" />
+          </video>
         </div>
       </section>
     </main>
@@ -315,7 +316,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* Main Page Container - Supports Dark and Light Themes seamlessly via CSS variables */
 .claude-login-page {
@@ -351,6 +352,7 @@ export default {
   --claude-brand-badge-border: rgba(255, 255, 255, 0.08);
   --claude-brand-badge-text: #9c9a92;
   --claude-brand-title: #e5e3dd;
+  --claude-brand-accent: #38bdf8;
   --claude-hero-border: rgba(255, 255, 255, 0.08);
   --claude-hero-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.65);
   --claude-toggle-bg: #232220;
@@ -390,6 +392,7 @@ export default {
     --claude-brand-badge-border: rgba(0, 0, 0, 0.08);
     --claude-brand-badge-text: #6a6861;
     --claude-brand-title: #141413;
+    --claude-brand-accent: #0284c7;
     --claude-hero-border: rgba(0, 0, 0, 0.08);
     --claude-hero-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.16);
     --claude-toggle-bg: #ffffff;
@@ -422,7 +425,7 @@ export default {
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  gap: 48px;
+  gap: 56px;
 
   @media (max-width: 960px) {
     padding: 24px 16px;
@@ -461,26 +464,30 @@ export default {
   width: 100%;
 
   .editorial-title {
-    font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
-    font-size: 2.25rem;
-    font-weight: 400;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
     line-height: 1.25;
     color: var(--claude-text-title);
-    margin-bottom: 10px;
-    letter-spacing: -0.015em;
+    margin-bottom: 8px;
+    letter-spacing: -0.025em;
     transition: color 0.3s ease;
 
     @media (max-width: 600px) {
-      font-size: 1.85rem;
+      font-size: 1.45rem;
     }
   }
 
   .editorial-subtitle {
-    font-size: 0.9375rem;
-    line-height: 1.45;
-    color: var(--claude-text-sub);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    line-height: 1.4;
+    color: var(--claude-brand-accent);
     margin: 0 auto;
-    max-width: 360px;
+    max-width: 380px;
     transition: color 0.3s ease;
   }
 }
@@ -717,15 +724,15 @@ export default {
   }
 }
 
-/* Right Column: Hero Image Card */
+/* Right Column: Hero Video Card (Claude Authentic Proportions) */
 .hero-column {
   flex: 1;
-  max-width: 520px;
+  max-width: 540px;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: calc(100vh - 64px);
-  max-height: 680px;
+  height: calc(100vh - 80px);
+  max-height: 720px;
   padding: 0;
 }
 
@@ -733,75 +740,25 @@ export default {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 24px;
+  border-radius: 28px;
   overflow: hidden;
-  border: 1px solid var(--claude-hero-border);
+  border: none;
   box-shadow: var(--claude-hero-shadow);
-  background-color: #1a1917;
+  background-color: transparent;
   transition: all 0.3s ease;
 
-  .hero-img {
+  .hero-video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     object-position: center;
     display: block;
+    border-radius: inherit;
     transition: transform 0.6s ease;
   }
 
-  &:hover .hero-img {
-    transform: scale(1.02);
-  }
-
-  .hero-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0.05) 0%,
-      rgba(0, 0, 0, 0.25) 55%,
-      rgba(0, 0, 0, 0.88) 100%
-    );
-    pointer-events: none;
-  }
-
-  .hero-caption {
-    position: absolute;
-    bottom: 28px;
-    left: 28px;
-    right: 28px;
-    z-index: 2;
-    color: #ffffff;
-
-    .caption-tag {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      background: rgba(255, 255, 255, 0.18);
-      backdrop-filter: blur(12px);
-      padding: 4px 10px;
-      border-radius: 20px;
-      margin-bottom: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-    }
-
-    .caption-title {
-      font-family: 'Newsreader', Georgia, serif;
-      font-size: 1.5rem;
-      font-weight: 400;
-      margin-bottom: 4px;
-      color: #faf9f5;
-      line-height: 1.25;
-    }
-
-    .caption-subtitle {
-      font-size: 12.5px;
-      color: #cfcdc7;
-      margin: 0;
-      line-height: 1.35;
-    }
+  &:hover .hero-video {
+    transform: scale(1.015);
   }
 }
 
