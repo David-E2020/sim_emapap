@@ -9,8 +9,11 @@
 
   <title>EMAPA - Sistema Integrado de Gestión Empresarial</title>
 
-  <!-- Favicon -->
+  <!-- Favicons & Mobile Touch Icons -->
   <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
 
   <!-- Preconnect and Google Fonts (Inter) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">

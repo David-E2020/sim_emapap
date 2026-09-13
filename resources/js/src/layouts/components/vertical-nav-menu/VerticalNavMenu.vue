@@ -12,13 +12,13 @@
       <router-link :to="{ name: routeHome || 'dashboard' }" class="d-flex flex-column align-center text-decoration-none w-full">
         <div class="brand-logo-container">
           <img
-            :src="require('@/assets/images/logos/logoEmapa2.png').default"
-            alt="EMAPA"
+            :src="logoSrc"
+            alt="EMAPAP"
             class="brand-logo-img"
           />
         </div>
         <div class="brand-title-wrap mt-2 text-center">
-          <h2 class="brand-name">EMAPA</h2>
+          <h2 class="brand-name">EMAPAP</h2>
           <span class="brand-badge-system">AGUA POTABLE · SIE</span>
         </div>
       </router-link>
@@ -82,6 +82,14 @@ export default {
     user: null,
     routeHome: null,
   }),
+  computed: {
+    logoSrc() {
+      const isDark = this.$vuetify && this.$vuetify.theme ? this.$vuetify.theme.dark : false
+      return isDark
+        ? require('@/assets/images/logos/logo_sidebar_dark.png').default
+        : require('@/assets/images/logos/logo_sidebar_light.png').default
+    },
+  },
   watch: {
     $route() {
       this.syncActiveGroup()
@@ -164,12 +172,15 @@ export default {
 }
 
 .brand-logo-img {
-  height: 42px;
-  width: auto;
-  max-width: 170px;
+  height: 52px;
+  width: 52px;
   object-fit: contain;
-  transition: transform 0.2s ease;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
+
+  &:hover {
+    transform: scale(1.06);
+  }
 }
 
 .brand-title-wrap {
