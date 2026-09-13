@@ -391,7 +391,7 @@ class DocumentoController extends Controller
     public function adjuntarArchivo(Request $request, int $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'archivo' => 'required|file|max:20480', // Max 20MB
+            'archivo' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,png,jpg,jpeg,zip,rar,7z,txt|max:20480', // Max 20MB
         ]);
 
         if ($validator->fails()) {

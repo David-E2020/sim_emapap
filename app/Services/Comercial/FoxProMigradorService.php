@@ -392,9 +392,10 @@ class FoxProMigradorService
                 $motivo = trim($r['OTROSCB'] ?? 'BAJA REGISTRADA EN FOXPRO');
 
                 if (!$dryRun) {
+                    $safeObs = DB::connection()->getPdo()->quote(" [BAJA FOX: {$motivo}]");
                     $updated = Abonado::where('codigo', $codigoPad)->update([
                         'estado_servicio' => 'BAJA',
-                        'observaciones' => DB::raw("CONCAT(COALESCE(observaciones, ''), ' [BAJA FOX: ' || '{$motivo}' || ']')"),
+                        'observaciones' => DB::raw("CONCAT(COALESCE(observaciones, ''), {$safeObs})"),
                     ]);
                     if ($updated > 0) {
                         $actualizados++;

@@ -435,13 +435,15 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::get('contabilidad/mapeos', [ContabilidadController::class, 'mapeos']);
 });
 
-// Rutas Públicas (Sin Autenticación Requerida)
-Route::get('correspondencia/publico/verificar-documento/{codigo}', [VerificacionPublicaController::class, 'verificarDocumento'])->where('codigo', '.*');
-Route::get('correspondencia/publico/verificar-hoja-ruta', [VerificacionPublicaController::class, 'verificarHojaRuta']);
-Route::get('correspondencia/publico/seguimiento/{codigo}', [SeguimientoController::class, 'publico'])->where('codigo', '.*');
-Route::post('correspondencia/publico/solicitud-ciudadana', [SolicitudCiudadanaController::class, 'registrarPublico']);
+// Rutas Públicas (Sin Autenticación Requerida - Protegidas contra Scraping y Abuso con Throttling)
+Route::group(['middleware' => ['throttle:60,1']], function () {
+    Route::get('correspondencia/publico/verificar-documento/{codigo}', [VerificacionPublicaController::class, 'verificarDocumento'])->where('codigo', '.*');
+    Route::get('correspondencia/publico/verificar-hoja-ruta', [VerificacionPublicaController::class, 'verificarHojaRuta']);
+    Route::get('correspondencia/publico/seguimiento/{codigo}', [SeguimientoController::class, 'publico'])->where('codigo', '.*');
+    Route::post('correspondencia/publico/solicitud-ciudadana', [SolicitudCiudadanaController::class, 'registrarPublico']);
 
-// Facturas Públicas (Descarga directa por QR o Correo)
-Route::get('facturacion/publico/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
-Route::get('facturacion/publico/facturas/{id}/preview', [FacturaController::class, 'previsualizarHtml']);
-Route::get('facturacion/publico/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);
+    // Facturas Públicas (Descarga oficial por QR o Correo)
+    Route::get('facturacion/publico/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
+    Route::get('facturacion/publico/facturas/{id}/preview', [FacturaController::class, 'previsualizarHtml']);
+    Route::get('facturacion/publico/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);
+});

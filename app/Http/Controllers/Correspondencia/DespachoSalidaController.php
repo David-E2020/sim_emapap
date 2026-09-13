@@ -74,6 +74,18 @@ class DespachoSalidaController extends Controller
 
     public function entregar(Request $request, int $id): JsonResponse
     {
+        $validator = Validator::make($request->all(), [
+            'acuse' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'observaciones' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $despacho = DespachoSalida::findOrFail($id);
         $despacho->estado_despacho = 'ENTREGADO_CON_ACUSE';
         $despacho->fecha_entrega = now();

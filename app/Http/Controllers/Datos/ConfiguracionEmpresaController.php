@@ -52,7 +52,7 @@ class ConfiguracionEmpresaController extends Controller
                 'tiene_password' => $tienePassword,
                 'certificado_existe' => $certExiste,
                 'tiene_certificado' => $certExiste,
-                'cert_path_absoluto' => $certPath,
+                'cert_path_absoluto' => $certExiste ? 'Almacenamiento Seguro del Sistema' : 'No configurado',
                 'ambiente_descripcion' => $config->codigo_ambiente === 1 ? 'PRODUCCIÓN OFICIAL' : 'PRUEBAS / PILOTO',
                 'modalidad_descripcion' => $config->codigo_modalidad === 1 ? 'ELECTRÓNICA EN LÍNEA (CON FIRMA ADSIB)' : 'COMPUTARIZADA EN LÍNEA',
             ],
@@ -78,10 +78,10 @@ class ConfiguracionEmpresaController extends Controller
             'token_delegado' => 'nullable|string',
             'password_p12' => 'nullable|string|max:150',
             'certificado_password' => 'nullable|string|max:150',
-            'archivo_p12' => 'nullable|file|max:10240',
-            'certificado_p12' => 'nullable|file|max:10240',
-            'archivo_logo' => 'nullable|image|mimes:jpeg,png,jpg,svg,webp|max:5120',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,svg,webp|max:5120',
+            'archivo_p12' => 'nullable|file|mimes:p12,pfx,bin|max:10240',
+            'certificado_p12' => 'nullable|file|mimes:p12,pfx,bin|max:10240',
+            'archivo_logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         if ($validator->fails()) {

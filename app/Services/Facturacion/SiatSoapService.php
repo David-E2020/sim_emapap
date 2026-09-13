@@ -63,8 +63,9 @@ class SiatSoapService
                 'timeout' => 45,
             ],
             'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
+                'verify_peer' => $this->ambiente === 1,
+                'verify_peer_name' => $this->ambiente === 1,
+                'allow_self_signed' => $this->ambiente !== 1,
             ],
         ]);
 

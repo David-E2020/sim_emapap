@@ -42,6 +42,14 @@ class ConfiguracionEmpresa extends Model
     ];
 
     /**
+     * Atributos ocultos en serializaciones de respuestas JSON (protección de secretos criptográficos).
+     */
+    protected $hidden = [
+        'password_p12',
+        'token_delegado',
+    ];
+
+    /**
      * Obtiene la configuración corporativa y SIAT activa del sistema.
      * Si no existe, genera la configuración por defecto de EMAPAP Patacamaya con fallback.
      */
