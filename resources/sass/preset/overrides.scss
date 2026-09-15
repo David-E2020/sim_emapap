@@ -374,10 +374,36 @@ button {
 //* ——— Dialog ——————————————————
 //
 
-// Add some space between divider and buttons
+// Add some space between divider and buttons, and eliminate border bleeding
 .v-dialog {
+  border-radius: $card-border-radius !important;
+  overflow: hidden !important;
+
   .v-divider + .v-card__actions {
     padding-top: $card-spacer-content !important;
+  }
+}
+
+.theme--light .v-dialog {
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.18) !important;
+
+  .v-card:not(.v-sheet--outlined),
+  .v-card {
+    border: 0 none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+.theme--dark .v-dialog {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8) !important;
+
+  .v-card:not(.v-sheet--outlined),
+  .v-card {
+    border: 0 none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 }
 

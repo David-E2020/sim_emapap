@@ -1,14 +1,14 @@
 <template>
   <v-dialog :value="value" max-width="560" persistent @input="$emit('input', $event)">
     <v-card rounded="lg">
-      <v-card-title class="teal darken-3 white--text py-3">
+      <v-card-title class="primary white--text py-3">
         <v-icon color="white" class="mr-2">mdi-cash-register</v-icon>
         <span class="text-h6 font-weight-bold">Apertura de Turno de Caja</span>
       </v-card-title>
 
       <v-card-text class="pt-4">
-        <v-alert dense outlined color="teal" class="mb-4 text-caption">
-          <v-icon small color="teal" class="mr-1">mdi-shield-check</v-icon>
+        <v-alert dense text color="primary" class="mb-4 text-caption">
+          <v-icon small color="primary" class="mr-1">mdi-shield-check</v-icon>
           Al abrir la caja, se verificará la vigencia de su <strong>CUFD diario ante el SIAT</strong> y quedará vinculada a su usuario para toda la recaudación de la jornada.
         </v-alert>
 
@@ -36,7 +36,7 @@
                   <div class="font-weight-bold text-body-2">{{ item.nombre }}</div>
                   <span class="text-caption text-secondary">
                     Punto de Venta {{ item.codigo_punto_venta }} (SIAT)
-                    <span v-if="item.cajero_defecto" class="ml-1 text-teal">
+                    <span v-if="item.cajero_defecto" class="ml-1 primary--text">
                       | Habitual: {{ item.cajero_defecto.nombre }}
                     </span>
                   </span>
@@ -77,12 +77,12 @@
           ></v-text-field>
 
           <!-- Atajos rápidos para montos de sencillo -->
-          <div class="d-flex gap-2 mt-2">
-            <v-chip small outlined color="teal" @click="formulario.monto_apertura = 0">Bs. 0 (Sin fondo)</v-chip>
-            <v-chip small outlined color="teal" @click="formulario.monto_apertura = 100">Bs. 100</v-chip>
-            <v-chip small outlined color="teal" @click="formulario.monto_apertura = 150">Bs. 150</v-chip>
-            <v-chip small outlined color="teal" @click="formulario.monto_apertura = 200">Bs. 200</v-chip>
-            <v-chip small outlined color="teal" @click="formulario.monto_apertura = 300">Bs. 300</v-chip>
+          <div class="d-flex flex-wrap mt-2">
+            <v-chip small outlined color="primary" class="mr-2 mb-1" @click="formulario.monto_apertura = 0">Bs. 0 (Sin fondo)</v-chip>
+            <v-chip small outlined color="primary" class="mr-2 mb-1" @click="formulario.monto_apertura = 100">Bs. 100</v-chip>
+            <v-chip small outlined color="primary" class="mr-2 mb-1" @click="formulario.monto_apertura = 150">Bs. 150</v-chip>
+            <v-chip small outlined color="primary" class="mr-2 mb-1" @click="formulario.monto_apertura = 200">Bs. 200</v-chip>
+            <v-chip small outlined color="primary" class="mr-2 mb-1" @click="formulario.monto_apertura = 300">Bs. 300</v-chip>
           </div>
         </div>
 
@@ -110,8 +110,8 @@
         </v-btn>
         <v-spacer></v-spacer>
         <v-btn
-          color="teal darken-2"
-          class="text-white px-5 rounded-pill font-weight-bold"
+          color="primary"
+          class="text-white px-5 rounded-pill font-weight-bold elevation-1"
           :loading="guardando"
           :disabled="!formulario.id_punto_venta"
           @click="abrirCaja"

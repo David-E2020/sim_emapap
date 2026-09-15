@@ -80,7 +80,7 @@
     <v-dialog v-model="dialogoNuevo" max-width="520">
       <v-card rounded="lg" class="pa-4">
         <div class="d-flex align-center mb-3">
-          <v-avatar color="error" size="36" class="mr-2 text-white">
+          <v-avatar color="error" rounded="lg" size="36" class="mr-2 text-white elevation-1">
             <v-icon small color="white">mdi-alert-octagon</v-icon>
           </v-avatar>
           <h3 class="text-h6 font-weight-bold mb-0">Iniciar Evento de Contingencia</h3>
@@ -235,6 +235,11 @@ export default {
 <style scoped>
 .erp-card-elevated {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 .gap-2 {
   gap: 8px;

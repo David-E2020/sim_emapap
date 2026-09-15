@@ -1,31 +1,35 @@
 <template>
   <div class="reporte-libro-ventas">
-    <!-- Header -->
-    <v-card class="mb-6 elevation-2 rounded-lg">
-      <v-card-title class="d-flex align-center py-4 px-6 bg-primary white--text">
-        <v-icon left color="white" large>mdi-book-open-page-variant</v-icon>
-        <div>
-          <h2 class="text-h5 font-weight-bold mb-0 white--text">Libro de Ventas IVA (SIAT)</h2>
-          <span class="text-caption white--text text--lighten-2">
-            Registro Oficial de Ventas y Débito Fiscal para EMAPAP Patacamaya
-          </span>
+    <!-- CABECERA -->
+    <v-card class="mb-5 py-3 px-4 erp-card-elevated" rounded="lg">
+      <div class="d-flex align-center justify-space-between flex-wrap">
+        <div class="d-flex align-center my-1">
+          <v-avatar color="primary" rounded="lg" class="mr-3 text-white elevation-2" size="46">
+            <v-icon color="white">mdi-book-open-page-variant</v-icon>
+          </v-avatar>
+          <div>
+            <h2 class="text-h5 font-weight-bold mb-0 text--primary">Libro de Ventas IVA (SIAT)</h2>
+            <span class="text-caption text-secondary">
+              Registro Oficial de Ventas y Débito Fiscal para EMAPAP Patacamaya
+            </span>
+          </div>
         </div>
-        <v-spacer></v-spacer>
-        <v-btn
-          color="white"
-          class="primary--text font-weight-bold"
-          elevation="2"
-          :loading="cargandoCsv"
-          @click="descargarCsv"
-        >
-          <v-icon left color="success">mdi-file-delimited</v-icon>
-          Exportar CSV (Normativa SIN)
-        </v-btn>
-      </v-card-title>
+        <div class="d-flex align-center my-1">
+          <v-btn
+            color="success darken-1"
+            class="white--text font-weight-bold rounded-pill elevation-1"
+            :loading="cargandoCsv"
+            @click="descargarCsv"
+          >
+            <v-icon left small>mdi-file-delimited</v-icon>
+            Exportar CSV (Normativa SIN)
+          </v-btn>
+        </div>
+      </div>
     </v-card>
 
     <!-- Filtros de Fecha y Búsqueda -->
-    <v-card class="mb-6 elevation-1 rounded-lg">
+    <v-card class="mb-5 pa-4 erp-card-elevated" rounded="lg">
       <v-card-text class="pa-5">
         <v-row dense align="center">
           <v-col cols="12" sm="3">
@@ -84,50 +88,50 @@
     </v-card>
 
     <!-- Tarjetas de Resumen Fiscal -->
-    <v-row class="mb-6" dense>
+    <v-row class="mb-5" dense>
       <v-col cols="12" sm="6" md="3">
-        <v-card class="elevation-2 rounded-lg pa-4 border-left-primary">
-          <div class="text-caption text-uppercase font-weight-bold grey--text">Total Facturado</div>
+        <v-card class="erp-card-elevated rounded-lg pa-4 border-left-primary">
+          <div class="text-caption text-uppercase font-weight-bold secondary--text">Total Facturado</div>
           <div class="text-h4 font-weight-black primary--text mt-1">
             Bs {{ formatoMoneda(resumen.total_facturado) }}
           </div>
-          <div class="text-caption grey--text mt-1">
+          <div class="text-caption text-secondary mt-1">
             {{ resumen.total_registros }} facturas en periodo
           </div>
         </v-card>
       </v-col>
 
       <v-col cols="12" sm="6" md="3">
-        <v-card class="elevation-2 rounded-lg pa-4 border-left-success">
-          <div class="text-caption text-uppercase font-weight-bold grey--text">Base Débito Fiscal</div>
+        <v-card class="erp-card-elevated rounded-lg pa-4 border-left-success">
+          <div class="text-caption text-uppercase font-weight-bold secondary--text">Base Débito Fiscal</div>
           <div class="text-h4 font-weight-black success--text mt-1">
             Bs {{ formatoMoneda(resumen.total_base_debito_fiscal) }}
           </div>
-          <div class="text-caption grey--text mt-1">
+          <div class="text-caption text-secondary mt-1">
             Importe sujeto al IVA (13%)
           </div>
         </v-card>
       </v-col>
 
       <v-col cols="12" sm="6" md="3">
-        <v-card class="elevation-2 rounded-lg pa-4 border-left-info">
-          <div class="text-caption text-uppercase font-weight-bold grey--text">Débito Fiscal IVA (13%)</div>
+        <v-card class="erp-card-elevated rounded-lg pa-4 border-left-info">
+          <div class="text-caption text-uppercase font-weight-bold secondary--text">Débito Fiscal IVA (13%)</div>
           <div class="text-h4 font-weight-black info--text mt-1">
             Bs {{ formatoMoneda(resumen.debito_fiscal_iva) }}
           </div>
-          <div class="text-caption grey--text mt-1">
+          <div class="text-caption text-secondary mt-1">
             Monto a declarar en Form. 200
           </div>
         </v-card>
       </v-col>
 
       <v-col cols="12" sm="6" md="3">
-        <v-card class="elevation-2 rounded-lg pa-4 border-left-warning">
-          <div class="text-caption text-uppercase font-weight-bold grey--text">Válidas / Anuladas</div>
+        <v-card class="erp-card-elevated rounded-lg pa-4 border-left-warning">
+          <div class="text-caption text-uppercase font-weight-bold secondary--text">Válidas / Anuladas</div>
           <div class="text-h4 font-weight-black warning--text mt-1">
-            {{ resumen.cantidad_validas }} <span class="text-subtitle-1 grey--text">/ {{ resumen.cantidad_anuladas }}</span>
+            {{ resumen.cantidad_validas }} <span class="text-subtitle-1 secondary--text">/ {{ resumen.cantidad_anuladas }}</span>
           </div>
-          <div class="text-caption grey--text mt-1">
+          <div class="text-caption text-secondary mt-1">
             {{ resumen.cantidad_validas }} activas tributariamente
           </div>
         </v-card>
@@ -135,7 +139,7 @@
     </v-row>
 
     <!-- Tabla Detallada del Libro de Ventas -->
-    <v-card class="elevation-2 rounded-lg">
+    <v-card class="erp-card-elevated rounded-lg">
       <v-card-title class="py-3 px-5 d-flex justify-space-between align-center">
         <span class="text-h6 font-weight-bold">Detalle de Facturas Registradas</span>
         <v-chip small color="primary" outlined>
@@ -304,6 +308,15 @@ export default {
 </script>
 
 <style scoped>
+.erp-card-elevated {
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+.theme--dark .erp-card-elevated {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.35);
+}
 .border-left-primary {
   border-left: 5px solid #1976d2 !important;
 }

@@ -16,7 +16,7 @@
         <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
           <v-btn
             outlined
-            color="teal"
+            color="primary"
             class="text-capitalize font-weight-medium rounded-pill elevation-1"
             :loading="sincronizandoReloj"
             @click="sincronizarRelojSiat"
@@ -199,7 +199,7 @@
                 <v-btn
                   icon
                   small
-                  color="teal"
+                  color="primary"
                   v-bind="attrs"
                   v-on="on"
                   :loading="verificandoId === item.id"
@@ -239,7 +239,7 @@
     <v-dialog v-model="dialogoAnular" max-width="480">
       <v-card rounded="lg" class="pa-4">
         <div class="d-flex align-center mb-3">
-          <v-avatar color="error" size="36" class="mr-2 text-white">
+          <v-avatar color="error" rounded="lg" size="36" class="mr-2 text-white elevation-1">
             <v-icon small color="white">mdi-alert</v-icon>
           </v-avatar>
           <h3 class="text-h6 font-weight-bold mb-0">Anular Factura Fiscal</h3>
@@ -273,7 +273,7 @@
     <v-dialog v-model="dialogoCorreo" max-width="480">
       <v-card rounded="lg" class="pa-4">
         <div class="d-flex align-center mb-3">
-          <v-avatar color="info" size="36" class="mr-2 text-white">
+          <v-avatar color="primary" rounded="lg" size="36" class="mr-2 text-white elevation-1">
             <v-icon small color="white">mdi-email-outline</v-icon>
           </v-avatar>
           <div class="text-h6 font-weight-bold">Enviar Factura por Correo</div>
@@ -562,6 +562,11 @@ export default {
 <style scoped>
 .erp-card-elevated {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 .gap-1 {
   gap: 4px;

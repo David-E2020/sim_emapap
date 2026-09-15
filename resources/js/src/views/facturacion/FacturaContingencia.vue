@@ -181,6 +181,11 @@ export default {
 <style scoped>
 .erp-card-elevated {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 .gap-2 {
   gap: 8px;

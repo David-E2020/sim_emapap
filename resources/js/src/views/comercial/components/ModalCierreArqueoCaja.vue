@@ -1,13 +1,13 @@
 <template>
   <v-dialog :value="value" max-width="820" persistent @input="$emit('input', $event)">
     <v-card rounded="lg" v-if="sesion">
-      <v-card-title class="teal darken-3 white--text py-3 d-flex justify-space-between align-center">
+      <v-card-title class="primary white--text py-3 d-flex justify-space-between align-center">
         <div class="d-flex align-center">
           <v-icon color="white" class="mr-2">mdi-cash-check</v-icon>
           <span class="text-h6 font-weight-bold">Arqueo y Cierre de Turno de Caja</span>
         </div>
-        <v-chip color="teal lighten-4" text-color="teal darken-4" small class="font-weight-bold">
-          {{ sesion.numero_sesion }}
+        <v-chip color="white" text-color="primary" small class="font-weight-bold">
+          Turno #{{ sesion.numero_sesion }}
         </v-chip>
       </v-card-title>
 
@@ -15,7 +15,7 @@
         <!-- Resumen de la Sesión / Turno -->
         <v-row dense class="mb-3">
           <v-col cols="12" md="6">
-            <v-card outlined rounded="lg" class="pa-3 bg-grey-light">
+            <v-card outlined rounded="lg" class="pa-3 section-header-bg">
               <div class="text-caption text-secondary font-weight-bold mb-2 text-uppercase">
                 1. Datos del Turno
               </div>
@@ -32,7 +32,7 @@
           </v-col>
 
           <v-col cols="12" md="6">
-            <v-card outlined rounded="lg" class="pa-3 bg-grey-light">
+            <v-card outlined rounded="lg" class="pa-3 section-header-bg">
               <div class="text-caption text-secondary font-weight-bold mb-2 text-uppercase">
                 2. Resumen de Recaudación
               </div>
@@ -49,7 +49,7 @@
                 <span class="font-weight-bold text-primary">Bs {{ (parseFloat(totales.total_qr_banco) || 0).toFixed(2) }}</span>
               </div>
               <v-divider class="my-1"></v-divider>
-              <div class="d-flex justify-space-between text-subtitle-2 font-weight-black teal--text text--darken-3">
+              <div class="d-flex justify-space-between text-subtitle-2 font-weight-black primary--text">
                 <span>(=) Total Efectivo Esperado:</span>
                 <span>Bs {{ totalEsperado.toFixed(2) }}</span>
               </div>
@@ -63,7 +63,7 @@
             <span class="text-subtitle-2 font-weight-bold text-secondary text-uppercase">
               3. Conteo Físico de Efectivo en Gaveta (Arqueo)
             </span>
-            <v-btn x-small text color="teal darken-2" class="font-weight-bold" @click="autoCompletarExacto">
+            <v-btn x-small text color="primary" class="font-weight-bold" @click="autoCompletarExacto">
               <v-icon left x-small>mdi-auto-fix</v-icon> Cuadrar con Monto Esperado
             </v-btn>
           </div>
@@ -71,7 +71,7 @@
           <v-simple-table dense class="border rounded">
             <template v-slot:default>
               <thead>
-                <tr class="grey lighten-4">
+                <tr class="section-header-bg">
                   <th class="font-weight-bold">Corte / Denominación</th>
                   <th class="font-weight-bold text-center" style="width: 140px;">Cantidad</th>
                   <th class="font-weight-bold text-right" style="width: 150px;">Subtotal (Bs)</th>
@@ -80,7 +80,7 @@
               <tbody>
                 <tr v-for="item in cortes" :key="item.key">
                   <td class="text-caption font-weight-medium">
-                    <v-icon x-small :color="item.esBillete ? 'teal darken-1' : 'amber darken-2'" class="mr-1">
+                    <v-icon x-small :color="item.esBillete ? 'primary' : 'warning darken-1'" class="mr-1">
                       {{ item.esBillete ? 'mdi-cash' : 'mdi-circle-multiple' }}
                     </v-icon>
                     {{ item.nombre }}
@@ -144,8 +144,8 @@
         </v-btn>
         <v-spacer></v-spacer>
         <v-btn
-          color="teal darken-3"
-          class="text-white px-5 rounded-pill font-weight-bold elevation-2"
+          color="primary"
+          class="text-white px-5 rounded-pill font-weight-bold elevation-1"
           :loading="guardando"
           @click="confirmarCierre"
         >
@@ -228,12 +228,12 @@ export default {
     },
     claseCuadratura() {
       if (Math.abs(this.diferencia) < 0.01) {
-        return 'green lighten-5 green--text text--darken-4 border-green';
+        return 'box-cuadratura-exacta';
       }
       if (this.diferencia > 0) {
-        return 'blue lighten-5 blue--text text--darken-4 border-blue';
+        return 'box-cuadratura-sobrante';
       }
-      return 'red lighten-5 red--text text--darken-4 border-red';
+      return 'box-cuadratura-faltante';
     },
   },
   watch: {
@@ -336,13 +336,40 @@ export default {
   font-weight: bold;
   padding: 2px 4px !important;
 }
-.border-green {
-  border: 1px solid #81c784 !important;
+.section-header-bg {
+  background-color: #f8fafc;
 }
-.border-blue {
-  border: 1px solid #90caf9 !important;
+.theme--dark .section-header-bg {
+  background-color: rgba(255, 255, 255, 0.04);
 }
-.border-red {
-  border: 1px solid #ef9a9a !important;
+.box-cuadratura-exacta {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+  border: 1px solid #10b981 !important;
+  color: #059669;
+}
+.theme--dark .box-cuadratura-exacta {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  border: 1px solid #059669 !important;
+  color: #34d399;
+}
+.box-cuadratura-sobrante {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  border: 1px solid #3b82f6 !important;
+  color: #1d4ed8;
+}
+.theme--dark .box-cuadratura-sobrante {
+  background-color: rgba(37, 99, 235, 0.15) !important;
+  border: 1px solid #2563eb !important;
+  color: #60a5fa;
+}
+.box-cuadratura-faltante {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+  border: 1px solid #ef4444 !important;
+  color: #b91c1c;
+}
+.theme--dark .box-cuadratura-faltante {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  border: 1px solid #dc2626 !important;
+  color: #f87171;
 }
 </style>

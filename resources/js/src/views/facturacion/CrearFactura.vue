@@ -39,7 +39,7 @@
           Para liquidar lecturas mensuales y cuotas de convenio con cobro secuencial tipo FACTIFIV, utilice la caja de ventanilla.
         </div>
         <v-btn
-          color="teal darken-2"
+          color="primary"
           small
           class="rounded-pill font-weight-bold ml-2 mt-1 mt-sm-0 text-white elevation-1"
           to="/facturacion/caja"
@@ -314,7 +314,7 @@
         <h3 class="text-h5 font-weight-bold mb-1">¡Factura Emitida con Éxito!</h3>
         <p class="text-body-2 text-secondary mb-3">La factura ha sido registrada y validada ante el SIN.</p>
 
-        <v-card outlined class="pa-3 mb-4 text-left" style="background-color: #f9f9f9;">
+        <v-card outlined class="pa-3 mb-4 text-left receipt-summary-card">
           <div class="mb-1"><strong>N° Factura:</strong> {{ facturaEmitida.numero_factura }}</div>
           <div class="mb-1"><strong>Cliente:</strong> {{ facturaEmitida.nombre_razon_social }}</div>
           <div class="mb-1"><strong>NIT/CI:</strong> {{ facturaEmitida.numero_documento }}</div>
@@ -537,6 +537,19 @@ export default {
 <style scoped>
 .erp-card-elevated {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.receipt-summary-card {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+.theme--dark .receipt-summary-card {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 .gap-2 {
   gap: 8px;

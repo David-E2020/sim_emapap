@@ -1,72 +1,77 @@
 <template>
   <div class="dashboard-container">
-    <!-- 1. ENCABEZADO EJECUTIVO MINIMALISTA -->
-    <div class="dashboard-header mb-6 d-flex align-center justify-space-between flex-wrap">
-      <div>
-        <div class="d-flex align-center mb-1 flex-wrap">
-          <v-chip
-            x-small
-            color="primary"
-            outlined
-            class="font-weight-bold me-2 mb-1"
-          >
-            EMAPAP · PATACAMAYA
-          </v-chip>
-          <span class="text-caption text-secondary mb-1">
-            Gobierno Autónomo Municipal de Patacamaya &bull; Servicios Básicos
-          </span>
+    <!-- 1. CABECERA EJECUTIVA ESTÁNDAR DEL SISTEMA (ERP CARD) -->
+    <v-card class="mb-5 py-3 px-4 erp-card-elevated" rounded="lg">
+      <div class="d-flex align-center justify-space-between flex-wrap">
+        <!-- Título e Identidad del Módulo -->
+        <div class="d-flex align-center my-1">
+          <v-avatar color="primary" rounded="lg" class="mr-3 text-white elevation-2" size="46">
+            <v-icon color="white">mdi-view-dashboard-outline</v-icon>
+          </v-avatar>
+          <div>
+            <div class="d-flex align-center flex-wrap">
+              <h2 class="text-h5 font-weight-bold mb-0 mr-2">Panel de Control Operativo</h2>
+              <v-chip x-small color="primary" outlined class="font-weight-bold my-1">
+                SIAT · SERVICIOS BÁSICOS
+              </v-chip>
+            </div>
+            <span class="text-caption text-secondary">
+              Visión ejecutiva integral en tiempo real de comercialización, micromedición, cajas y facturación
+            </span>
+          </div>
         </div>
-        <h1 class="text-h4 font-weight-bold text--primary mb-1">
-          Panel de Control Operativo
-        </h1>
-        <p class="text-body-2 text-secondary mb-0">
-          Visión ejecutiva integral en tiempo real de comercialización, micromedición, cajas y facturación SIAT.
-        </p>
-      </div>
 
-      <!-- Badges de Estado y Acciones Rápidas -->
-      <div class="d-flex align-center gap-2 mt-4 mt-md-0 flex-wrap">
-        <v-chip
-          small
-          outlined
-          :color="metricas.recaudacion.cajas_abiertas > 0 ? 'success' : 'secondary'"
-          class="font-weight-bold"
-        >
-          <v-icon
-            left
-            x-small
+        <!-- Estados y Acciones de Cabecera -->
+        <div class="d-flex align-center flex-wrap my-1">
+          <v-chip
+            small
+            outlined
             :color="metricas.recaudacion.cajas_abiertas > 0 ? 'success' : 'secondary'"
+            class="font-weight-medium mr-2 my-1"
           >
-            mdi-circle
-          </v-icon>
-          {{ metricas.recaudacion.cajas_abiertas > 0 ? metricas.recaudacion.cajas_abiertas + ' Cajas Activas' : 'Cajas en Espera' }}
-        </v-chip>
+            <v-icon
+              left
+              x-small
+              :color="metricas.recaudacion.cajas_abiertas > 0 ? 'success' : 'secondary'"
+            >
+              {{ metricas.recaudacion.cajas_abiertas > 0 ? 'mdi-cash-check' : 'mdi-circle-small' }}
+            </v-icon>
+            {{ metricas.recaudacion.cajas_abiertas > 0 ? metricas.recaudacion.cajas_abiertas + ' Cajas Activas' : 'Cajas en Espera' }}
+          </v-chip>
 
-        <v-chip small color="primary" outlined class="font-weight-bold">
-          <v-icon left x-small color="primary">mdi-calendar-check</v-icon>
-          Período: {{ metricas.periodo_actual.nombre || '08/2026' }}
-        </v-chip>
+          <v-chip small color="primary" outlined class="font-weight-medium mr-2 my-1">
+            <v-icon left x-small color="primary">mdi-calendar-month-outline</v-icon>
+            Período: {{ metricas.periodo_actual.nombre || '08/2026' }}
+          </v-chip>
 
-        <v-btn
-          color="primary"
-          class="rounded-lg elevation-1 font-weight-bold"
-          :to="{ name: 'comercial_caja' }"
-        >
-          <v-icon left small>mdi-cash-register</v-icon> Abrir Ventanilla
-        </v-btn>
+          <v-btn
+            color="primary"
+            class="text-capitalize font-weight-medium rounded-pill elevation-1 mr-2 my-1"
+            :to="{ name: 'comercial_caja' }"
+          >
+            <v-icon left small>mdi-cash-register</v-icon> Abrir Ventanilla
+          </v-btn>
 
-        <v-btn
-          icon
-          outlined
-          class="rounded-lg"
-          :loading="cargando"
-          @click="cargarMetricas"
-          title="Actualizar datos en tiempo real"
-        >
-          <v-icon>mdi-refresh</v-icon>
-        </v-btn>
+          <v-tooltip bottom>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn
+                icon
+                outlined
+                color="primary"
+                class="rounded-lg my-1"
+                v-bind="attrs"
+                v-on="on"
+                :loading="cargando"
+                @click="cargarMetricas"
+              >
+                <v-icon small>mdi-refresh</v-icon>
+              </v-btn>
+            </template>
+            <span>Actualizar métricas en tiempo real</span>
+          </v-tooltip>
+        </div>
       </div>
-    </div>
+    </v-card>
 
     <!-- 2. FILA SUPERIOR: 4 KPIs DE ALTO IMPACTO -->
     <v-row dense class="mb-5" v-if="metricas">
@@ -667,6 +672,16 @@ export default {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.erp-card-elevated {
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .kpi-card {

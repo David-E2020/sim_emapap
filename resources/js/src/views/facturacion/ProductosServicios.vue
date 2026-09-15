@@ -53,7 +53,7 @@
         </template>
 
         <template v-slot:item.codigo_producto_sin="{ item }">
-          <v-chip x-small color="grey lighten-2">SIN: {{ item.codigo_producto_sin }}</v-chip>
+          <v-chip x-small outlined color="secondary" class="font-weight-medium">SIN: {{ item.codigo_producto_sin }}</v-chip>
         </template>
       </v-data-table>
     </v-card>
@@ -61,7 +61,12 @@
     <!-- DIÁLOGO NUEVO SERVICIO -->
     <v-dialog v-model="dialogoNuevo" max-width="500">
       <v-card rounded="lg" class="pa-4">
-        <h3 class="text-h6 font-weight-bold mb-3">Registrar Nuevo Servicio / Tarifa</h3>
+        <div class="d-flex align-center mb-3">
+          <v-avatar color="primary" rounded="lg" size="36" class="mr-2 text-white elevation-1">
+            <v-icon small color="white">mdi-tag-plus</v-icon>
+          </v-avatar>
+          <h3 class="text-h6 font-weight-bold mb-0">Registrar Nuevo Servicio / Tarifa</h3>
+        </div>
 
         <v-text-field
           v-model="form.codigo_producto_empresa"
@@ -197,6 +202,11 @@ export default {
 <style scoped>
 .erp-card-elevated {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 .gap-2 {
   gap: 8px;

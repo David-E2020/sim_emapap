@@ -49,7 +49,7 @@
         </template>
 
         <template v-slot:item.tipo="{ item }">
-          <v-chip x-small color="grey lighten-2">
+          <v-chip x-small outlined :color="item.codigo_tipo_documento_identidad === 5 ? 'primary' : 'secondary'" class="font-weight-medium">
             {{ item.codigo_tipo_documento_identidad === 5 ? 'NIT' : 'CI' }}
           </v-chip>
         </template>
@@ -70,7 +70,12 @@
     <!-- DIÁLOGO NUEVO CLIENTE -->
     <v-dialog v-model="dialogoNuevo" max-width="500">
       <v-card rounded="lg" class="pa-4">
-        <h3 class="text-h6 font-weight-bold mb-3">Registrar Cliente</h3>
+        <div class="d-flex align-center mb-3">
+          <v-avatar color="primary" rounded="lg" size="36" class="mr-2 text-white elevation-1">
+            <v-icon small color="white">mdi-account-plus</v-icon>
+          </v-avatar>
+          <h3 class="text-h6 font-weight-bold mb-0">Registrar Cliente</h3>
+        </div>
 
         <v-select
           v-model="formCliente.codigo_tipo_documento_identidad"
@@ -206,6 +211,11 @@ export default {
 <style scoped>
 .erp-card-elevated {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 .gap-2 {
   gap: 8px;

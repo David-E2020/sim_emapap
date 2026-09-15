@@ -38,8 +38,8 @@
               </div>
               <span class="text-caption text-secondary">{{ sucursal.municipio }} - {{ sucursal.departamento }}</span>
             </div>
-            <v-avatar color="grey lighten-4" size="40">
-              <v-icon color="primary">mdi-store</v-icon>
+            <v-avatar color="primary" rounded="lg" size="40" class="elevation-1">
+              <v-icon color="white">mdi-store</v-icon>
             </v-avatar>
           </div>
 
@@ -62,9 +62,9 @@
             </v-btn>
           </div>
 
-          <v-list dense class="py-0">
+          <v-list dense class="py-0 transparent">
             <v-list-item v-for="pv in sucursal.puntos_venta" :key="pv.id" class="px-0 py-1">
-              <v-list-item-avatar size="32" color="primary lighten-5" class="my-0 mr-2">
+              <v-list-item-avatar size="32" class="my-0 mr-2 pv-avatar">
                 <v-icon size="18" color="primary">mdi-cash-register</v-icon>
               </v-list-item-avatar>
               <v-list-item-content class="py-0">
@@ -73,8 +73,8 @@
                 </v-list-item-title>
                 <v-list-item-subtitle class="text-caption">
                   <span class="text-success font-weight-bold">● CUFD Vigente</span> |
-                  <span v-if="pv.sesion_activa" class="teal--text text--darken-2 font-weight-bold">
-                    <v-icon x-small color="teal darken-2">mdi-lock-open-variant</v-icon> Turno #{{ pv.sesion_activa.numero_sesion }} ({{ pv.sesion_activa.cajero ? pv.sesion_activa.cajero.name : 'En curso' }})
+                  <span v-if="pv.sesion_activa" class="success--text font-weight-bold">
+                    <v-icon x-small color="success">mdi-lock-open-variant</v-icon> Turno #{{ pv.sesion_activa.numero_sesion }} ({{ pv.sesion_activa.cajero ? pv.sesion_activa.cajero.name : 'En curso' }})
                   </span>
                   <span v-else class="grey--text">
                     <v-icon x-small color="grey">mdi-lock-outline</v-icon> Caja Cerrada
@@ -90,7 +90,7 @@
                 <!-- Ir a Cobranzas / Ventanilla -->
                 <v-tooltip bottom>
                   <template v-slot:activator="{ on, attrs }">
-                    <v-btn icon small color="teal darken-2" v-bind="attrs" v-on="on" :to="{ path: '/comercial/caja' }">
+                    <v-btn icon small color="primary" v-bind="attrs" v-on="on" :to="{ path: '/facturacion/caja' }">
                       <v-icon small>mdi-cash-register</v-icon>
                     </v-btn>
                   </template>
@@ -100,7 +100,7 @@
                 <!-- Asignar Cajero Habitual -->
                 <v-tooltip bottom>
                   <template v-slot:activator="{ on, attrs }">
-                    <v-btn icon small color="indigo" v-bind="attrs" v-on="on" @click="abrirAsignarCajero(pv)">
+                    <v-btn icon small color="primary" v-bind="attrs" v-on="on" @click="abrirAsignarCajero(pv)">
                       <v-icon small>mdi-account-cog</v-icon>
                     </v-btn>
                   </template>
@@ -110,7 +110,7 @@
                 <!-- Solicitar CUIS -->
                 <v-tooltip bottom>
                   <template v-slot:activator="{ on, attrs }">
-                    <v-btn icon small color="teal" v-bind="attrs" v-on="on" @click="renovarCuis(pv)">
+                    <v-btn icon small color="secondary" v-bind="attrs" v-on="on" @click="renovarCuis(pv)">
                       <v-icon small>mdi-key-change</v-icon>
                     </v-btn>
                   </template>
@@ -141,7 +141,7 @@
     <v-dialog v-model="dialogoNuevoPunto" max-width="500">
       <v-card rounded="lg" class="pa-4">
         <div class="d-flex align-center mb-3">
-          <v-avatar color="primary" size="36" class="mr-2 text-white">
+          <v-avatar color="primary" rounded="lg" size="36" class="mr-2 text-white elevation-1">
             <v-icon small color="white">mdi-store-plus</v-icon>
           </v-avatar>
           <h3 class="text-h6 font-weight-bold mb-0">Registrar Punto de Venta en el SIN</h3>
@@ -193,7 +193,7 @@
     <v-dialog v-model="dialogoAsignarCajero" max-width="480">
       <v-card rounded="lg" v-if="puntoSeleccionado" class="pa-4">
         <div class="d-flex align-center mb-3">
-          <v-avatar color="indigo" size="36" class="mr-2 text-white">
+          <v-avatar color="primary" rounded="lg" size="36" class="mr-2 text-white elevation-1">
             <v-icon small color="white">mdi-account-cog</v-icon>
           </v-avatar>
           <div>
@@ -230,7 +230,7 @@
 
         <div class="d-flex justify-end gap-2 mt-4">
           <v-btn text @click="dialogoAsignarCajero = false">Cancelar</v-btn>
-          <v-btn color="indigo" class="text-white rounded-pill font-weight-bold" :loading="guardandoAsignacion" @click="guardarAsignacionCajero">
+          <v-btn color="primary" class="text-white rounded-pill font-weight-bold" :loading="guardandoAsignacion" @click="guardarAsignacionCajero">
             Guardar Asignación
           </v-btn>
         </div>
@@ -391,6 +391,17 @@ export default {
 <style scoped>
 .erp-card-elevated {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.theme--dark .erp-card-elevated {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.pv-avatar {
+  background: rgba(43, 108, 176, 0.12) !important;
+}
+.theme--dark .pv-avatar {
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 .gap-1 {
   gap: 4px;

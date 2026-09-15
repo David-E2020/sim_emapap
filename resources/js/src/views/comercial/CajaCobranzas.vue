@@ -1,85 +1,41 @@
 <template>
   <div class="caja-cobranzas-container">
-    <!-- CABECERA DE VENTANILLA -->
+    <!-- 1. CABECERA DE VENTANILLA ESTÁNDAR DEL SISTEMA -->
     <v-card class="mb-5 py-3 px-4 erp-card-elevated" rounded="lg">
       <div class="d-flex align-center justify-space-between flex-wrap">
-        <div class="d-flex align-center">
-          <v-avatar color="teal darken-2" rounded="lg" class="mr-3 text-white elevation-2" size="48">
+        <div class="d-flex align-center my-1">
+          <v-avatar color="primary" rounded="lg" class="mr-3 text-white elevation-2" size="46">
             <v-icon color="white">mdi-cash-register</v-icon>
           </v-avatar>
           <div>
-            <h2 class="text-h5 font-weight-bold mb-0">Caja y Facturación en Ventanilla</h2>
+            <div class="d-flex align-center flex-wrap">
+              <h2 class="text-h5 font-weight-bold mb-0 mr-2 text--primary">Caja y Facturación en Ventanilla</h2>
+              <v-chip
+                x-small
+                :color="tieneSesionActiva ? 'success' : 'secondary'"
+                outlined
+                class="font-weight-bold my-1"
+              >
+                <v-icon left x-small :color="tieneSesionActiva ? 'success' : 'secondary'">
+                  {{ tieneSesionActiva ? 'mdi-circle' : 'mdi-circle-outline' }}
+                </v-icon>
+                {{ tieneSesionActiva ? 'VENTANILLA ACTIVA' : 'VENTANILLA EN ESPERA' }}
+              </v-chip>
+            </div>
             <span class="text-caption text-secondary">
-              Cobranza ágil de consumo de agua, cuotas de convenio y emisión en línea de Factura SIAT (Sector 13 - Servicios Básicos)
+              Cobranza ágil de consumo de agua, convenios y emisión en línea de Factura SIAT (Sector 13 - Servicios Básicos)
             </span>
           </div>
         </div>
 
-        <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
-          <v-chip color="teal" text-color="white" small class="font-weight-bold">
-            <v-icon x-small left color="white">mdi-printer-pos</v-icon> Térmica 80mm / Carta SIAT
-          </v-chip>
-          <v-chip color="blue-grey" outlined small class="font-weight-bold">
-            <v-icon x-small left>mdi-order-numeric-ascending</v-icon> Cobro Secuencial Cronológico
-          </v-chip>
-        </div>
-      </div>
-    </v-card>
-
-    <!-- BARRA DE ESTADO DE SESIÓN / TURNO DE CAJA -->
-    <v-card class="mb-5 py-3 px-4 rounded-lg erp-card-elevated" :class="tieneSesionActiva ? 'teal lighten-5 border-teal' : 'amber lighten-5 border-amber'">
-      <div class="d-flex align-center justify-space-between flex-wrap gap-2">
-        <div class="d-flex align-center">
-          <v-badge
-            dot
-            bordered
-            :color="tieneSesionActiva ? 'success' : 'error'"
-            offset-x="8"
-            offset-y="8"
-          >
-            <v-avatar :color="tieneSesionActiva ? 'teal darken-1' : 'amber darken-3'" size="42" class="mr-3 text-white">
-              <v-icon color="white" small>{{ tieneSesionActiva ? 'mdi-cash-check' : 'mdi-lock-outline' }}</v-icon>
-            </v-avatar>
-          </v-badge>
-
-          <div v-if="tieneSesionActiva && sesionActiva">
-            <div class="d-flex align-center flex-wrap">
-              <span class="text-subtitle-1 font-weight-black mr-2 teal--text text--darken-4">
-                {{ sesionActiva.punto_venta ? sesionActiva.punto_venta.nombre : 'Caja Central' }}
-              </span>
-              <v-chip x-small color="teal darken-2" text-color="white" class="font-weight-bold mr-2">
-                PUNTO {{ sesionActiva.punto_venta ? sesionActiva.punto_venta.codigo_punto_venta : 0 }} (SIAT)
-              </v-chip>
-              <v-chip x-small color="primary" outlined class="font-weight-bold">
-                {{ sesionActiva.numero_sesion }}
-              </v-chip>
-            </div>
-            <div class="text-caption text-secondary mt-0">
-              <strong>Cajero:</strong> {{ sesionActiva.cajero ? sesionActiva.cajero.name : 'Usuario' }} |
-              <strong>Apertura:</strong> {{ formatearHora(sesionActiva.fecha_apertura) }} |
-              <strong>Fondo Inicial:</strong> Bs {{ (sesionActiva.monto_apertura || 0).toFixed(2) }} |
-              <strong>Total Cobrado:</strong> <span class="font-weight-bold text-success">Bs {{ ((sesionActiva.monto_ventas_efectivo || 0) + (sesionActiva.monto_ventas_qr_banco || 0)).toFixed(2) }}</span>
-            </div>
-          </div>
-
-          <div v-else>
-            <div class="text-subtitle-1 font-weight-black error--text">
-              CAJA CERRADA - VENTANILLA FUERA DE SERVICIO
-            </div>
-            <div class="text-caption text-secondary">
-              Debe realizar la apertura formal del turno con su fondo de gaveta para registrar cobros y emitir facturas SIAT.
-            </div>
-          </div>
-        </div>
-
-        <!-- Botones de Acción de Turno -->
-        <div class="d-flex align-center gap-2">
+        <!-- Acciones rápidas de cabecera -->
+        <div class="d-flex align-center flex-wrap my-1">
           <template v-if="tieneSesionActiva">
             <v-btn
               small
               outlined
-              color="teal darken-2"
-              class="rounded-pill font-weight-bold"
+              color="primary"
+              class="rounded-pill font-weight-medium mr-2 my-1"
               @click="mostrarModalMovimiento = true"
             >
               <v-icon left x-small>mdi-cash-fast</v-icon> Movimiento Gaveta
@@ -87,8 +43,8 @@
 
             <v-btn
               small
-              color="teal darken-3"
-              class="rounded-pill font-weight-bold text-white elevation-1"
+              color="warning darken-1"
+              class="rounded-pill font-weight-medium text-white elevation-1 mr-2 my-1"
               @click="mostrarModalCierre = true"
             >
               <v-icon left x-small>mdi-lock-check</v-icon> Cerrar Turno / Arqueo
@@ -97,13 +53,55 @@
 
           <template v-else>
             <v-btn
-              color="teal darken-2"
-              class="rounded-pill font-weight-bold text-white elevation-2 px-4"
+              color="primary"
+              class="rounded-pill font-weight-bold text-white elevation-1 px-4 my-1"
               @click="mostrarModalApertura = true"
             >
-              <v-icon left small>mdi-lock-open-variant</v-icon> ABRIR TURNO DE CAJA
+              <v-icon left small>mdi-lock-open-variant</v-icon> Abrir Turno de Caja
             </v-btn>
           </template>
+        </div>
+      </div>
+    </v-card>
+
+    <!-- 2. BARRA DE ESTADO DE SESIÓN / TURNO ACTIVO (Solo visible cuando hay turno abierto) -->
+    <v-card
+      v-if="tieneSesionActiva && sesionActiva"
+      class="mb-5 py-3 px-4 rounded-lg erp-card-elevated session-active-card"
+    >
+      <div class="d-flex align-center justify-space-between flex-wrap">
+        <div class="d-flex align-center my-1">
+          <v-badge
+            dot
+            bordered
+            color="success"
+            offset-x="8"
+            offset-y="8"
+          >
+            <v-avatar color="primary" size="40" class="mr-3 text-white elevation-1">
+              <v-icon color="white" small>mdi-cash-check</v-icon>
+            </v-avatar>
+          </v-badge>
+
+          <div>
+            <div class="d-flex align-center flex-wrap">
+              <span class="text-subtitle-1 font-weight-bold mr-2 text--primary">
+                {{ sesionActiva.punto_venta ? sesionActiva.punto_venta.nombre : 'Caja Central' }}
+              </span>
+              <v-chip x-small color="primary" class="font-weight-bold mr-2 my-1" text-color="white">
+                PUNTO {{ sesionActiva.punto_venta ? sesionActiva.punto_venta.codigo_punto_venta : 0 }} (SIAT)
+              </v-chip>
+              <v-chip x-small color="primary" outlined class="font-weight-bold my-1 mr-2">
+                TURNO #{{ sesionActiva.numero_sesion }}
+              </v-chip>
+            </div>
+            <div class="text-caption text-secondary mt-0">
+              <strong>Cajero:</strong> {{ sesionActiva.cajero ? sesionActiva.cajero.name : 'Usuario' }} |
+              <strong>Apertura:</strong> {{ formatearHora(sesionActiva.fecha_apertura) }} |
+              <strong>Fondo Inicial:</strong> Bs {{ (sesionActiva.monto_apertura || 0).toFixed(2) }} |
+              <strong>Total Cobrado:</strong> <span class="font-weight-bold success--text">Bs {{ ((sesionActiva.monto_ventas_efectivo || 0) + (sesionActiva.monto_ventas_qr_banco || 0)).toFixed(2) }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </v-card>
@@ -187,7 +185,7 @@
                   <strong>Categoría:</strong> {{ estadoCuenta.abonado.categoria ? estadoCuenta.abonado.categoria.nombre : 'S/C' }} |
                   <strong>Zona:</strong> {{ estadoCuenta.abonado.zona ? estadoCuenta.abonado.zona.nombre : 'S/Z' }}
                   <span v-if="estadoCuenta.abonado.medidor_actual">| <strong>Medidor:</strong> {{ estadoCuenta.abonado.medidor_actual.numero_serie }}</span>
-                  <span v-if="estadoCuenta.abonado.es_tercera_edad" class="ml-1 text-teal font-weight-bold">| (Ley 1886 3ra Edad -20%)</span>
+                  <span v-if="estadoCuenta.abonado.es_tercera_edad" class="ml-1 primary--text font-weight-bold">| (Ley 1886 3ra Edad -20%)</span>
                 </div>
               </div>
 
@@ -219,20 +217,20 @@
 
           <!-- TABLA DE LECTURAS IMPAGAS (SELECCIÓN SECUENCIAL TIPO FACTIFIV) -->
           <v-card rounded="lg" class="mb-4 erp-card-elevated">
-            <v-card-title class="py-2 px-4 d-flex justify-space-between align-center text-subtitle-1 font-weight-bold grey lighten-4 flex-wrap">
-              <div class="d-flex align-center">
+            <v-card-title class="py-2 px-4 d-flex justify-space-between align-center text-subtitle-1 font-weight-bold section-header-bg flex-wrap">
+              <div class="d-flex align-center my-1">
                 <v-icon left color="primary" small>mdi-format-list-numbered</v-icon>
-                <span>Meses / Facturas Pendientes ({{ estadoCuenta.lecturas_pendientes.length }})</span>
+                <span class="text--primary">Meses / Facturas Pendientes ({{ estadoCuenta.lecturas_pendientes.length }})</span>
               </div>
 
               <!-- BOTONERA RÁPIDA DE SELECCIÓN TIPO FACTIFIV -->
-              <div class="d-flex align-center gap-1 mt-1 mt-sm-0" v-if="estadoCuenta.lecturas_pendientes.length > 0">
-                <span class="text-caption font-weight-bold mr-2 grey--text text--darken-2">Pagar:</span>
+              <div class="d-flex align-center flex-wrap my-1" v-if="estadoCuenta.lecturas_pendientes.length > 0">
+                <span class="text-caption font-weight-bold mr-2 text-secondary">Pagar:</span>
                 <v-btn
                   x-small
-                  color="teal"
+                  color="primary"
                   outlined
-                  class="font-weight-bold"
+                  class="font-weight-bold mr-1 my-1"
                   :disabled="estadoCuenta.lecturas_pendientes.length < 1"
                   @click="seleccionarNMeses(1)"
                 >
@@ -240,9 +238,9 @@
                 </v-btn>
                 <v-btn
                   x-small
-                  color="teal"
+                  color="primary"
                   outlined
-                  class="font-weight-bold"
+                  class="font-weight-bold mr-1 my-1"
                   v-if="estadoCuenta.lecturas_pendientes.length >= 2"
                   @click="seleccionarNMeses(2)"
                 >
@@ -250,9 +248,9 @@
                 </v-btn>
                 <v-btn
                   x-small
-                  color="teal"
+                  color="primary"
                   outlined
-                  class="font-weight-bold"
+                  class="font-weight-bold mr-1 my-1"
                   v-if="estadoCuenta.lecturas_pendientes.length >= 3"
                   @click="seleccionarNMeses(3)"
                 >
@@ -261,7 +259,7 @@
                 <v-btn
                   x-small
                   color="primary"
-                  class="font-weight-bold elevation-1"
+                  class="font-weight-bold elevation-1 mr-1 my-1"
                   @click="seleccionarNMeses(estadoCuenta.lecturas_pendientes.length)"
                 >
                   Todos ({{ estadoCuenta.lecturas_pendientes.length }})
@@ -270,6 +268,7 @@
                   x-small
                   text
                   color="secondary"
+                  class="my-1"
                   @click="seleccionarNMeses(0)"
                 >
                   Limpiar
@@ -278,12 +277,12 @@
             </v-card-title>
 
             <!-- AVISO DE ORDEN SECUENCIAL -->
-            <div class="px-4 py-1 blue-grey lighten-5 text-caption d-flex align-center justify-space-between">
+            <div class="px-4 py-2 info-banner-bg text-caption d-flex align-center justify-space-between flex-wrap">
               <span>
-                <v-icon x-small color="teal" class="mr-1">mdi-information</v-icon>
+                <v-icon x-small color="primary" class="mr-1">mdi-information</v-icon>
                 <strong>Cobro Secuencial:</strong> Se cancelan obligatoriamente desde el mes más antiguo adeudado hacia el más reciente.
               </span>
-              <span class="font-weight-bold teal--text">
+              <span class="font-weight-bold primary--text">
                 {{ lecturasSeleccionadas.length }} de {{ estadoCuenta.lecturas_pendientes.length }} mes(es) seleccionado(s)
               </span>
             </div>
@@ -319,14 +318,14 @@
                         dense
                         hide-details
                         class="ma-0 pa-0 justify-center"
-                        color="teal"
+                        color="primary"
                         readonly
                       ></v-checkbox>
                     </td>
                     <td>
                       <div class="font-weight-bold">
                         {{ lec.periodo ? lec.periodo.periodo : '-' }}
-                        <v-chip x-small color="teal" text-color="white" class="ml-1" v-if="idx === 0">
+                        <v-chip x-small color="primary" text-color="white" class="ml-1" v-if="idx === 0">
                           Más antiguo
                         </v-chip>
                       </div>
@@ -335,10 +334,10 @@
                     <td class="text-right">Bs {{ parseFloat(lec.monto_agua).toFixed(2) }}</td>
                     <td class="text-right">Bs {{ parseFloat(lec.monto_alcantarillado).toFixed(2) }}</td>
                     <td class="text-right text-success font-weight-bold" v-if="parseFloat(lec.monto_descuento_ley1886) > 0">
-                      -Bs {{ parseFloat(lec.monto_descuento_ley1886).toFixed(2) }}
+                       -Bs {{ parseFloat(lec.monto_descuento_ley1886).toFixed(2) }}
                     </td>
                     <td class="text-right text-secondary" v-else>Bs 0.00</td>
-                    <td class="text-right font-weight-bold" :class="lecturasSeleccionadas.includes(lec.id) ? 'teal--text text--darken-2' : ''">
+                    <td class="text-right font-weight-bold" :class="lecturasSeleccionadas.includes(lec.id) ? 'primary--text' : ''">
                       Bs {{ parseFloat(lec.total_facturado).toFixed(2) }}
                     </td>
                   </tr>
@@ -355,8 +354,8 @@
 
           <!-- CUOTAS DE CONVENIO SI TIENE PENDIENTES -->
           <v-card rounded="lg" class="erp-card-elevated" v-if="estadoCuenta.cuotas_convenio_pendientes.length > 0">
-            <v-card-title class="py-2 px-4 text-subtitle-1 font-weight-bold grey lighten-4 d-flex justify-space-between">
-              <span>Cuotas de Convenio de Pago</span>
+            <v-card-title class="py-2 px-4 text-subtitle-1 font-weight-bold section-header-bg d-flex justify-space-between">
+              <span class="text--primary">Cuotas de Convenio de Pago</span>
               <v-btn text x-small color="primary" @click="toggleTodasCuotas">
                 {{ cuotasSeleccionadas.length === estadoCuenta.cuotas_convenio_pendientes.length ? 'Desmarcar Cuotas' : 'Seleccionar Todas' }}
               </v-btn>
@@ -383,7 +382,7 @@
                         dense
                         hide-details
                         class="ma-0 pa-0"
-                        color="teal"
+                        color="primary"
                       ></v-checkbox>
                     </td>
                     <td class="font-weight-bold">Cuota #{{ c.numero_cuota }}</td>
@@ -424,11 +423,11 @@
             </div>
 
             <!-- Gran Total en grande -->
-            <v-card outlined class="pa-3 mb-3 teal lighten-5 text-center rounded-lg border-teal">
-              <div class="text-caption text-uppercase font-weight-bold teal--text text--darken-4">
+            <v-card outlined class="pa-3 mb-3 summary-box-active text-center rounded-lg">
+              <div class="text-caption text-uppercase font-weight-bold primary--text">
                 TOTAL A COBRAR EN VENTANILLA
               </div>
-              <div class="text-h4 font-weight-black teal--text text--darken-3 mt-1">
+              <div class="text-h4 font-weight-black primary--text mt-1">
                 Bs {{ totalSeleccionado.toFixed(2) }}
               </div>
             </v-card>
@@ -496,11 +495,11 @@
             ></v-select>
 
             <!-- Calculadora de Cambio para Efectivo -->
-            <div v-if="datosCobro.codigo_metodo_pago === 1" class="mb-3 pa-2 grey lighten-4 rounded-lg">
+            <div v-if="datosCobro.codigo_metodo_pago === 1" class="mb-3 pa-3 calculator-card rounded-lg">
               <div class="d-flex justify-space-between align-center mb-1">
                 <span class="text-caption font-weight-bold">Efectivo Recibido (Bs):</span>
                 <!-- Botón Monto Exacto -->
-                <v-btn x-small text color="teal" class="font-weight-bold" @click="efectivoRecibido = totalSeleccionado">
+                <v-btn x-small text color="primary" class="font-weight-bold" @click="efectivoRecibido = totalSeleccionado">
                   Monto Exacto
                 </v-btn>
               </div>
@@ -512,16 +511,16 @@
                 outlined
                 hide-details
                 prefix="Bs"
-                class="mb-2 white"
+                class="mb-2"
               ></v-text-field>
 
               <!-- Botones rápidos de billetes -->
-              <div class="d-flex justify-space-between gap-1 mb-2">
-                <v-btn x-small outlined color="teal" @click="agregarEfectivo(10)">+10</v-btn>
-                <v-btn x-small outlined color="teal" @click="agregarEfectivo(20)">+20</v-btn>
-                <v-btn x-small outlined color="teal" @click="agregarEfectivo(50)">+50</v-btn>
-                <v-btn x-small outlined color="teal" @click="agregarEfectivo(100)">+100</v-btn>
-                <v-btn x-small outlined color="teal" @click="agregarEfectivo(200)">+200</v-btn>
+              <div class="d-flex justify-space-between flex-wrap mb-2">
+                <v-btn x-small outlined color="primary" class="my-1" @click="agregarEfectivo(10)">+10</v-btn>
+                <v-btn x-small outlined color="primary" class="my-1" @click="agregarEfectivo(20)">+20</v-btn>
+                <v-btn x-small outlined color="primary" class="my-1" @click="agregarEfectivo(50)">+50</v-btn>
+                <v-btn x-small outlined color="primary" class="my-1" @click="agregarEfectivo(100)">+100</v-btn>
+                <v-btn x-small outlined color="primary" class="my-1" @click="agregarEfectivo(200)">+200</v-btn>
               </div>
 
               <!-- Indicador de Cambio -->
@@ -537,7 +536,7 @@
             <v-btn
               block
               x-large
-              color="teal darken-2"
+              color="primary"
               class="rounded-pill font-weight-bold elevation-2 text-white"
               :disabled="totalSeleccionado <= 0 || (datosCobro.codigo_metodo_pago === 1 && efectivoRecibido < totalSeleccionado)"
               :loading="procesandoCobro"
@@ -587,24 +586,24 @@
           </v-col>
 
           <v-col cols="12" sm="6" md="3">
-            <v-card class="pa-3 text-center erp-card-elevated teal lighten-5" rounded="lg">
-              <div class="text-caption teal--text text--darken-3 font-weight-bold text-uppercase">Efectivo en Gaveta</div>
-              <div class="text-h5 font-weight-black teal--text text--darken-4 mt-1">
+            <v-card class="pa-3 text-center erp-card-elevated summary-box-active" rounded="lg">
+              <div class="text-caption primary--text font-weight-bold text-uppercase">Efectivo en Gaveta</div>
+              <div class="text-h5 font-weight-black primary--text mt-1">
                 Bs {{ parseFloat(sesionActiva.monto_esperado_efectivo || 0).toFixed(2) }}
               </div>
-              <div class="text-caption teal--text text--darken-2">Fondo + Ventas Efectivo</div>
+              <div class="text-caption text-secondary">Fondo + Ventas Efectivo</div>
             </v-card>
           </v-col>
         </v-row>
 
         <!-- TABLA DE ÚLTIMOS COBROS DE ESTE TURNO CON BOTÓN DE REIMPRESIÓN RÁPIDA -->
         <v-card rounded="lg" class="erp-card-elevated">
-          <v-card-title class="py-3 px-4 d-flex justify-space-between align-center grey lighten-4">
+          <v-card-title class="py-3 px-4 d-flex justify-space-between align-center section-header-bg">
             <div class="d-flex align-center">
-              <v-icon color="teal darken-2" left>mdi-history</v-icon>
-              <span class="text-subtitle-1 font-weight-bold">Últimos Cobros Realizados en este Turno</span>
+              <v-icon color="primary" left>mdi-history</v-icon>
+              <span class="text-subtitle-1 font-weight-bold text--primary">Últimos Cobros Realizados en este Turno</span>
             </div>
-            <v-chip small color="teal darken-2" text-color="white" class="font-weight-bold">
+            <v-chip small color="primary" text-color="white" class="font-weight-bold">
               Turno #{{ sesionActiva.numero_sesion }}
             </v-chip>
           </v-card-title>
@@ -638,7 +637,7 @@
                     Bs {{ parseFloat(fac.monto_total).toFixed(2) }}
                   </td>
                   <td class="text-center">
-                    <v-chip x-small :color="fac.codigo_metodo_pago === 1 ? 'teal' : 'primary'" text-color="white">
+                    <v-chip x-small :color="fac.codigo_metodo_pago === 1 ? 'success' : 'primary'" text-color="white">
                       {{ fac.codigo_metodo_pago === 1 ? 'EFECTIVO' : 'QR / BANCO' }}
                     </v-chip>
                   </td>
@@ -651,7 +650,7 @@
                         <v-btn
                           icon
                           small
-                          color="teal darken-2"
+                          color="primary"
                           v-bind="attrs"
                           v-on="on"
                           @click="abrirVisorFactura(fac.id, 'rollo')"
@@ -693,16 +692,16 @@
       </div>
 
       <!-- CASO 2: TURNO CERRADO / NO INICIADO -->
-      <v-card v-else rounded="lg" class="pa-8 text-center erp-card-elevated">
-        <v-avatar color="amber lighten-4" size="72" class="mb-3">
-          <v-icon size="40" color="amber darken-3">mdi-cash-register</v-icon>
+      <v-card v-else rounded="lg" class="pa-10 text-center erp-card-elevated my-6 empty-session-card">
+        <v-avatar color="primary" size="76" class="mb-4 elevation-2">
+          <v-icon size="40" color="white">mdi-cash-register</v-icon>
         </v-avatar>
-        <h3 class="text-h5 font-weight-bold mb-2">Turno de Caja No Iniciado</h3>
+        <h3 class="text-h5 font-weight-bold mb-2 text--primary">Apertura de Turno de Ventanilla Requerida</h3>
         <p class="text-body-2 text-secondary mb-5" style="max-width: 520px; margin: 0 auto;">
-          Para habilitar la ventanilla de cobranzas y emitir facturas electrónicas oficiales en línea con el SIAT, debe realizar la apertura formal de su turno.
+          Para habilitar la cobranza de consumo de agua potable, registrar cuotas y emitir facturas electrónicas oficiales en línea con el SIAT, debe realizar la apertura formal de su turno indicando el fondo de gaveta inicial.
         </p>
         <v-btn
-          color="teal darken-2"
+          color="primary"
           class="rounded-pill font-weight-bold text-white elevation-2 px-6"
           large
           @click="mostrarModalApertura = true"
@@ -715,7 +714,7 @@
     <!-- DIÁLOGO DE COBRO EXITOSO (NOTIFICACIÓN Y ACCESO AL VISOR) -->
     <v-dialog v-model="modalFacturaEmitida" max-width="520" persistent>
       <v-card rounded="lg" v-if="facturaResultado">
-        <v-card-title class="teal darken-2 white--text py-3">
+        <v-card-title class="primary white--text py-3">
           <v-icon color="white" class="mr-2">mdi-check-circle</v-icon> Cobro y Factura SIAT Emitida
         </v-card-title>
         <v-card-text class="pt-4 text-center">
@@ -723,7 +722,7 @@
           <div class="text-h4 font-weight-black primary--text mb-1">N° {{ facturaResultado.numero_factura }}</div>
           <div class="text-body-2 font-weight-bold mb-3">Monto Total: Bs {{ parseFloat(facturaResultado.monto_total).toFixed(2) }}</div>
 
-          <v-card outlined class="pa-3 mb-3 grey lighten-4 text-left">
+          <v-card outlined class="pa-3 mb-3 section-header-bg text-left">
             <div class="text-caption"><strong>Cliente:</strong> {{ facturaResultado.nombre_razon_social }}</div>
             <div class="text-caption"><strong>NIT/CI:</strong> {{ facturaResultado.numero_documento }}</div>
             <div class="text-caption text-truncate"><strong>CUF:</strong> {{ facturaResultado.cuf }}</div>
@@ -747,7 +746,7 @@
           <v-btn
             block
             outlined
-            color="teal"
+            color="primary"
             class="rounded-pill mb-2 font-weight-bold"
             @click="abrirVisorFactura(facturaResultado.id, 'carta')"
           >
@@ -1309,27 +1308,71 @@ export default {
 .erp-card-elevated {
   border: 1px solid rgba(0, 0, 0, 0.07);
   box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
 }
-.border-teal {
-  border: 1.5px solid #00897b !important;
+.theme--dark .erp-card-elevated {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.35);
 }
-.border-top {
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+.session-active-card {
+  border-left: 4px solid #10b981 !important;
 }
-.cursor-pointer {
-  cursor: pointer;
-  user-select: none;
+.empty-session-card {
+  border: 2px dashed rgba(0, 0, 0, 0.12) !important;
+}
+.theme--dark .empty-session-card {
+  border: 2px dashed rgba(255, 255, 255, 0.15) !important;
+}
+.section-header-bg {
+  background-color: #f8fafc;
+}
+.theme--dark .section-header-bg {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.info-banner-bg {
+  background-color: rgba(37, 99, 235, 0.05);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.1);
+}
+.theme--dark .info-banner-bg {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+}
+.summary-box-active {
+  background-color: rgba(37, 99, 235, 0.05) !important;
+  border: 1px solid rgba(37, 99, 235, 0.2) !important;
+}
+.theme--dark .summary-box-active {
+  background-color: rgba(37, 99, 235, 0.15) !important;
+  border: 1px solid rgba(59, 130, 246, 0.35) !important;
+}
+.calculator-card {
+  background-color: #f8fafc;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.theme--dark .calculator-card {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .fila-seleccionada {
-  background-color: #e0f2f1 !important;
+  background-color: rgba(37, 99, 235, 0.08) !important;
+}
+.theme--dark .fila-seleccionada {
+  background-color: rgba(59, 130, 246, 0.18) !important;
 }
 .tabla-cobranza tr:hover {
   background-color: #f1f5f9;
 }
-.gap-1 {
-  gap: 4px;
+.theme--dark .tabla-cobranza tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
-.gap-2 {
-  gap: 8px;
+.border-top {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.theme--dark .border-top {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.cursor-pointer {
+  cursor: pointer;
+  user-select: none;
 }
 </style>
