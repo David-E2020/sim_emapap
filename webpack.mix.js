@@ -31,6 +31,8 @@ mix
   .vue()
   .copyDirectory('resources/js/src/assets/images', 'public/images/')
 
+mix.setPublicPath('public')
+
 mix.webpackConfig({
   output: {
     chunkFilename: 'js/chunks/[name].[chunkhash].js',

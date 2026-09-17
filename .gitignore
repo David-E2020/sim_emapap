@@ -45,3 +45,6 @@ pnpm-debug.log*
 *.sw?
 /public/siat/facturas/
 /public/siat/paquetes/
+/database/backups/
+*.sql
+*.sql.gz

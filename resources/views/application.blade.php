@@ -10,17 +10,17 @@
   <title>EMAPA - Sistema Integrado de Gestión Empresarial</title>
 
   <!-- Favicons & Mobile Touch Icons -->
-  <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
-  <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 
   <!-- Preconnect and Google Fonts (Inter) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <script src="{{ asset(mix('js/app.js')) }}?v={{ filemtime(public_path('js/app.js')) }}" defer></script>
+  <script src="{{ mix('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}" defer></script>
 </head>
 
 <body>
