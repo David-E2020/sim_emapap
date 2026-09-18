@@ -119,6 +119,17 @@ window.axios.interceptors.response.use(
                 }
                 break;
 
+            case 429:
+                if (izi) {
+                    izi.warning({
+                        title: 'Límite de Solicitudes',
+                        message: data.message || 'Demasiados intentos en poco tiempo. Por favor, espere un momento antes de reintentar.',
+                        position: 'topRight',
+                        timeout: 5000,
+                    });
+                }
+                break;
+
             case 500:
                 if (izi) {
                     izi.error({

@@ -296,10 +296,16 @@ export default {
         })
         .catch(err => {
           this.loaderLogin = false
-          if (err.response && err.response.data && err.response.data.message) {
+          if (err.response && err.response.status === 429) {
             this.snackbar = {
               status: true,
-              text: err.response.data.message,
+              text: 'Demasiados intentos de acceso. Por favor, espere un momento antes de reintentar.',
+              color: 'error',
+            }
+          } else if (err.response && err.response.data && err.response.data.message) {
+            this.snackbar = {
+              status: true,
+              text: typeof err.response.data.message === 'string' ? err.response.data.message : 'Error al verificar credenciales.',
               color: 'error',
             }
           } else {
