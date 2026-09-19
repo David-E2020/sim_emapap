@@ -171,11 +171,23 @@
             </v-chip>
           </div>
           <vue-apex-charts
+            v-if="tieneHistoricoParaGrafico"
             type="area"
             height="290"
             :options="chartFacturacionOptions"
             :series="chartFacturacionSeries"
           ></vue-apex-charts>
+          <div v-else class="d-flex flex-column align-center justify-center py-10 text-center" style="min-height: 290px;">
+            <v-avatar color="primary lighten-5" size="56" class="mb-3">
+              <v-icon size="30" color="primary">mdi-chart-line</v-icon>
+            </v-avatar>
+            <span class="text-subtitle-2 font-weight-bold text--primary">
+              Sin períodos históricos liquidados aún
+            </span>
+            <span class="text-caption text-secondary mt-1" style="max-width: 320px;">
+              Las curvas de facturación y consumo de agua potable se generarán automáticamente a medida que se emitan liquidaciones y cobros en el sistema.
+            </span>
+          </div>
         </v-card>
       </v-col>
 
@@ -193,11 +205,33 @@
             </div>
           </div>
           <vue-apex-charts
+            v-if="tieneAbonadosParaGrafico"
             type="donut"
             height="290"
             :options="chartCategoriasOptions"
             :series="chartCategoriasSeries"
           ></vue-apex-charts>
+          <div v-else class="d-flex flex-column align-center justify-center py-10 text-center" style="min-height: 290px;">
+            <v-avatar color="info lighten-5" size="56" class="mb-3">
+              <v-icon size="30" color="info">mdi-account-group-outline</v-icon>
+            </v-avatar>
+            <span class="text-subtitle-2 font-weight-bold text--primary">
+              Sin abonados registrados aún
+            </span>
+            <span class="text-caption text-secondary mt-1" style="max-width: 280px;">
+              El catastro de conexiones está listo para comenzar a registrar abonados.
+            </span>
+            <v-btn
+              small
+              depressed
+              color="primary"
+              class="mt-3 text-capitalize rounded-pill font-weight-medium"
+              :to="{ name: 'comercial_abonados' }"
+            >
+              <v-icon left x-small>mdi-plus</v-icon>
+              Registrar Abonado
+            </v-btn>
+          </div>
         </v-card>
       </v-col>
     </v-row>
@@ -506,6 +540,15 @@ export default {
   computed: {
     isDark() {
       return this.$vuetify.theme.dark
+    },
+    tieneHistoricoParaGrafico() {
+      const cats = this.metricas.graficos.categorias || []
+      const fact = this.metricas.graficos.facturado || []
+      return cats.length > 0 && fact.some(val => Number(val) > 0)
+    },
+    tieneAbonadosParaGrafico() {
+      const series = this.metricas.graficos.donut_series || []
+      return series.length > 0 && series.some(val => Number(val) > 0)
     },
     chartFacturacionSeries() {
       return [

@@ -4,7 +4,7 @@ import Router from 'vue-router';
 export const routes = [
   {
     path: '/',
-    redirect: 'dashboard',
+    redirect: '/dashboard',
   },
   {
     path: '/dashboard',
@@ -59,15 +59,19 @@ export const routes = [
     },
   },
   {
-    path: '/control_acceso',
-    redirect: '/roles-permisos',
-  },
-  {
     path: '/admin-menu',
     redirect: '/roles-permisos',
   },
   {
     path: '/admin_menu',
+    redirect: '/roles-permisos',
+  },
+  {
+    path: '/control-acceso',
+    redirect: '/roles-permisos',
+  },
+  {
+    path: '/control_acceso',
     redirect: '/roles-permisos',
   },
   {

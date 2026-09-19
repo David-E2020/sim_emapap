@@ -39,29 +39,20 @@ class MenuSeeder extends Seeder
             ]
         );
 
-        $subAdminMenu = Menu::updateOrCreate(
-            ['route' => 'admin_menu'],
+        $subRolesPermisos = Menu::updateOrCreate(
+            ['route' => 'roles_permisos'],
             [
-                'icon' => 'mdiCog',
+                'icon' => 'mdiShieldKeyOutline',
                 'menu_id' => $menuAdmin->id,
                 'level' => 1,
-                'label' => 'Administrar Menu',
+                'label' => 'Roles y Permisos',
                 'order' => 2,
                 'estado' => true,
             ]
         );
 
-        $subControlAcceso = Menu::updateOrCreate(
-            ['route' => 'control_acceso'],
-            [
-                'icon' => 'mdiAccountCogOutline',
-                'menu_id' => $menuAdmin->id,
-                'level' => 1,
-                'label' => 'Control de Acceso',
-                'order' => 3,
-                'estado' => true,
-            ]
-        );
+        // Desactivar rutas redundantes en caso de existir previamente
+        Menu::whereIn('route', ['admin_menu', 'control_acceso'])->update(['estado' => false]);
 
         // 2. DATOS / PARAMETRICAS (Nivel 0)
         $menuDatos = Menu::updateOrCreate(
@@ -87,7 +78,7 @@ class MenuSeeder extends Seeder
         );
 
         // ASIGNACIONES DE ROLES PARA TODOS LOS MENUS HIJOS
-        $subMenus = [$subUsuarios->id, $subAdminMenu->id, $subControlAcceso->id, $subParametrica->id];
+        $subMenus = [$subUsuarios->id, $subRolesPermisos->id, $subParametrica->id];
         $roles = Rol::pluck('id');
 
         foreach ($subMenus as $menuId) {
