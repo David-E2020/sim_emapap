@@ -171,12 +171,30 @@ class ConfiguracionEmpresaController extends Controller
         $ambienteConfigKey = $ambienteTarget === 1 ? 'produccion' : 'piloto';
         $endpoint = config("siat.wsdl.{$ambienteConfigKey}.sincronizacion", 'https://pilotosiatservicios.impuestos.gob.bo/v2/FacturacionSincronizacion?wsdl');
 
+        $overrides = [
+            'ambiente' => $ambienteTarget,
+        ];
+        if ($request->filled('codigo_modalidad')) {
+            $overrides['modalidad'] = (int) $request->input('codigo_modalidad');
+        }
+        if ($request->filled('nit')) {
+            $overrides['nit'] = (string) $request->input('nit');
+        }
+        if ($request->filled('codigo_sistema')) {
+            $overrides['codigo_sistema'] = (string) $request->input('codigo_sistema');
+        }
+        if ($request->filled('token_delegado')) {
+            $overrides['token_delegado'] = (string) $request->input('token_delegado');
+        }
+
         try {
-            $soapService = new SiatSoapService();
+            $soapService = new SiatSoapService($overrides);
             $resultado = $soapService->verificarComunicacion();
             $tiempoMs = round((microtime(true) - $inicio) * 1000, 2);
 
             $ambienteNombre = $ambienteTarget === 1 ? 'PRODUCCIÓN OFICIAL' : 'PRUEBAS / PILOTO';
+
+            $mensajeFinal = $resultado['mensajes'] ?? ($resultado['mensaje'] ?? 'Comunicación procesada con el SIN');
 
             return response()->json([
                 'success' => $resultado['success'] ?? false,
@@ -187,9 +205,9 @@ class ConfiguracionEmpresaController extends Controller
                 'tiempo_respuesta_ms' => $tiempoMs,
                 'endpoint' => $endpoint,
                 'codigo_transaccion' => $resultado['codigo'] ?? null,
-                'mensajes' => $resultado['mensajes'] ?? 'Comunicación exitosa',
-                'message' => $resultado['mensajes'] ?? 'Comunicación procesada con el SIN',
-                'mensaje' => $resultado['mensajes'] ?? 'Comunicación procesada con el SIN',
+                'mensajes' => $mensajeFinal,
+                'message' => $mensajeFinal,
+                'mensaje' => $mensajeFinal,
                 'detalle' => $resultado,
             ], Response::HTTP_OK);
         } catch (Exception $e) {

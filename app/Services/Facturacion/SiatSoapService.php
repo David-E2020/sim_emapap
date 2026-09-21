@@ -17,7 +17,7 @@ class SiatSoapService
     private string $tokenDelegado;
     private array $wsdlUrls;
 
-    public function __construct()
+    public function __construct(?array $overrides = null)
     {
         $empresa = null;
         try {
@@ -28,25 +28,35 @@ class SiatSoapService
             $empresa = null;
         }
 
-        $this->ambiente = $empresa && $empresa->codigo_ambiente 
-            ? (int) $empresa->codigo_ambiente 
-            : (int) config('siat.ambiente', 2);
+        $this->ambiente = isset($overrides['ambiente'])
+            ? (int) $overrides['ambiente']
+            : ($empresa && $empresa->codigo_ambiente 
+                ? (int) $empresa->codigo_ambiente 
+                : (int) config('siat.ambiente', 2));
 
-        $this->modalidad = $empresa && $empresa->codigo_modalidad 
-            ? (int) $empresa->codigo_modalidad 
-            : (int) config('siat.modalidad', 1);
+        $this->modalidad = isset($overrides['modalidad'])
+            ? (int) $overrides['modalidad']
+            : ($empresa && $empresa->codigo_modalidad 
+                ? (int) $empresa->codigo_modalidad 
+                : (int) config('siat.modalidad', 1));
 
-        $this->nitEmisor = $empresa && !empty($empresa->nit) 
-            ? (string) $empresa->nit 
-            : (string) config('siat.nit_emisor', '123456789');
+        $this->nitEmisor = isset($overrides['nit'])
+            ? (string) $overrides['nit']
+            : ($empresa && !empty($empresa->nit) 
+                ? (string) $empresa->nit 
+                : (string) config('siat.nit_emisor', '123456789'));
 
-        $this->codigoSistema = $empresa && !empty($empresa->codigo_sistema) 
-            ? (string) $empresa->codigo_sistema 
-            : (string) config('siat.codigo_sistema', 'EMAPA_SISTEMA');
+        $this->codigoSistema = isset($overrides['codigo_sistema'])
+            ? (string) $overrides['codigo_sistema']
+            : ($empresa && !empty($empresa->codigo_sistema) 
+                ? (string) $empresa->codigo_sistema 
+                : (string) config('siat.codigo_sistema', 'EMAPA_SISTEMA'));
 
-        $this->tokenDelegado = $empresa && !empty($empresa->token_delegado) 
-            ? (string) $empresa->token_delegado 
-            : (string) config('siat.token_delegado', '');
+        $this->tokenDelegado = isset($overrides['token_delegado'])
+            ? (string) $overrides['token_delegado']
+            : ($empresa && !empty($empresa->token_delegado) 
+                ? (string) $empresa->token_delegado 
+                : (string) config('siat.token_delegado', ''));
 
         $tipoAmbiente = $this->ambiente === 1 ? 'produccion' : 'piloto';
         $this->wsdlUrls = config("siat.wsdl.{$tipoAmbiente}");
@@ -92,9 +102,17 @@ class SiatSoapService
                 'mensajes' => $res->return->mensajesList ?? 'Comunicación establecida exitosamente con el SIAT.',
             ];
         } catch (Exception $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'API KEY NO VALIDO') !== false) {
+                $msg = 'El SIN respondió: "API KEY NO VÁLIDO". El Token Delegado del SIN es incorrecto o ha superado su vigencia de 1 año (expiró). Debe generarse/renovarse un nuevo token desde el portal SIAT de Impuestos Nacionales.';
+            } else {
+                $msg = 'Error de conexión con el SIAT: ' . $msg;
+            }
+
             return [
                 'success' => false,
-                'mensaje' => 'Error de conexión con el SIAT: ' . $e->getMessage(),
+                'mensaje' => $msg,
+                'mensajes' => $msg,
             ];
         }
     }

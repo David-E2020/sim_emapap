@@ -40,6 +40,18 @@
             {{ form.codigo_modalidad === 1 ? 'Electrónica en Línea' : 'Computarizada en Línea' }}
           </v-chip>
 
+          <!-- BOTÓN CARGAR CREDENCIALES OFICIALES EMAPA -->
+          <v-btn
+            color="secondary"
+            outlined
+            class="text-capitalize font-weight-medium rounded-pill mr-2"
+            @click="cargarOficiales"
+            small
+          >
+            <v-icon left small>mdi-shield-refresh</v-icon>
+            Cargar Credenciales EMAPA
+          </v-btn>
+
           <!-- BOTÓN PROBAR CONEXIÓN SIAT -->
           <v-btn
             color="indigo darken-1"
@@ -729,11 +741,23 @@ export default {
         });
     },
 
+    cargarOficiales() {
+      this.form.nit = '1002393029';
+      this.form.codigo_sistema = '777BB278FAB5BD76871ED76';
+      this.form.token_delegado = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJQQVRBQ0FNQVlBMSIsImNvZGlnb1Npc3RlbWEiOiI3NzdCQjI3OEZBQjVCRDc2ODcxRUQ3NiIsIm5pdCI6Ikg0c0lBQUFBQUFBQUFETTBNREF5dGpRMk1MSUVBUFpuNUtvS0FBQUEiLCJpZCI6MTg2MjYyLCJleHAiOjE3MzE0NTYwMDAsImlhdCI6MTY5OTk3Mzc3MSwibml0RGVsZWdhZG8iOjEwMDIzOTMwMjksInN1YnNpc3RlbWEiOiJTRkUifQ.yNk0wSvjnlgbDHbUxq7fpPdyoSn3QTf9rs9pZ0RsOfDESRdfFYQXsLmlSug_EwDkUn1hrBZDhSaE2RH3BC0Iqw';
+      this.form.codigo_ambiente = 2;
+      this.form.codigo_modalidad = 1;
+      this.mostrarNotificacion('Credenciales oficiales de EMAPA Patacamaya cargadas en el formulario.', 'info', 'mdi-information-outline');
+    },
+
     probarConexionSiat() {
       this.testingConnection = true;
       axios
         .post('api/datos/empresa/probar-conexion', {
           codigo_ambiente: this.form.codigo_ambiente,
+          codigo_modalidad: this.form.codigo_modalidad,
+          nit: this.form.nit,
+          codigo_sistema: this.form.codigo_sistema,
           token_delegado: this.form.token_delegado,
         })
         .then(response => {
@@ -743,7 +767,7 @@ export default {
         .catch(error => {
           this.resultadoConexion = {
             success: false,
-            message: error.response?.data?.mensaje || error.message,
+            message: error.response?.data?.mensaje || error.response?.data?.message || error.message,
             ambiente: this.form.codigo_ambiente,
             endpoint: 'Servicios SOAP SIAT',
           };
