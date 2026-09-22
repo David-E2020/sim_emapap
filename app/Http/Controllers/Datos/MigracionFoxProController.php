@@ -53,6 +53,26 @@ class MigracionFoxProController extends Controller
                 'icono' => 'mdi-map-marker-multiple',
             ],
             [
+                'id' => 'estados_abonado',
+                'modulo' => 'comercial',
+                'label' => 'Estados de Abonado (Paramétrica)',
+                'schema' => 'public',
+                'table' => 'parametricas',
+                'filtro_sql' => ['param_tabla' => 'TABLA_COMERCIAL_ESTADOS_ABONADO', 'param_codigo' => ['!=', 'ORIGEN']],
+                'archivos_dbf' => ['estado.dbf'],
+                'icono' => 'mdi-tag-check-outline',
+            ],
+            [
+                'id' => 'conceptos_ingresos',
+                'modulo' => 'comercial',
+                'label' => 'Conceptos / Otros Ingresos (Paramétrica)',
+                'schema' => 'public',
+                'table' => 'parametricas',
+                'filtro_sql' => ['param_tabla' => 'TABLA_COMERCIAL_CONCEPTOS_OTROS_INGRESOS', 'param_codigo' => ['!=', 'ORIGEN']],
+                'archivos_dbf' => ['concepin.dbf', 'concepte.dbf'],
+                'icono' => 'mdi-cash-plus',
+            ],
+            [
                 'id' => 'tarifas',
                 'modulo' => 'comercial',
                 'label' => 'Categorías y Tarifas',
@@ -321,7 +341,11 @@ class MigracionFoxProController extends Controller
                 $query = DB::table("{$item['schema']}.{$item['table']}");
                 if (!empty($item['filtro_sql'])) {
                     foreach ($item['filtro_sql'] as $col => $val) {
-                        $query->where($col, $val);
+                        if (is_array($val)) {
+                            $query->where($col, $val[0], $val[1]);
+                        } else {
+                            $query->where($col, $val);
+                        }
                     }
                 }
                 $conteoPg = $query->count();
@@ -558,6 +582,32 @@ class MigracionFoxProController extends Controller
                         } else {
                             $logItem['estado'] = 'ADVERTENCIA';
                             $logItem['mensaje'] = 'Archivo calles.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'estados_abonado':
+                        $path = $resolverArchivo(['estado.dbf']);
+                        if ($path) {
+                            $res = $this->migrador->migrarEstadosAbonados($path, $esSimulacion);
+                            $logItem['estado'] = 'EXITO';
+                            $logItem['mensaje'] = "Estados procesados: {$res['total_en_dbf']} (Insertados: {$res['insertados']})";
+                            $resultados['estados_abonado'] = $res;
+                        } else {
+                            $logItem['estado'] = 'ADVERTENCIA';
+                            $logItem['mensaje'] = 'Archivo estado.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'conceptos_ingresos':
+                        $path = $resolverArchivo(['concepin.dbf', 'concepte.dbf']);
+                        if ($path) {
+                            $res = $this->migrador->migrarConceptosIngresos($path, $esSimulacion);
+                            $logItem['estado'] = 'EXITO';
+                            $logItem['mensaje'] = "Conceptos de ingreso: {$res['total_en_dbf']} (Insertados: {$res['insertados']})";
+                            $resultados['conceptos_ingresos'] = $res;
+                        } else {
+                            $logItem['estado'] = 'ADVERTENCIA';
+                            $logItem['mensaje'] = 'Archivo concepin.dbf no encontrado.';
                         }
                         break;
 

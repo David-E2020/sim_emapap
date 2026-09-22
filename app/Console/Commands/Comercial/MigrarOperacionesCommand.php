@@ -108,7 +108,7 @@ class MigrarOperacionesCommand extends Command
                     FROM (
                         SELECT id_abonado, ROUND(SUM(total_facturado)::numeric, 2) as total_deuda, COUNT(*) as total_meses
                         FROM comercial.lecturas_mensuales
-                        WHERE estado_pago = 'PENDIENTE'
+                        WHERE estado_pago = 'PENDIENTE' AND total_facturado > 0
                         GROUP BY id_abonado
                     ) sub
                     WHERE a.id = sub.id_abonado;
@@ -120,7 +120,7 @@ class MigrarOperacionesCommand extends Command
                     WHERE id NOT IN (
                         SELECT DISTINCT id_abonado 
                         FROM comercial.lecturas_mensuales 
-                        WHERE estado_pago = 'PENDIENTE'
+                        WHERE estado_pago = 'PENDIENTE' AND total_facturado > 0
                     );
                 ");
 

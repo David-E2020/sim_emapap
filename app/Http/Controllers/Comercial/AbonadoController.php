@@ -20,6 +20,7 @@ class AbonadoController extends Controller
     {
         $perPage = (int) $request->input('per_page', 15);
         $search = $request->input('search');
+        $tipoBusqueda = (string) $request->input('tipo_busqueda', 'todos');
         $idZona = $request->input('id_zona');
         $idCategoria = $request->input('id_categoria');
         $estado = $request->input('estado_servicio');
@@ -29,12 +30,35 @@ class AbonadoController extends Controller
             ->orderBy('codigo');
 
         if (!empty($search)) {
-            $query->where(function ($q) use ($search) {
-                $q->where('codigo', 'like', "%{$search}%")
-                    ->orWhere('nombre_completo', 'ilike', "%{$search}%")
-                    ->orWhere('numero_documento', 'like', "%{$search}%")
-                    ->orWhereHas('medidorActual', fn($qm) => $qm->where('numero_serie', 'like', "%{$search}%"));
-            });
+            $criterio = trim((string) $search);
+            $codigoPad = str_pad($criterio, 5, '0', STR_PAD_LEFT);
+
+            if ($tipoBusqueda === 'codigo_abonado') {
+                $query->where(function ($q) use ($criterio, $codigoPad) {
+                    $q->where('codigo', $criterio)
+                        ->orWhere('codigo', $codigoPad)
+                        ->orWhere('codigo', 'like', "%{$criterio}%");
+                });
+            } elseif ($tipoBusqueda === 'carnet_nit') {
+                $query->where(function ($q) use ($criterio) {
+                    $q->where('numero_documento', $criterio)
+                        ->orWhere('numero_documento', 'like', "%{$criterio}%");
+                });
+            } elseif ($tipoBusqueda === 'cliente') {
+                $query->where('nombre_completo', 'ilike', "%{$criterio}%");
+            } elseif ($tipoBusqueda === 'medidor') {
+                $query->whereHas('medidorActual', fn($qm) => $qm->where('numero_serie', 'ilike', "%{$criterio}%"));
+            } else {
+                // Modo 'todos' los campos
+                $query->where(function ($q) use ($criterio, $codigoPad) {
+                    $q->where('codigo', $criterio)
+                        ->orWhere('codigo', $codigoPad)
+                        ->orWhere('codigo', 'like', "%{$criterio}%")
+                        ->orWhere('nombre_completo', 'ilike', "%{$criterio}%")
+                        ->orWhere('numero_documento', 'like', "%{$criterio}%")
+                        ->orWhereHas('medidorActual', fn($qm) => $qm->where('numero_serie', 'ilike', "%{$criterio}%"));
+                });
+            }
         }
 
         if (!empty($idZona)) {
@@ -45,8 +69,14 @@ class AbonadoController extends Controller
             $query->where('id_categoria', $idCategoria);
         }
 
-        if (!empty($estado)) {
-            $query->where('estado_servicio', $estado);
+        if (!empty($estado) && $estado !== 'TODOS') {
+            if ($estado === 'EN_MORA') {
+                $query->where('meses_mora', '>=', 2);
+            } elseif (in_array($estado, ['CORTE', 'CORTADO'])) {
+                $query->whereIn('estado_servicio', ['CORTE', 'CORTADO']);
+            } else {
+                $query->where('estado_servicio', $estado);
+            }
         }
 
         if ($soloMora) {
@@ -55,10 +85,22 @@ class AbonadoController extends Controller
 
         $paginator = $query->paginate($perPage);
 
+        // Resumen global de métricas operativas del padrón completo
+        $resumen = [
+            'total_abonados' => Abonado::count(),
+            'servicios_activos' => Abonado::where('estado_servicio', 'ACTIVO')->count(),
+            'en_mora' => Abonado::where('meses_mora', '>=', 2)->count(),
+            'servicios_cortados' => Abonado::whereIn('estado_servicio', ['CORTE', 'CORTADO'])->count(),
+            'suspendidos' => Abonado::where('estado_servicio', 'SUSPENDIDO')->count(),
+            'permisos' => Abonado::where('estado_servicio', 'PERMISO')->count(),
+            'bajas' => Abonado::where('estado_servicio', 'BAJA')->count(),
+        ];
+
         return response()->json([
             'success' => true,
             'data' => $paginator->items(),
             'total' => $paginator->total(),
+            'resumen' => $resumen,
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
         ], Response::HTTP_OK);
@@ -92,19 +134,29 @@ class AbonadoController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'tipo_persona' => 'required|in:NATURAL,JURIDICA',
+            'primer_apellido' => 'nullable|string|max:50',
+            'segundo_apellido' => 'nullable|string|max:50',
+            'nombres' => 'nullable|string|max:60',
             'nombre_completo' => 'required|string|max:150',
             'numero_documento' => 'nullable|string|max:25',
             'complemento' => 'nullable|string|max:5',
             'telefono' => 'nullable|string|max:20',
             'celular' => 'nullable|string|max:20',
+            'email' => 'nullable|string|max:100',
+            'persona_contacto' => 'nullable|string|max:150',
             'id_zona' => 'required|integer|exists:pgsql.comercial.zonas,id',
             'id_calle' => 'nullable|integer|exists:pgsql.comercial.calles,id',
             'numero_vivienda' => 'nullable|string|max:20',
+            'edificio' => 'nullable|string|max:30',
+            'departamento' => 'nullable|string|max:15',
+            'referencia_direccion' => 'nullable|string',
             'id_categoria' => 'required|integer|exists:pgsql.comercial.categorias_tarifarias,id',
             'tiene_alcantarillado' => 'boolean',
             'es_tercera_edad' => 'boolean',
             'tiene_medidor' => 'boolean',
             'id_medidor_actual' => 'nullable|integer|exists:pgsql.comercial.medidores,id',
+            'fecha_ingreso' => 'nullable|date',
+            'observaciones' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -121,7 +173,7 @@ class AbonadoController extends Controller
         $abonado = Abonado::create(array_merge($request->all(), [
             'codigo' => $codigoNuevo,
             'estado_servicio' => 'ACTIVO',
-            'fecha_ingreso' => date('Y-m-d'),
+            'fecha_ingreso' => $request->input('fecha_ingreso', date('Y-m-d')),
             'saldo_deuda' => 0.00,
             'meses_mora' => 0,
         ]));
@@ -141,16 +193,29 @@ class AbonadoController extends Controller
         $abonado = Abonado::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
+            'tipo_persona' => 'sometimes|in:NATURAL,JURIDICA',
+            'primer_apellido' => 'nullable|string|max:50',
+            'segundo_apellido' => 'nullable|string|max:50',
+            'nombres' => 'nullable|string|max:60',
             'nombre_completo' => 'sometimes|string|max:150',
             'numero_documento' => 'nullable|string|max:25',
+            'complemento' => 'nullable|string|max:5',
             'telefono' => 'nullable|string|max:20',
             'celular' => 'nullable|string|max:20',
+            'email' => 'nullable|string|max:100',
+            'persona_contacto' => 'nullable|string|max:150',
             'id_zona' => 'sometimes|integer|exists:pgsql.comercial.zonas,id',
             'id_calle' => 'nullable|integer|exists:pgsql.comercial.calles,id',
+            'numero_vivienda' => 'nullable|string|max:20',
+            'edificio' => 'nullable|string|max:30',
+            'departamento' => 'nullable|string|max:15',
+            'referencia_direccion' => 'nullable|string',
             'id_categoria' => 'sometimes|integer|exists:pgsql.comercial.categorias_tarifarias,id',
             'tiene_alcantarillado' => 'boolean',
             'es_tercera_edad' => 'boolean',
-            'estado_servicio' => 'sometimes|in:ACTIVO,CORTADO,EN_MORA,SUSPENDIDO,BAJA',
+            'estado_servicio' => 'sometimes|string',
+            'fecha_ingreso' => 'nullable|date',
+            'observaciones' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {

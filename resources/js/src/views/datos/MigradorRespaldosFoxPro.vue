@@ -986,6 +986,7 @@ export default {
 
       filtroEsquema: 'todos',
       modulosSeleccionados: [
+        'estados_abonado', 'conceptos_ingresos',
         'calles', 'zonas', 'tarifas', 'abonados', 'aportes_agua',
         'aportes_alcantarillado', 'bajas_socios', 'convenios', 'recibos',
         'lecturas', 'facturas', 'plan_cuentas', 'comprobantes', 'compras',
@@ -1233,13 +1234,21 @@ export default {
       this.resultadoEjecucion = null;
 
       const ordenLogico = [
+        'estados_abonado', 'conceptos_ingresos',
         'calles', 'zonas', 'tarifas', 'abonados', 'bajas_socios',
         'aportes_agua', 'aportes_alcantarillado', 'convenios', 'recibos',
         'lecturas', 'facturas', 'plan_cuentas', 'comprobantes', 'compras',
         'materiales_almacen', 'rubros_activos', 'bienes_activos'
       ];
 
-      const seleccionadosOrdenados = ordenLogico.filter(m => this.modulosSeleccionados.includes(m));
+      // Ordenar respetando el orden lógico preferente, pero NUNCA descartar ningún módulo seleccionado
+      const seleccionadosOrdenados = [...this.modulosSeleccionados].sort((a, b) => {
+        const idxA = ordenLogico.indexOf(a);
+        const idxB = ordenLogico.indexOf(b);
+        const valA = idxA === -1 ? 999 : idxA;
+        const valB = idxB === -1 ? 999 : idxB;
+        return valA - valB;
+      });
       const ruta = this.rutaManual || this.rutaSeleccionada;
       const total = seleccionadosOrdenados.length;
       let procesados = 0;
@@ -1436,6 +1445,8 @@ export default {
 
     getLabelModulo(mod) {
       const map = {
+        estados_abonado: 'Estados de Abonado (Paramétrica)',
+        conceptos_ingresos: 'Conceptos / Otros Ingresos (Paramétrica)',
         calles: 'Calles y Avenidas',
         zonas: 'Zonas Tarifarias',
         tarifas: 'Categorías y Tarifas',

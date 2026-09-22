@@ -46,7 +46,7 @@ class PrepararProduccionCommand extends Command
 
         // 1. Limpieza de esquemas secundarios en PostgreSQL
         $this->warn('==> Paso 1: Limpiando esquemas secundarios de PostgreSQL...');
-        $schemas = ['rrhh', 'correspondencia', 'facturacion', 'comercial', 'contabilidad'];
+        $schemas = ['rrhh', 'correspondencia', 'facturacion', 'comercial', 'contabilidad', 'migracion', 'almacen', 'activos_fijos'];
         foreach ($schemas as $schema) {
             DB::statement("DROP SCHEMA IF EXISTS {$schema} CASCADE;");
             $this->line("    - Esquema [{$schema}] eliminado en cascada.");
@@ -96,15 +96,24 @@ class PrepararProduccionCommand extends Command
         // 5. Verificación de Tablas Transaccionales Vacías
         $this->info('==> Verificando tablas transaccionales (deben estar en 0)...');
         $tablasVacias = [
-            'facturacion.facturas' => DB::table('facturacion.facturas')->count(),
-            'facturacion.factura_detalles' => DB::table('facturacion.factura_detalles')->count(),
+            'migracion.logs' => DB::table('migracion.logs')->count(),
+            'parametricas (comercial)' => DB::table('parametricas')->where('param_tabla', 'like', 'TABLA_COMERCIAL_%')->count(),
+            'comercial.zonas' => DB::table('comercial.zonas')->count(),
+            'comercial.calles' => DB::table('comercial.calles')->count(),
+            'comercial.categorias_tarifarias' => DB::table('comercial.categorias_tarifarias')->count(),
+            'comercial.tarifas_escalonadas' => DB::table('comercial.tarifas_escalonadas')->count(),
+            'comercial.abonados' => DB::table('comercial.abonados')->count(),
             'comercial.lecturas_mensuales' => DB::table('comercial.lecturas_mensuales')->count(),
             'comercial.recibos_caja' => DB::table('comercial.recibos_caja')->count(),
             'comercial.caja_sesiones' => DB::table('comercial.caja_sesiones')->count(),
+            'facturacion.facturas' => DB::table('facturacion.facturas')->count(),
+            'facturacion.factura_detalles' => DB::table('facturacion.factura_detalles')->count(),
             'correspondencia.hojas_ruta' => DB::table('correspondencia.hojas_ruta')->count(),
             'correspondencia.documentos' => DB::table('correspondencia.documentos')->count(),
             'rrhh.marcaciones' => DB::table('rrhh.marcaciones')->count(),
             'rrhh.asistencias' => DB::table('rrhh.asistencias')->count(),
+            'almacen.materiales' => DB::table('almacen.materiales')->count(),
+            'activos_fijos.bienes' => DB::table('activos_fijos.bienes')->count(),
             'audit_logs' => DB::table('audit_logs')->count(),
         ];
 

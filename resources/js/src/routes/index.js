@@ -387,6 +387,14 @@ export const routes = [
     },
   },
   {
+    path: '/comercial/zonas-calles',
+    name: 'comercial_zonas_calles',
+    component: () => import('@/views/comercial/ZonasCalles.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
     path: '/comercial/tarifas',
     name: 'comercial_tarifas',
     component: () => import('@/views/comercial/ConfiguracionTarifasZonas.vue'),

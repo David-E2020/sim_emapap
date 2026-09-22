@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models\Comercial;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CategoriaTarifaria extends Model
@@ -14,6 +15,7 @@ class CategoriaTarifaria extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'id_paquete',
         'codigo',
         'nombre',
         'volumen_base',
@@ -47,5 +49,10 @@ class CategoriaTarifaria extends Model
     public function abonados(): HasMany
     {
         return $this->hasMany(Abonado::class, 'id_categoria');
+    }
+
+    public function paquete(): BelongsTo
+    {
+        return $this->belongsTo(PaqueteTarifario::class, 'id_paquete');
     }
 }

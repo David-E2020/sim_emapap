@@ -64,6 +64,7 @@ class CobranzaAguaService
         $lecturasPendientes = LecturaMensual::with('periodo')
             ->where('id_abonado', $abonado->id)
             ->where('estado_pago', 'PENDIENTE')
+            ->where('total_facturado', '>', 0)
             ->get()
             ->sortBy(function ($lec) {
                 $gestion = $lec->periodo?->gestion ?? 9999;
@@ -82,6 +83,7 @@ class CobranzaAguaService
         $totalCuotas = (float) $cuotasConvenioPendientes->sum('monto_cuota');
         $deudaTotal = round($totalLecturas + $totalCuotas, 2);
         $mesesMora = $lecturasPendientes->count();
+        $estaCortado = in_array($abonado->estado_servicio, ['CORTE', 'CORTADO']);
 
         return [
             'abonado' => $abonado,
@@ -91,8 +93,8 @@ class CobranzaAguaService
             'total_cuotas' => $totalCuotas,
             'deuda_total' => $deudaTotal,
             'meses_mora' => $mesesMora,
-            'en_riesgo_corte' => ($mesesMora >= 2 && $abonado->estado_servicio !== 'CORTADO'),
-            'esta_cortado' => ($abonado->estado_servicio === 'CORTADO'),
+            'en_riesgo_corte' => ($mesesMora >= 2 && !$estaCortado),
+            'esta_cortado' => $estaCortado,
         ];
     }
 

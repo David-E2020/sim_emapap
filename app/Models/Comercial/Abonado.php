@@ -25,6 +25,8 @@ class Abonado extends Model
         'complemento',
         'telefono',
         'celular',
+        'email',
+        'persona_contacto',
         'id_zona',
         'id_calle',
         'numero_vivienda',

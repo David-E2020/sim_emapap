@@ -16,102 +16,20 @@ class ComercialParametricasSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. REGISTRAR LAS 6 CATEGORIAS TARIFARIAS OFICIALES DE FOXPRO
-        $categorias = [
+        // 1. OBTENER O CREAR PLIEGO TARIFARIO OFICIAL (Las categorías se poblarán desde la migración)
+        \App\Models\Comercial\PaqueteTarifario::firstOrCreate(
+            ['codigo' => 'PLIEGO_EMAPAP_VIGENTE'],
             [
-                'codigo' => 'D',
-                'nombre' => 'DOMICILIARIA',
-                'volumen_base' => 6.00,
-                'tarifa_minima' => 12.60,
-                'tarifa_excedente_base' => 2.10,
-                'tarifa_alcantarillado' => 2.00,
-                'aplica_ley_1886' => true, // 20% descuento 3ra edad
-                'activo' => true,
-            ],
-            [
-                'codigo' => 'A',
-                'nombre' => 'COMERCIAL A',
-                'volumen_base' => 6.00,
-                'tarifa_minima' => 14.94,
-                'tarifa_excedente_base' => 2.50,
-                'tarifa_alcantarillado' => 2.00,
-                'aplica_ley_1886' => false,
-                'activo' => true,
-            ],
-            [
-                'codigo' => 'B',
-                'nombre' => 'COMERCIAL B',
-                'volumen_base' => 6.00,
-                'tarifa_minima' => 21.12,
-                'tarifa_excedente_base' => 3.00,
-                'tarifa_alcantarillado' => 2.00,
-                'aplica_ley_1886' => false,
-                'activo' => true,
-            ],
-            [
-                'codigo' => 'E',
-                'nombre' => 'ESPECIAL',
-                'volumen_base' => 6.00,
-                'tarifa_minima' => 21.48,
-                'tarifa_excedente_base' => 3.58,
-                'tarifa_alcantarillado' => 10.00,
-                'aplica_ley_1886' => false,
-                'activo' => true,
-            ],
-            [
-                'codigo' => 'P',
-                'nombre' => 'ESTATAL O PUBLICA',
-                'volumen_base' => 6.00,
-                'tarifa_minima' => 21.12,
-                'tarifa_excedente_base' => 2.49,
-                'tarifa_alcantarillado' => 2.00,
-                'aplica_ley_1886' => false,
-                'activo' => true,
-            ],
-            [
-                'codigo' => 'L',
-                'nombre' => 'LAVADO DE AUTOS',
-                'volumen_base' => 6.00,
-                'tarifa_minima' => 21.48,
-                'tarifa_excedente_base' => 3.58,
-                'tarifa_alcantarillado' => 10.00,
-                'aplica_ley_1886' => false,
-                'activo' => true,
-            ],
-        ];
-
-        foreach ($categorias as $cat) {
-            CategoriaTarifaria::updateOrCreate(
-                ['codigo' => $cat['codigo']],
-                $cat
-            );
-        }
-
-        // 2. REGISTRAR LAS 15 ZONAS OFICIALES DE PATACAMAYA
-        $zonas = [
-            ['codigo' => 'ASUNCION', 'nombre' => 'Zona Asunción'],
-            ['codigo' => 'CENTRAL', 'nombre' => 'Zona Central'],
-            ['codigo' => 'CENTRAL NORTE', 'nombre' => 'Zona Central Norte'],
-            ['codigo' => 'COMERCIAL', 'nombre' => 'Zona Comercial'],
-            ['codigo' => 'ESPERANZA', 'nombre' => 'Zona Esperanza'],
-            ['codigo' => 'ESTACION', 'nombre' => 'Zona Estación'],
-            ['codigo' => 'JOCOPAMPA', 'nombre' => 'Zona Jocopampa'],
-            ['codigo' => 'LITORAL', 'nombre' => 'Zona Litoral'],
-            ['codigo' => 'MACHACAMARCA', 'nombre' => 'Zona Machacamarca'],
-            ['codigo' => 'MODERNA', 'nombre' => 'Zona Moderna'],
-            ['codigo' => 'N. TAYPILLANGA', 'nombre' => 'Zona Nueva Taypillanga'],
-            ['codigo' => 'PORVENIR', 'nombre' => 'Zona Porvenir'],
-            ['codigo' => 'PORVENIR NORTE', 'nombre' => 'Zona Porvenir Norte'],
-            ['codigo' => 'LLOJLLA PARQUE', 'nombre' => 'Zona Llojlla Parque'],
-            ['codigo' => 'MACHAK JAKAWI', 'nombre' => 'Zona Machak Jakawi'],
-        ];
-
-        foreach ($zonas as $z) {
-            Zona::updateOrCreate(
-                ['codigo' => $z['codigo']],
-                ['nombre' => $z['nombre']]
-            );
-        }
+                'nombre' => 'Pliego Tarifario Oficial EMAPAP (Vigente)',
+                'resolucion_legal' => 'Resolución Administrativa Regulatoria AAPS / EMAPAP',
+                'fecha_inicio_vigencia' => '2024-01-01',
+                'es_vigente' => true,
+                'descripcion' => 'Estructura tarifaria con categorías y escalas variables de consumo en m³ según FoxPro',
+                '_estado' => 'ACTIVO',
+                '_transaccion' => 'MIGRACION',
+                '_usuario_creacion' => 1,
+            ]
+        );
 
         // 3. MENÚ PRINCIPAL "Gestión Comercial"
         $menuComercial = Menu::updateOrCreate(
@@ -157,16 +75,22 @@ class ComercialParametricasSeeder extends Seeder
                 'order' => 5,
             ],
             [
-                'label' => 'Tarifas y Zonas',
-                'route' => 'comercial_tarifas',
-                'icon' => 'mdi-map-marker-radius-outline',
+                'label' => 'Zonas y Calles',
+                'route' => 'comercial_zonas_calles',
+                'icon' => 'mdi-map-marker-multiple',
                 'order' => 6,
+            ],
+            [
+                'label' => 'Estructura Tarifaria',
+                'route' => 'comercial_tarifas',
+                'icon' => 'mdi-currency-usd',
+                'order' => 7,
             ],
             [
                 'label' => 'Reportes Comerciales',
                 'route' => 'comercial_reportes',
                 'icon' => 'mdi-chart-box-outline',
-                'order' => 7,
+                'order' => 8,
             ],
         ];
 
@@ -184,16 +108,17 @@ class ComercialParametricasSeeder extends Seeder
             );
         }
 
-        // 5. Asignar visibilidad al Rol Administrador
+        // 5. Asignar visibilidad a todos los Roles (incluyendo Administrador)
+        $roles = Rol::all();
         $adminRole = Rol::where('guard_name', 'api')->first() ?: Rol::find(1);
-        if ($adminRole) {
+        foreach ($roles as $role) {
             MenuRol::updateOrCreate(
-                ['rol_id' => $adminRole->id, 'menu_id' => $menuComercial->id],
+                ['rol_id' => $role->id, 'menu_id' => $menuComercial->id],
                 ['check' => true]
             );
             foreach ($submenusCreated as $sm) {
                 MenuRol::updateOrCreate(
-                    ['rol_id' => $adminRole->id, 'menu_id' => $sm->id],
+                    ['rol_id' => $role->id, 'menu_id' => $sm->id],
                     ['check' => true]
                 );
             }

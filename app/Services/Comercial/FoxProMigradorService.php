@@ -14,6 +14,7 @@ use App\Models\Comercial\ReciboCaja;
 use App\Models\Comercial\Zona;
 use App\Models\Facturacion\Factura;
 use App\Models\Facturacion\SiatSucursal;
+use App\Models\Parametrica;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -229,6 +230,150 @@ class FoxProMigradorService
     }
 
     /**
+     * Analiza o migra los estados de abonados desde estado.dbf a la paramétrica TABLA_COMERCIAL_ESTADOS_ABONADO.
+     */
+    public function migrarEstadosAbonados(string $rutaEstadoDbf, bool $dryRun = true): array
+    {
+        $data = $this->leerDbf($rutaEstadoDbf);
+        $total = count($data['records']);
+        $insertados = 0;
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            if (!$dryRun) {
+                Parametrica::updateOrCreate(
+                    ['param_tabla' => 'TABLA_COMERCIAL_ESTADOS_ABONADO', 'param_codigo' => 'ORIGEN', 'param_valor' => 0],
+                    [
+                        'param_nombre' => 'ESTADOS DE SERVICIO DEL ABONADO',
+                        'param_descripcion' => 'Estados operativos del suministro de agua potable: Activo, Corte, Suspendido, Permiso',
+                        'param_estado' => 'A',
+                        'param_usr_registrado' => 1,
+                    ]
+                );
+            }
+
+            $idx = 1;
+            foreach ($data['records'] as $r) {
+                $cod = strtoupper(trim($r['ESTADO'] ?? ''));
+                $desc = strtoupper(trim($r['DESCRIP'] ?? ''));
+                if (empty($cod)) {
+                    continue;
+                }
+
+                if (!$dryRun) {
+                    Parametrica::updateOrCreate(
+                        [
+                            'param_tabla' => 'TABLA_COMERCIAL_ESTADOS_ABONADO',
+                            'param_codigo' => $cod,
+                        ],
+                        [
+                            'param_nombre' => $desc ?: $cod,
+                            'param_descripcion' => "Estado de servicio: {$desc} ({$cod}) migrado de FoxPro",
+                            'param_valor' => $idx++,
+                            'param_estado' => 'A',
+                            'param_usr_registrado' => 1,
+                        ]
+                    );
+                    $insertados++;
+                } else {
+                    $insertados++;
+                }
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Analiza o migra los conceptos de otros ingresos desde concepin.dbf a la paramétrica TABLA_COMERCIAL_CONCEPTOS_OTROS_INGRESOS.
+     */
+    public function migrarConceptosIngresos(string $rutaConcepinDbf, bool $dryRun = true): array
+    {
+        $data = $this->leerDbf($rutaConcepinDbf);
+        $total = count($data['records']);
+        $insertados = 0;
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            if (!$dryRun) {
+                Parametrica::updateOrCreate(
+                    ['param_tabla' => 'TABLA_COMERCIAL_CONCEPTOS_OTROS_INGRESOS', 'param_codigo' => 'ORIGEN', 'param_valor' => 0],
+                    [
+                        'param_nombre' => 'CONCEPTOS DE OTROS INGRESOS Y SERVICIOS',
+                        'param_descripcion' => 'Catálogo de cobros no tarifarios: Reconexión, Multas, Cambio de Medidor, etc.',
+                        'param_estado' => 'A',
+                        'param_usr_registrado' => 1,
+                    ]
+                );
+            }
+
+            $idx = 1;
+            foreach ($data['records'] as $r) {
+                $cod = trim($r['CODIGO'] ?? '');
+                $desc = strtoupper(trim($r['DESCRIP'] ?? ''));
+                if (empty($cod)) {
+                    continue;
+                }
+
+                if (!$dryRun) {
+                    $valNum = is_numeric($cod) ? (int)$cod : $idx;
+                    $param = Parametrica::updateOrCreate(
+                        [
+                            'param_tabla' => 'TABLA_COMERCIAL_CONCEPTOS_OTROS_INGRESOS',
+                            'param_codigo' => $cod,
+                        ],
+                        [
+                            'param_nombre' => $desc ?: "CONCEPTO {$cod}",
+                            'param_descripcion' => "Concepto de ingreso {$cod}: {$desc} migrado de FoxPro",
+                            'param_valor' => $valNum,
+                            'param_estado' => 'A',
+                            'param_usr_registrado' => 1,
+                        ]
+                    );
+                    $insertados++;
+                } else {
+                    $insertados++;
+                }
+                $idx++;
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
      * Analiza o migra las calles desde calles.DBF.
      */
     public function migrarCalles(string $rutaCallesDbf, bool $dryRun = true): array
@@ -311,6 +456,7 @@ class FoxProMigradorService
         try {
             $categoriasMap = CategoriaTarifaria::pluck('id', 'codigo')->toArray();
             $zonasMap = Zona::pluck('id', 'codigo')->toArray();
+            $callesMap = Calle::pluck('id', 'nombre')->toArray();
 
             foreach ($data['records'] as $r) {
                 $codigo = trim($r['CODIGO'] ?? '');
@@ -328,12 +474,25 @@ class FoxProMigradorService
                     $zonasMap[$codZona] = $idZona;
                 }
 
+                $codCalle = trim($r['CALLE'] ?? '');
+                $idCalle = $callesMap[$codCalle] ?? null;
+                if (!$idCalle && !empty($codCalle) && !$dryRun) {
+                    $calleObj = Calle::firstOrCreate(
+                        ['nombre' => $codCalle, 'id_zona' => $idZona],
+                        ['_estado' => 'ACTIVO', '_transaccion' => 'MIGRACION']
+                    );
+                    $idCalle = $calleObj->id;
+                    $callesMap[$codCalle] = $idCalle;
+                }
+
                 $codCat = trim($r['CATEGOR'] ?? 'D');
                 $idCat = $categoriasMap[$codCat] ?? ($categoriasMap['D'] ?? 1);
 
                 $estadoFox = strtoupper(trim($r['ESTADO'] ?? 'A'));
                 $estadoServicio = match ($estadoFox) {
-                    'C' => 'CORTADO',
+                    'C' => 'CORTE',
+                    'S' => 'SUSPENDIDO',
+                    'P' => 'PERMISO',
                     'B' => 'BAJA',
                     default => 'ACTIVO',
                 };
@@ -377,9 +536,11 @@ class FoxProMigradorService
                             'nombres' => $nom ?: null,
                             'nombre_completo' => $nomCompleto ?: "ABONADO {$codigoPad}",
                             'numero_documento' => trim($r['NIT'] ?? '') ?: null,
+                            'complemento' => trim($r['COMP_CI'] ?? '') ?: null,
                             'telefono' => trim($r['TELEFONO1'] ?? '') ?: null,
                             'celular' => trim($r['CELULAR'] ?? '') ?: null,
                             'id_zona' => $idZona,
+                            'id_calle' => $idCalle,
                             'numero_vivienda' => trim($r['NUMERO1'] ?? '') ?: null,
                             'edificio' => trim($r['EDIFICIO1'] ?? '') ?: null,
                             'departamento' => trim($r['DEPTO1'] ?? '') ?: null,
@@ -389,9 +550,14 @@ class FoxProMigradorService
                             'tiene_medidor' => ($idMedidor !== null),
                             'id_medidor_actual' => $idMedidor,
                             'estado_servicio' => $estadoServicio,
+                            'fecha_ingreso' => (!empty($r['FECHAING']) && strlen(trim($r['FECHAING'])) === 8)
+                                ? substr($r['FECHAING'], 0, 4) . '-' . substr($r['FECHAING'], 4, 2) . '-' . substr($r['FECHAING'], 6, 2)
+                                : null,
                             'saldo_deuda' => $saldoDeuda,
                             'meses_mora' => $mesesMora,
-                            'observaciones' => trim($r['OBS'] ?? '') ?: null,
+                            'observaciones' => (!empty(trim($r['FAX'] ?? '')))
+                                ? (trim($r['OBS'] ?? '') ? trim($r['OBS']) . ' | Email: ' . trim($r['FAX']) : 'Email: ' . trim($r['FAX']))
+                                : (trim($r['OBS'] ?? '') ?: null),
                         ]
                     );
 
@@ -995,7 +1161,7 @@ class FoxProMigradorService
                 $totalFacturado = $montoAgua + $montoAlca + $otros - $descto;
 
                 $pagado = strtoupper(trim($r['PAGADO'] ?? ''));
-                $esPagado = ($pagado === 'S');
+                $esPagado = ($pagado === 'S') || ($totalFacturado <= 0.001);
 
                 $batch[] = [
                     'id_periodo' => $idPeriodo,
@@ -1540,10 +1706,18 @@ class FoxProMigradorService
                 $tarifaAlcanta = (float) ($r['ALCANTA'] ?? 2.00);
 
                 if (!$dryRun) {
-                    $catId = DB::table('comercial.categorias_tarifarias')->where('codigo', $codigo)->value('id');
+                    $paqueteVigenteId = DB::table('comercial.paquetes_tarifarios')->where('es_vigente', true)->value('id') ?: 1;
+
+                    $catId = DB::table('comercial.categorias_tarifarias')
+                        ->where('codigo', $codigo)
+                        ->where(function ($q) use ($paqueteVigenteId) {
+                            $q->where('id_paquete', $paqueteVigenteId)->orWhereNull('id_paquete');
+                        })
+                        ->value('id');
 
                     if ($catId) {
                         DB::table('comercial.categorias_tarifarias')->where('id', $catId)->update([
+                            'id_paquete' => $paqueteVigenteId,
                             'nombre' => $nombre,
                             'volumen_base' => $volumenBase,
                             'tarifa_minima' => $tarifaMinima,
@@ -1556,6 +1730,7 @@ class FoxProMigradorService
                         ]);
                     } else {
                         $catId = DB::table('comercial.categorias_tarifarias')->insertGetId([
+                            'id_paquete' => $paqueteVigenteId,
                             'codigo' => $codigo,
                             'nombre' => $nombre,
                             'volumen_base' => $volumenBase,
@@ -1574,17 +1749,17 @@ class FoxProMigradorService
                     // Sincronizar escalones en tarifas_escalonadas
                     DB::table('comercial.tarifas_escalonadas')->where('id_categoria', $catId)->delete();
                     $escalones = [
-                        ['desde' => 0, 'hasta' => 6, 'precio' => (float) ($r['TARIFA1'] ?? 2.10)],
-                        ['desde' => 7, 'hasta' => 15, 'precio' => (float) ($r['TARIFA2'] ?? 2.10)],
-                        ['desde' => 16, 'hasta' => 30, 'precio' => (float) ($r['TARIFA3'] ?? 2.10)],
-                        ['desde' => 31, 'hasta' => 50, 'precio' => (float) ($r['TARIFA4'] ?? 2.10)],
-                        ['desde' => 51, 'hasta' => 75, 'precio' => (float) ($r['TARIFA5'] ?? 2.10)],
-                        ['desde' => 76, 'hasta' => 100, 'precio' => (float) ($r['TARIFA6'] ?? 2.20)],
-                        ['desde' => 101, 'hasta' => 150, 'precio' => (float) ($r['TARIFA7'] ?? 2.20)],
-                        ['desde' => 151, 'hasta' => 200, 'precio' => (float) ($r['TARIFA8'] ?? 2.30)],
-                        ['desde' => 201, 'hasta' => 300, 'precio' => (float) ($r['TARIFA9'] ?? 2.30)],
-                        ['desde' => 301, 'hasta' => 500, 'precio' => (float) ($r['TARIFA10'] ?? 2.40)],
-                        ['desde' => 501, 'hasta' => 9999, 'precio' => (float) ($r['TARIFA11'] ?? 2.40)],
+                        ['desde' => 7, 'hasta' => 10, 'precio' => (float) ($r['TARIFA1'] ?? 2.10)],
+                        ['desde' => 11, 'hasta' => 15, 'precio' => (float) ($r['TARIFA2'] ?? 2.10)],
+                        ['desde' => 16, 'hasta' => 20, 'precio' => (float) ($r['TARIFA3'] ?? 2.10)],
+                        ['desde' => 21, 'hasta' => 25, 'precio' => (float) ($r['TARIFA4'] ?? 2.10)],
+                        ['desde' => 26, 'hasta' => 30, 'precio' => (float) ($r['TARIFA5'] ?? 2.10)],
+                        ['desde' => 31, 'hasta' => 35, 'precio' => (float) ($r['TARIFA6'] ?? 2.20)],
+                        ['desde' => 36, 'hasta' => 40, 'precio' => (float) ($r['TARIFA7'] ?? 2.20)],
+                        ['desde' => 41, 'hasta' => 50, 'precio' => (float) ($r['TARIFA8'] ?? 2.30)],
+                        ['desde' => 51, 'hasta' => 55, 'precio' => (float) ($r['TARIFA9'] ?? 2.30)],
+                        ['desde' => 56, 'hasta' => 60, 'precio' => (float) ($r['TARIFA10'] ?? 2.40)],
+                        ['desde' => 61, 'hasta' => null, 'precio' => (float) ($r['TARIFA11'] ?? 2.40)],
                     ];
 
                     $batchEscalones = [];
@@ -1912,6 +2087,18 @@ class FoxProMigradorService
             if (in_array('calles', $modulos)) {
                 $eliminados['comercial.calles'] = DB::table('comercial.calles')
                     ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            if (in_array('estados_abonado', $modulos)) {
+                $eliminados['parametricas.estados_abonado'] = DB::table('parametricas')
+                    ->where('param_tabla', 'TABLA_COMERCIAL_ESTADOS_ABONADO')
+                    ->delete();
+            }
+
+            if (in_array('conceptos_ingresos', $modulos)) {
+                $eliminados['parametricas.conceptos_ingresos'] = DB::table('parametricas')
+                    ->where('param_tabla', 'TABLA_COMERCIAL_CONCEPTOS_OTROS_INGRESOS')
                     ->delete();
             }
 

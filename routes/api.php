@@ -394,12 +394,23 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::post('comercial/cortes/{id}/ejecutar', [CorteReconexionController::class, 'ejecutarCorte']);
     Route::post('comercial/reconexiones/{id}/ejecutar', [CorteReconexionController::class, 'ejecutarReconexion']);
 
-    // 6. Catastro: Tarifas, Zonas y Calles
+    // 6. Catastro: Estructura Tarifaria, Zonas y Calles
+    Route::get('comercial/paquetes-tarifarios', [TarifaZonaController::class, 'indexPaquetes']);
+    Route::post('comercial/paquetes-tarifarios', [TarifaZonaController::class, 'storePaquete']);
+    Route::post('comercial/paquetes-tarifarios/{id}/clonar', [TarifaZonaController::class, 'clonarPaquete']);
+    Route::post('comercial/paquetes-tarifarios/{id}/activar', [TarifaZonaController::class, 'activarPaquete']);
+    Route::get('comercial/paquetes-tarifarios/{id}/matriz', [TarifaZonaController::class, 'getMatriz']);
+    Route::put('comercial/paquetes-tarifarios/{id}/matriz', [TarifaZonaController::class, 'updateMatriz']);
+
+    // Compatibilidad categorías y zonas/calles
     Route::get('comercial/tarifas', [TarifaZonaController::class, 'indexCategorias']);
     Route::put('comercial/tarifas/{id}', [TarifaZonaController::class, 'updateCategoria']);
     Route::get('comercial/zonas', [TarifaZonaController::class, 'indexZonas']);
+    Route::post('comercial/zonas', [TarifaZonaController::class, 'storeZona']);
+    Route::put('comercial/zonas/{id}', [TarifaZonaController::class, 'updateZona']);
     Route::get('comercial/calles', [TarifaZonaController::class, 'indexCalles']);
     Route::post('comercial/calles', [TarifaZonaController::class, 'storeCalle']);
+    Route::put('comercial/calles/{id}', [TarifaZonaController::class, 'updateCalle']);
 
     // 7. Reportes Comerciales y Cuadre de Caja
     Route::get('comercial/reportes/recaudacion-diaria', [ReporteComercialController::class, 'recaudacionDiaria']);
