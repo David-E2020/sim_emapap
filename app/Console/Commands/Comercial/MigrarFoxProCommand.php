@@ -23,7 +23,17 @@ class MigrarFoxProCommand extends Command
     {
         $path = $this->option('path') ?: storage_path('app/legacy_emapa_2026');
         if (!is_dir($path)) {
-            $path = '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/cr070923';
+            $candidatosDirs = [
+                '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO/DATA_19_09_2026/DATA',
+                '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO/DATA_19_09_2026',
+                '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/cr070923',
+            ];
+            foreach ($candidatosDirs as $cd) {
+                if (is_dir($cd)) {
+                    $path = $cd;
+                    break;
+                }
+            }
         }
 
         $dryRun = !$this->option('confirm');
@@ -120,6 +130,12 @@ class MigrarFoxProCommand extends Command
             $directorio . '/' . $nombre,
             $directorio . '/' . strtolower($nombre),
             $directorio . '/' . strtoupper($nombre),
+            $directorio . '/DATA/' . $nombre,
+            $directorio . '/DATA/' . strtolower($nombre),
+            $directorio . '/DATA/' . strtoupper($nombre),
+            $directorio . '/data/' . $nombre,
+            $directorio . '/data/' . strtolower($nombre),
+            $directorio . '/data/' . strtoupper($nombre),
         ];
 
         foreach ($candidatos as $c) {

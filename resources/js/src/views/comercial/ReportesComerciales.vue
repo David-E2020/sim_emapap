@@ -19,6 +19,8 @@
 
     <v-tabs v-model="tabActual" color="teal darken-3" class="mb-4">
       <v-tab class="font-weight-bold"><v-icon left small>mdi-cash-register</v-icon> Recaudación y Cuadre de Caja</v-tab>
+      <v-tab class="font-weight-bold"><v-icon left small>mdi-chart-pie</v-icon> Resumen por Zonas (Ciclo)</v-tab>
+      <v-tab class="font-weight-bold"><v-icon left small>mdi-pipe-disconnected</v-icon> Nómina de Cortes Masivos</v-tab>
       <v-tab class="font-weight-bold"><v-icon left small>mdi-account-alert</v-icon> Cartera Vencida y Morosidad</v-tab>
       <v-tab class="font-weight-bold"><v-icon left small>mdi-chart-bell-curve</v-icon> Balance de Consumo Mensual</v-tab>
     </v-tabs>
@@ -384,7 +386,291 @@
         </div>
       </v-tab-item>
 
-      <!-- PESTAÑA 2: CARTERA VENCIDA Y MOROSIDAD -->
+      <!-- PESTAÑA 2: RESUMEN DE FACTURACIÓN Y OPERACIONES POR ZONAS (Ciclo) -->
+      <v-tab-item>
+        <v-card rounded="lg" class="pa-4 mb-4 erp-card-elevated">
+          <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+            <div class="d-flex align-center flex-wrap gap-3">
+              <v-select
+                v-model="filtroPeriodoZonas"
+                :items="periodosLista"
+                item-text="periodo"
+                item-value="id"
+                label="Período de Facturación *"
+                prepend-inner-icon="mdi-calendar-sync"
+                dense
+                outlined
+                hide-details
+                style="min-width: 220px;"
+                @change="cargarResumenZonas"
+              ></v-select>
+
+              <v-chip v-if="datosResumenZonas && datosResumenZonas.periodo" small color="teal darken-3" dark class="font-weight-bold">
+                Estado: {{ datosResumenZonas.periodo.estado }}
+              </v-chip>
+            </div>
+
+            <div class="d-flex align-center gap-2">
+              <v-btn
+                color="teal darken-2"
+                dark
+                small
+                class="rounded-pill font-weight-medium"
+                :disabled="!filtroPeriodoZonas"
+                @click="verPdfResumenZonas"
+              >
+                <v-icon left small>mdi-file-pdf-box</v-icon> Planilla Oficial PDF
+              </v-btn>
+              <v-btn
+                color="indigo darken-1"
+                dark
+                small
+                outlined
+                class="rounded-pill font-weight-medium"
+                :disabled="!filtroPeriodoZonas"
+                :loading="exportandoExcel"
+                @click="exportarExcelResumenZonas"
+              >
+                <v-icon left small>mdi-file-excel</v-icon> Exportar Excel
+              </v-btn>
+            </div>
+          </div>
+        </v-card>
+
+        <!-- KPI Resumen Zonas -->
+        <v-row dense class="mb-4" v-if="datosResumenZonas && datosResumenZonas.totales">
+          <v-col cols="12" sm="6" md="2">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">TOTAL ABONADOS</div>
+              <div class="text-h5 font-weight-black primary--text mt-1">
+                {{ Number(datosResumenZonas.totales.abonados).toLocaleString() }}
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="6" md="2">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">VOLUMEN AGUA</div>
+              <div class="text-h5 font-weight-black info--text mt-1">
+                {{ Number(datosResumenZonas.totales.consumo_m3).toLocaleString() }} m³
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">TOTAL FACTURADO MES</div>
+              <div class="text-h5 font-weight-black green--text text--darken-2 mt-1">
+                Bs {{ Number(datosResumenZonas.totales.facturado_bs).toFixed(2) }}
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">RECAUDADO VENTANILLA</div>
+              <div class="text-h5 font-weight-black primary--text mt-1">
+                Bs {{ Number(datosResumenZonas.totales.cobrado_bs).toFixed(2) }}
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="6" md="2">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">% COBRO EFECTIVO</div>
+              <div class="text-h5 font-weight-black teal--text text--darken-2 mt-1">
+                {{ datosResumenZonas.totales.facturado_bs > 0 ? ((datosResumenZonas.totales.cobrado_bs / datosResumenZonas.totales.facturado_bs) * 100).toFixed(1) : 0 }}%
+              </div>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Tabla Detalle por Zona -->
+        <v-card rounded="lg" class="erp-card-elevated mb-4">
+          <v-simple-table dense>
+            <template v-slot:default>
+              <thead>
+                <tr class="grey lighten-4">
+                  <th class="font-weight-bold text-center">N°</th>
+                  <th class="font-weight-bold text-center">Código</th>
+                  <th class="font-weight-bold">Zona Comercial</th>
+                  <th class="text-right font-weight-bold">Abonados</th>
+                  <th class="text-right font-weight-bold">Consumo (m³)</th>
+                  <th class="text-right font-weight-bold">Agua (Bs)</th>
+                  <th class="text-right font-weight-bold">Alcantarillado (Bs)</th>
+                  <th class="text-right font-weight-bold">Otros (Bs)</th>
+                  <th class="text-right font-weight-bold">Ley 1886 (Bs)</th>
+                  <th class="text-right font-weight-bold">Total Facturado (Bs)</th>
+                  <th class="text-right font-weight-bold">Recaudado (Bs)</th>
+                  <th class="text-center font-weight-bold">% Cobro</th>
+                </tr>
+              </thead>
+              <tbody v-if="datosResumenZonas && datosResumenZonas.filas">
+                <tr v-for="(f, idx) in datosResumenZonas.filas" :key="idx">
+                  <td class="text-center">{{ idx + 1 }}</td>
+                  <td class="text-center font-weight-bold">{{ f.zona_codigo }}</td>
+                  <td class="font-weight-medium">{{ f.zona_nombre }}</td>
+                  <td class="text-right">{{ Number(f.total_abonados).toLocaleString() }}</td>
+                  <td class="text-right">{{ Number(f.consumo_total_m3).toLocaleString() }}</td>
+                  <td class="text-right">Bs {{ Number(f.total_agua_bs).toFixed(2) }}</td>
+                  <td class="text-right">Bs {{ Number(f.total_alcantarillado_bs).toFixed(2) }}</td>
+                  <td class="text-right">Bs {{ Number(f.total_otros_cargos_bs).toFixed(2) }}</td>
+                  <td class="text-right error--text">-Bs {{ Number(f.total_ley1886_bs).toFixed(2) }}</td>
+                  <td class="text-right font-weight-bold green--text text--darken-2">Bs {{ Number(f.total_facturado_bs).toFixed(2) }}</td>
+                  <td class="text-right font-weight-bold primary--text">Bs {{ Number(f.total_cobrado_bs).toFixed(2) }}</td>
+                  <td class="text-center font-weight-bold">
+                    {{ Number(f.total_facturado_bs) > 0 ? ((Number(f.total_cobrado_bs) / Number(f.total_facturado_bs)) * 100).toFixed(1) : 0 }}%
+                  </td>
+                </tr>
+                <tr v-if="datosResumenZonas.filas.length === 0">
+                  <td colspan="12" class="text-center py-4 text-secondary">No existen datos de lecturación para este período.</td>
+                </tr>
+              </tbody>
+              <tfoot v-if="datosResumenZonas && datosResumenZonas.totales" class="grey lighten-3">
+                <tr class="font-weight-black">
+                  <td colspan="3" class="text-right">TOTALES GENERALES:</td>
+                  <td class="text-right">{{ Number(datosResumenZonas.totales.abonados).toLocaleString() }}</td>
+                  <td class="text-right">{{ Number(datosResumenZonas.totales.consumo_m3).toLocaleString() }}</td>
+                  <td class="text-right">Bs {{ Number(datosResumenZonas.totales.agua_bs).toFixed(2) }}</td>
+                  <td class="text-right">Bs {{ Number(datosResumenZonas.totales.alcantarillado_bs).toFixed(2) }}</td>
+                  <td class="text-right">Bs {{ Number(datosResumenZonas.totales.otros_cargos_bs).toFixed(2) }}</td>
+                  <td class="text-right error--text">-Bs {{ Number(datosResumenZonas.totales.ley1886_bs).toFixed(2) }}</td>
+                  <td class="text-right green--text text--darken-2">Bs {{ Number(datosResumenZonas.totales.facturado_bs).toFixed(2) }}</td>
+                  <td class="text-right primary--text">Bs {{ Number(datosResumenZonas.totales.cobrado_bs).toFixed(2) }}</td>
+                  <td class="text-center">
+                    {{ datosResumenZonas.totales.facturado_bs > 0 ? ((datosResumenZonas.totales.cobrado_bs / datosResumenZonas.totales.facturado_bs) * 100).toFixed(1) : 0 }}%
+                  </td>
+                </tr>
+              </tfoot>
+            </template>
+          </v-simple-table>
+        </v-card>
+      </v-tab-item>
+
+      <!-- PESTAÑA 3: NÓMINA DE CORTES MASIVOS POR ZONA -->
+      <v-tab-item>
+        <v-card rounded="lg" class="pa-4 mb-4 erp-card-elevated">
+          <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+            <div class="d-flex align-center flex-wrap gap-3">
+              <v-select
+                v-model="filtroZonaCortes"
+                :items="zonasLista"
+                item-text="nombre"
+                item-value="id"
+                label="Filtrar por Zona Comercial"
+                dense
+                outlined
+                hide-details
+                clearable
+                prepend-inner-icon="mdi-map-marker"
+                style="min-width: 250px;"
+                @change="cargarNominaCortes"
+              ></v-select>
+
+              <v-select
+                v-model="filtroMesesMoraCortes"
+                :items="[2, 3, 4, 5, 6]"
+                label="Meses de Mora Mínimos"
+                dense
+                outlined
+                hide-details
+                style="width: 170px;"
+                @change="cargarNominaCortes"
+              >
+                <template v-slot:selection="{ item }">&ge; {{ item }} Meses Mora</template>
+                <template v-slot:item="{ item }">&ge; {{ item }} Meses Pendientes</template>
+              </v-select>
+            </div>
+
+            <div class="d-flex align-center gap-2">
+              <v-btn
+                color="red darken-2"
+                dark
+                small
+                class="rounded-pill font-weight-medium"
+                :loading="cargandoNominaCortes"
+                @click="verPdfNominaCortes"
+              >
+                <v-icon left small>mdi-file-pdf-box</v-icon> Planilla Cuadrilla PDF
+              </v-btn>
+              <v-btn
+                color="indigo darken-1"
+                dark
+                small
+                outlined
+                class="rounded-pill font-weight-medium"
+                :loading="exportandoExcel"
+                @click="exportarExcelNominaCortes"
+              >
+                <v-icon left small>mdi-file-excel</v-icon> Exportar Excel
+              </v-btn>
+            </div>
+          </div>
+        </v-card>
+
+        <!-- KPI Nómina Cortes -->
+        <v-row dense class="mb-4" v-if="datosNominaCortes">
+          <v-col cols="12" sm="4">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">ABONADOS SUJETOS A CORTE</div>
+              <div class="text-h4 font-weight-black error--text mt-1">
+                {{ datosNominaCortes.total_deudores }}
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="4">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">DEUDA TOTAL EN RIESGO</div>
+              <div class="text-h4 font-weight-black error--text mt-1">
+                Bs {{ Number(datosNominaCortes.total_deuda).toFixed(2) }}
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="4">
+            <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+              <div class="text-caption text-secondary font-weight-bold">CRITERIO DE INTERVENCIÓN</div>
+              <div class="text-h4 font-weight-black deep-orange--text mt-1">
+                &ge; {{ filtroMesesMoraCortes }} Facturas Impagas
+              </div>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Tabla Detalle Abonados a Cortar -->
+        <v-card rounded="lg" class="erp-card-elevated mb-4">
+          <v-simple-table dense>
+            <template v-slot:default>
+              <thead>
+                <tr class="grey lighten-4">
+                  <th class="font-weight-bold text-center">N°</th>
+                  <th class="font-weight-bold text-center">Código</th>
+                  <th class="font-weight-bold">Titular / Abonado</th>
+                  <th class="font-weight-bold">Zona Comercial</th>
+                  <th class="font-weight-bold">Dirección / Calle</th>
+                  <th class="font-weight-bold text-center">Categoría</th>
+                  <th class="font-weight-bold text-center">Medidor</th>
+                  <th class="font-weight-bold text-center">Meses Mora</th>
+                  <th class="text-right font-weight-bold">Deuda (Bs)</th>
+                </tr>
+              </thead>
+              <tbody v-if="datosNominaCortes && datosNominaCortes.abonados">
+                <tr v-for="(a, idx) in datosNominaCortes.abonados" :key="a.id">
+                  <td class="text-center">{{ idx + 1 }}</td>
+                  <td class="text-center font-weight-bold">{{ a.codigo }}</td>
+                  <td class="font-weight-medium">{{ a.nombre_completo }}</td>
+                  <td>{{ a.zona ? a.zona.nombre : 'S/Z' }}</td>
+                  <td>{{ a.calle ? a.calle.nombre : 'S/C' }} {{ a.numero_vivienda ? '#' + a.numero_vivienda : '' }}</td>
+                  <td class="text-center">{{ a.categoria ? a.categoria.nombre : 'DOMESTICO' }}</td>
+                  <td class="text-center font-weight-bold">{{ a.medidor_actual ? a.medidor_actual.numero_serie : (a.numero_medidor || 'S/M') }}</td>
+                  <td class="text-center font-weight-bold error--text">{{ a.meses_mora }}</td>
+                  <td class="text-right font-weight-bold error--text">Bs {{ Number(a.saldo_deuda).toFixed(2) }}</td>
+                </tr>
+                <tr v-if="datosNominaCortes.abonados.length === 0">
+                  <td colspan="9" class="text-center py-4 text-secondary">No existen abonados en mora que cumplan este criterio de corte.</td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+        </v-card>
+      </v-tab-item>
+
+      <!-- PESTAÑA 4: CARTERA VENCIDA Y MOROSIDAD -->
       <v-tab-item>
         <v-row dense class="mb-4" v-if="datosMora">
           <v-col cols="12" sm="3">
@@ -494,6 +780,9 @@
       v-model="mostrarVisorPdf"
       :url="urlReportePdf"
       :titulo="tituloVisorPdf"
+      :url-excel="urlExcelReporte"
+      :nombre-descarga="nombrePdfReporte"
+      :nombre-excel="nombreExcelReporte"
       @descargar="descargarArchivoPdf"
     ></modal-visor-pdf>
   </div>
@@ -535,10 +824,27 @@ export default {
       datosMora: null,
       periodosBalance: [],
 
-      // Visor PDF
+      // Visor PDF y Exportaciones
       mostrarVisorPdf: false,
       urlReportePdf: '',
       tituloVisorPdf: '',
+      urlExcelReporte: '',
+      nombrePdfReporte: 'reporte_comercial.pdf',
+      nombreExcelReporte: 'reporte_comercial.csv',
+      exportandoExcel: false,
+
+      // Resumen por Zonas
+      periodosLista: [],
+      filtroPeriodoZonas: null,
+      datosResumenZonas: null,
+      cargandoResumenZonas: false,
+
+      // Nómina de Cortes
+      zonasLista: [],
+      filtroZonaCortes: null,
+      filtroMesesMoraCortes: 2,
+      datosNominaCortes: null,
+      cargandoNominaCortes: false,
     };
   },
   computed: {
@@ -553,6 +859,7 @@ export default {
       this.subTabActual = 3;
     }
     this.cargarCatalogosFiltros();
+    this.cargarCatalogosCiclo();
     this.cargarRecaudacionConsolidada();
     this.cargarMorosidad();
     this.cargarBalanceConsumo();
@@ -632,28 +939,71 @@ export default {
       }
     },
 
+    // Descarga autenticada en segundo plano (cero pestañas nuevas)
+    async descargarArchivoBlob(url, nombreArchivo) {
+      this.exportandoExcel = true;
+      try {
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        }
+        const client = window.axios || axios;
+        const res = await client.get(url, {
+          responseType: 'blob',
+          headers,
+        });
+        const blob = new Blob([res.data], {
+          type: res.headers['content-type'] || 'text/csv;charset=utf-8;',
+        });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = blobUrl;
+        link.setAttribute('download', nombreArchivo);
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 200);
+        this.$toast?.success(`Archivo ${nombreArchivo} descargado exitosamente.`);
+      } catch (err) {
+        console.error('Error al descargar archivo:', err);
+        this.$toast?.error('No se pudo descargar el archivo solicitado.');
+      } finally {
+        this.exportandoExcel = false;
+      }
+    },
+
     verPdfConsolidado() {
       const q = new URLSearchParams(this.construirQueryParams()).toString();
       this.urlReportePdf = `/api/comercial/reportes/recaudacion-consolidada/pdf?${q}`;
+      this.urlExcelReporte = `/api/comercial/reportes/recaudacion-consolidada/csv?${q}`;
+      this.nombrePdfReporte = `Recaudacion_Consolidada_${this.filtros.fecha_inicio}_${this.filtros.fecha_fin}.pdf`;
+      this.nombreExcelReporte = `Recaudacion_Consolidada_${this.filtros.fecha_inicio}_${this.filtros.fecha_fin}.csv`;
       this.tituloVisorPdf = `Planilla Oficial de Recaudación Consolidada (${this.filtros.fecha_inicio} al ${this.filtros.fecha_fin})`;
       this.mostrarVisorPdf = true;
     },
 
     verPdfArqueoIndividual(sesionId) {
       this.urlReportePdf = `/api/comercial/caja-sesiones/${sesionId}/reporte-pdf`;
+      this.urlExcelReporte = '';
+      this.nombrePdfReporte = `Arqueo_Turno_${sesionId}.pdf`;
       this.tituloVisorPdf = `Planilla Oficial de Arqueo de Turno`;
       this.mostrarVisorPdf = true;
     },
 
-    descargarArchivoPdf() {
+    async descargarArchivoPdf() {
       if (this.urlReportePdf) {
-        window.open(this.urlReportePdf, '_blank');
+        await this.descargarArchivoBlob(this.urlReportePdf, this.nombrePdfReporte || 'reporte.pdf');
       }
     },
 
-    exportarCsv() {
+    async exportarCsv() {
       const q = new URLSearchParams(this.construirQueryParams()).toString();
-      window.open(`/api/comercial/reportes/recaudacion-consolidada/csv?${q}`, '_blank');
+      const url = `/api/comercial/reportes/recaudacion-consolidada/csv?${q}`;
+      await this.descargarArchivoBlob(url, `Recaudacion_Consolidada_${this.filtros.fecha_inicio}_${this.filtros.fecha_fin}.csv`);
     },
 
     async cargarMorosidad() {
@@ -672,6 +1022,99 @@ export default {
       } catch (e) {
         console.error('Error cargando balance consumo:', e);
       }
+    },
+
+    async cargarCatalogosCiclo() {
+      try {
+        const [respPeriodos, respZonas] = await Promise.all([
+          axios.get('/api/comercial/periodos'),
+          axios.get('/api/comercial/zonas'),
+        ]);
+        this.periodosLista = respPeriodos.data.data || [];
+        this.zonasLista = respZonas.data.data || [];
+
+        if (this.periodosLista.length > 0) {
+          this.filtroPeriodoZonas = this.periodosLista[0].id;
+          this.cargarResumenZonas();
+        }
+        this.cargarNominaCortes();
+      } catch (e) {
+        console.error('Error cargando catálogos de ciclo:', e);
+      }
+    },
+
+    async cargarResumenZonas() {
+      if (!this.filtroPeriodoZonas) return;
+      this.cargandoResumenZonas = true;
+      try {
+        const res = await axios.get('/api/comercial/reportes/resumen-operaciones-zonas', {
+          params: { id_periodo: this.filtroPeriodoZonas },
+        });
+        if (res.data && res.data.success) {
+          this.datosResumenZonas = res.data;
+        }
+      } catch (e) {
+        console.error('Error al cargar resumen de zonas:', e);
+      } finally {
+        this.cargandoResumenZonas = false;
+      }
+    },
+
+    verPdfResumenZonas() {
+      if (!this.filtroPeriodoZonas) return;
+      const periodoLabel = this.datosResumenZonas?.periodo?.periodo ? String(this.datosResumenZonas.periodo.periodo).replace('/', '_') : this.filtroPeriodoZonas;
+      this.tituloVisorPdf = `Resumen de Operaciones y Facturación por Zonas - Período ${this.datosResumenZonas?.periodo?.periodo || ''}`;
+      this.urlReportePdf = `/api/comercial/reportes/resumen-operaciones-zonas/pdf?id_periodo=${this.filtroPeriodoZonas}`;
+      this.urlExcelReporte = `/api/comercial/reportes/resumen-operaciones-zonas/excel?id_periodo=${this.filtroPeriodoZonas}`;
+      this.nombrePdfReporte = `Resumen_Zonas_${periodoLabel}.pdf`;
+      this.nombreExcelReporte = `Resumen_Zonas_${periodoLabel}.csv`;
+      this.mostrarVisorPdf = true;
+    },
+
+    async exportarExcelResumenZonas() {
+      if (!this.filtroPeriodoZonas) return;
+      const periodoLabel = this.datosResumenZonas?.periodo?.periodo ? String(this.datosResumenZonas.periodo.periodo).replace('/', '_') : this.filtroPeriodoZonas;
+      const url = `/api/comercial/reportes/resumen-operaciones-zonas/excel?id_periodo=${this.filtroPeriodoZonas}`;
+      await this.descargarArchivoBlob(url, `Resumen_Zonas_${periodoLabel}.csv`);
+    },
+
+    async cargarNominaCortes() {
+      this.cargandoNominaCortes = true;
+      try {
+        const params = { meses_mora: this.filtroMesesMoraCortes };
+        if (this.filtroZonaCortes) params.id_zona = this.filtroZonaCortes;
+
+        const res = await axios.get('/api/comercial/reportes/nomina-cortes', { params });
+        if (res.data && res.data.success) {
+          this.datosNominaCortes = res.data;
+        }
+      } catch (e) {
+        console.error('Error al cargar nómina de cortes:', e);
+      } finally {
+        this.cargandoNominaCortes = false;
+      }
+    },
+
+    verPdfNominaCortes() {
+      const q = new URLSearchParams();
+      q.append('meses_mora', this.filtroMesesMoraCortes);
+      if (this.filtroZonaCortes) q.append('id_zona', this.filtroZonaCortes);
+
+      this.tituloVisorPdf = `Planilla de Cortes Masivos por Mora (>= ${this.filtroMesesMoraCortes} Meses)`;
+      this.urlReportePdf = `/api/comercial/reportes/nomina-cortes/pdf?${q.toString()}`;
+      this.urlExcelReporte = `/api/comercial/reportes/nomina-cortes/excel?${q.toString()}`;
+      this.nombrePdfReporte = `Nomina_Cortes_Masivos.pdf`;
+      this.nombreExcelReporte = `Nomina_Cortes_Masivos.csv`;
+      this.mostrarVisorPdf = true;
+    },
+
+    async exportarExcelNominaCortes() {
+      const q = new URLSearchParams();
+      q.append('meses_mora', this.filtroMesesMoraCortes);
+      if (this.filtroZonaCortes) q.append('id_zona', this.filtroZonaCortes);
+
+      const url = `/api/comercial/reportes/nomina-cortes/excel?${q.toString()}`;
+      await this.descargarArchivoBlob(url, 'Nomina_Cortes_Masivos.csv');
     },
   },
 };

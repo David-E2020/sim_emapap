@@ -190,8 +190,11 @@
 
         <!-- Medidor -->
         <template v-slot:item.medidor="{ item }">
-          <span v-if="item.medidor_actual" class="text-caption font-weight-medium">
-            <v-icon x-small color="blue">mdi-counter</v-icon> {{ item.medidor_actual.numero_serie }}
+          <span v-if="item.medidor_actual && item.medidor_actual.numero_serie === '1'" class="text-caption font-weight-medium amber--text text--darken-3" title="Servicio con medidor activo (Serie física '1' en FoxPro pendiente de relevamiento)">
+            <v-icon x-small color="amber darken-3">mdi-counter</v-icon> 1 <span class="grey--text text-caption">(FoxPro)</span>
+          </span>
+          <span v-else-if="item.medidor_actual" class="text-caption font-weight-bold primary--text">
+            <v-icon x-small color="primary">mdi-counter</v-icon> {{ item.medidor_actual.numero_serie }}
           </span>
           <span v-else class="text-caption text-secondary">Sin medidor</span>
         </template>
@@ -506,13 +509,7 @@
               <v-col cols="12" sm="4">
                 <v-select
                   v-model="formAbonado.estado_servicio"
-                  :items="[
-                    { text: 'Activo', value: 'ACTIVO' },
-                    { text: 'Cortado / Corte', value: 'CORTE' },
-                    { text: 'Suspendido Temporal', value: 'SUSPENDIDO' },
-                    { text: 'Permiso Especial', value: 'PERMISO' },
-                    { text: 'Dado de Baja', value: 'BAJA' }
-                  ]"
+                  :items="estadosServicioOpciones"
                   item-text="text"
                   item-value="value"
                   label="Estado del Servicio *"
@@ -528,9 +525,8 @@
                   label="N° Serie Medidor"
                   dense
                   outlined
-                  placeholder="Ej: A25LM0412090"
-                  :disabled="esEdicion && !!formAbonado.id_medidor_actual"
-                  :hint="esEdicion && formAbonado.id_medidor_actual ? 'Use botón Cambiar Medidor en la ficha' : ''"
+                  placeholder="Ej: A25LM0412091"
+                  hint="Serie física del medidor (Editable)"
                   persistent-hint
                 ></v-text-field>
               </v-col>
@@ -653,8 +649,8 @@
               <v-chip x-small outlined color="primary" class="font-weight-medium">
                 <v-icon left x-small>mdi-calendar-check</v-icon> Ingreso: {{ abonadoSeleccionado.fecha_ingreso || 'S/F' }}
               </v-chip>
-              <v-chip x-small outlined color="teal" class="font-weight-medium">
-                <v-icon left x-small>mdi-counter</v-icon> Medidor: {{ abonadoSeleccionado.medidor_actual ? abonadoSeleccionado.medidor_actual.numero_serie : 'Sin medidor' }}
+              <v-chip x-small outlined :color="abonadoSeleccionado.medidor_actual && abonadoSeleccionado.medidor_actual.numero_serie === '1' ? 'amber darken-3' : 'teal'" class="font-weight-medium">
+                <v-icon left x-small>mdi-counter</v-icon> Medidor: {{ abonadoSeleccionado.medidor_actual ? (abonadoSeleccionado.medidor_actual.numero_serie === '1' ? '1 (Con Medidor en FoxPro)' : abonadoSeleccionado.medidor_actual.numero_serie) : 'Sin medidor' }}
               </v-chip>
               <v-chip x-small outlined color="indigo" class="font-weight-medium">
                 <v-icon left x-small>mdi-tag</v-icon> Cat: {{ abonadoSeleccionado.categoria ? abonadoSeleccionado.categoria.nombre : '-' }}
@@ -906,12 +902,18 @@ export default {
       ],
       estadosOpciones: [
         { valor: 'TODOS', texto: 'Todos los Estados' },
-        { valor: 'ACTIVO', texto: 'Activo' },
-        { valor: 'CORTE', texto: 'En Corte' },
-        { valor: 'SUSPENDIDO', texto: 'Suspendido' },
-        { valor: 'BAJA', texto: 'Baja Definitiva' },
-        { valor: 'PERMISO', texto: 'Permiso Temporal' },
-        { valor: 'EN_MORA', texto: 'En Mora (>= 2 meses)' },
+        { valor: 'ACTIVO', texto: 'A - ACTIVO' },
+        { valor: 'CORTE', texto: 'C - CORTE' },
+        { valor: 'SUSPENDIDO', texto: 'S - SUSPENDIDO' },
+        { valor: 'PERMISO', texto: 'P - PERMISO' },
+        { valor: 'BAJA', texto: 'B - BAJA (Histórico)' },
+        { valor: 'EN_MORA', texto: 'EN MORA (>= 2 meses)' },
+      ],
+      estadosServicioOpciones: [
+        { text: 'A - ACTIVO', value: 'ACTIVO' },
+        { text: 'C - CORTE', value: 'CORTE' },
+        { text: 'S - SUSPENDIDO', value: 'SUSPENDIDO' },
+        { text: 'P - PERMISO', value: 'PERMISO' },
       ],
       busqueda: '',
       filtroZona: null,

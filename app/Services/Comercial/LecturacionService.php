@@ -183,7 +183,7 @@ class LecturacionService
                 FROM (
                     SELECT id_abonado, SUM(total_facturado) as total_deuda, COUNT(id) as meses_mora
                     FROM comercial.lecturas_mensuales
-                    WHERE estado_pago = 'PENDIENTE'
+                    WHERE estado_pago = 'PENDIENTE' AND total_facturado > 0
                     GROUP BY id_abonado
                 ) sub
                 WHERE a.id = sub.id_abonado;
@@ -192,6 +192,100 @@ class LecturacionService
             $periodo->update(['estado' => 'FACTURADO']);
 
             return $periodo->fresh();
+        });
+    }
+
+    /**
+     * Cierra formalmente un periodo mensual, consolidando la mora y actualizando candidatos a corte.
+     */
+    public function cerrarPeriodo(int $idPeriodo): PeriodoFacturacion
+    {
+        return DB::transaction(function () use ($idPeriodo) {
+            /** @var PeriodoFacturacion $periodo */
+            $periodo = PeriodoFacturacion::findOrFail($idPeriodo);
+
+            // Actualizar saldos y estado de mora de los abonados
+            DB::statement("
+                UPDATE comercial.abonados a
+                SET saldo_deuda = COALESCE(sub.total_deuda, 0),
+                    meses_mora = COALESCE(sub.meses_mora, 0),
+                    estado_servicio = CASE 
+                        WHEN COALESCE(sub.meses_mora, 0) >= 2 AND a.estado_servicio NOT IN ('CORTADO', 'BAJA') THEN 'EN_MORA'
+                        WHEN COALESCE(sub.meses_mora, 0) < 2 AND a.estado_servicio = 'EN_MORA' THEN 'ACTIVO'
+                        ELSE a.estado_servicio
+                    END
+                FROM (
+                    SELECT id_abonado, SUM(total_facturado) as total_deuda, COUNT(id) as meses_mora
+                    FROM comercial.lecturas_mensuales
+                    WHERE estado_pago = 'PENDIENTE' AND total_facturado > 0
+                    GROUP BY id_abonado
+                ) sub
+                WHERE a.id = sub.id_abonado;
+            ");
+
+            $periodo->update(['estado' => 'CERRADO']);
+
+            return $periodo->fresh();
+        });
+    }
+
+    /**
+     * Cambia el estado de un periodo (LECTURA, FACTURACION, CERRADO).
+     */
+    public function cambiarEstadoPeriodo(int $idPeriodo, string $nuevoEstado): PeriodoFacturacion
+    {
+        $estado = strtoupper(trim($nuevoEstado));
+        if ($estado === 'FACTURACION' || $estado === 'FACTURADO') {
+            return $this->liquidarPeriodo($idPeriodo);
+        }
+
+        if ($estado === 'CERRADO') {
+            return $this->cerrarPeriodo($idPeriodo);
+        }
+
+        // Si es LECTURA o ABIERTO
+        $periodo = PeriodoFacturacion::findOrFail($idPeriodo);
+        $periodo->update(['estado' => 'LECTURA']);
+        return $periodo->fresh();
+    }
+
+    /**
+     * Actualiza fechas y observaciones de un periodo existente.
+     */
+    public function actualizarPeriodo(int $idPeriodo, array $datos): PeriodoFacturacion
+    {
+        $periodo = PeriodoFacturacion::findOrFail($idPeriodo);
+
+        $periodo->update(array_filter([
+            'fecha_inicio_consumo' => $datos['fecha_inicio_consumo'] ?? null,
+            'fecha_fin_consumo' => $datos['fecha_fin_consumo'] ?? null,
+            'fecha_vencimiento_pago' => $datos['fecha_vencimiento_pago'] ?? null,
+            'estado' => isset($datos['estado']) ? strtoupper($datos['estado']) : null,
+            'observaciones' => $datos['observaciones'] ?? null,
+        ], fn($v) => !is_null($v)));
+
+        return $periodo->fresh();
+    }
+
+    /**
+     * Elimina un periodo si no contiene lecturas facturadas o pagos cobrados.
+     */
+    public function eliminarPeriodo(int $idPeriodo): bool
+    {
+        return DB::transaction(function () use ($idPeriodo) {
+            $periodo = PeriodoFacturacion::findOrFail($idPeriodo);
+
+            $tienePagados = LecturaMensual::where('id_periodo', $idPeriodo)
+                ->where('estado_pago', 'PAGADO')
+                ->exists();
+
+            if ($tienePagados) {
+                throw new \Exception("No se puede eliminar el periodo {$periodo->periodo} porque ya registra lecturas con cobros pagados.");
+            }
+
+            // Eliminar registros de lecturas del periodo
+            LecturaMensual::where('id_periodo', $idPeriodo)->delete();
+            return $periodo->delete();
         });
     }
 

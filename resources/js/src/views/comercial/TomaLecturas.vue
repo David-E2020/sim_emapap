@@ -14,7 +14,16 @@
         </div>
 
         <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
-          <v-btn outlined color="primary" class="text-capitalize rounded-pill elevation-1" @click="modalAbrirPeriodo = true">
+          <v-btn
+            outlined
+            color="indigo"
+            class="text-capitalize rounded-pill elevation-1 mr-2"
+            :disabled="!periodoSeleccionado"
+            @click="abrirModalPlanillaCampo"
+          >
+            <v-icon left small>mdi-clipboard-list-outline</v-icon> Planilla de Campo
+          </v-btn>
+          <v-btn outlined color="primary" class="text-capitalize rounded-pill elevation-1 mr-2" @click="modalAbrirPeriodo = true">
             <v-icon left small>mdi-calendar-plus</v-icon> Abrir Nuevo Periodo
           </v-btn>
           <v-btn
@@ -91,19 +100,30 @@
 
     <!-- RESUMEN DEL PERIODO -->
     <v-row dense class="mb-4" v-if="periodoInfo">
-      <v-col cols="12" sm="4">
+      <v-col cols="12" sm="3">
+        <v-card class="pa-3 text-center" rounded="lg" elevation="1">
+          <div class="text-caption text-secondary">Estado del Ciclo</div>
+          <div class="mt-1">
+            <v-chip small :color="obtenerColorEstado(periodoInfo.estado)" dark class="font-weight-bold">
+              <v-icon left x-small>{{ obtenerIconoEstado(periodoInfo.estado) }}</v-icon>
+              {{ periodoInfo.estado_label || periodoInfo.estado }}
+            </v-chip>
+          </div>
+        </v-card>
+      </v-col>
+      <v-col cols="12" sm="3">
         <v-card class="pa-3 text-center" rounded="lg" elevation="1">
           <div class="text-caption text-secondary">Abonados en Planilla</div>
           <div class="text-h5 font-weight-black primary--text">{{ planilla.length }}</div>
         </v-card>
       </v-col>
-      <v-col cols="12" sm="4">
+      <v-col cols="12" sm="3">
         <v-card class="pa-3 text-center" rounded="lg" elevation="1">
-          <div class="text-caption text-secondary">Lecturas con Consumo Registrado</div>
+          <div class="text-caption text-secondary">Lecturas con Consumo</div>
           <div class="text-h5 font-weight-black success--text">{{ lecturasConConsumo }}</div>
         </v-card>
       </v-col>
-      <v-col cols="12" sm="4">
+      <v-col cols="12" sm="3">
         <v-card class="pa-3 text-center" rounded="lg" elevation="1">
           <div class="text-caption text-secondary">Volumen Total Estimado</div>
           <div class="text-h5 font-weight-black info--text">{{ volumenTotalM3.toFixed(1) }} m³</div>
@@ -258,14 +278,87 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- DIÁLOGO: OPCIONES PLANILLA DE CAMPO -->
+    <v-dialog v-model="modalPlanillaCampo" max-width="500px">
+      <v-card class="rounded-lg">
+        <v-card-title class="indigo white--text py-3">
+          <v-icon left dark>mdi-clipboard-text</v-icon>
+          Planilla de Campo para Toma de Lecturas
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <p class="text-caption text-secondary mb-3">
+            Emite la planilla oficial para que los lecturadores recorran las zonas registrando el consumo de los medidores.
+          </p>
+
+          <v-select
+            v-model="opcionesPlanilla.id_zona"
+            :items="zonas"
+            item-text="nombre"
+            item-value="id"
+            label="Zona Comercial"
+            outlined
+            dense
+            clearable
+            prepend-inner-icon="mdi-map-marker"
+          ></v-select>
+
+          <v-switch
+            v-model="opcionesPlanilla.a_ciegas"
+            label="Modalidad A Ciegas (Ocultar lectura anterior)"
+            color="indigo"
+            class="mt-1"
+            hint="Oculta la lectura anterior para forzar la lectura real del medidor en campo."
+            persistent-hint
+          ></v-switch>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-btn
+            color="green darken-2"
+            outlined
+            class="text-none font-weight-bold"
+            :loading="exportandoExcel"
+            @click="descargarPlanillaExcel"
+          >
+            <v-icon left>mdi-file-excel</v-icon>
+            Exportar Excel
+          </v-btn>
+          <v-spacer></v-spacer>
+          <v-btn text @click="modalPlanillaCampo = false">Cerrar</v-btn>
+          <v-btn
+            color="indigo"
+            dark
+            class="font-weight-bold"
+            @click="descargarPlanillaPdf"
+          >
+            <v-icon left>mdi-file-pdf-box</v-icon>
+            Generar PDF
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- VISOR UNIVERSAL DE PDF (VENTANA EMERGENTE SEGURA CON TOKEN JWT) -->
+    <modal-visor-pdf
+      v-model="modalVisorPdf"
+      :url="urlVisorPdf"
+      :titulo="tituloVisorPdf"
+      :url-excel="urlExcelVisorPdf"
+      :nombre-descarga="nombrePdfVisor"
+      :nombre-excel="nombreExcelVisor"
+    ></modal-visor-pdf>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
+import ModalVisorPdf from '@/components/ModalVisorPdf.vue';
 
 export default {
   name: 'TomaLecturas',
+  components: {
+    ModalVisorPdf,
+  },
   data() {
     return {
       cargandoPlanilla: false,
@@ -303,6 +396,18 @@ export default {
         { numero: 7, nombre: 'Julio' }, { numero: 8, nombre: 'Agosto' }, { numero: 9, nombre: 'Septiembre' },
         { numero: 10, nombre: 'Octubre' }, { numero: 11, nombre: 'Noviembre' }, { numero: 12, nombre: 'Diciembre' },
       ],
+      modalPlanillaCampo: false,
+      opcionesPlanilla: {
+        id_zona: null,
+        a_ciegas: false,
+      },
+      modalVisorPdf: false,
+      urlVisorPdf: '',
+      tituloVisorPdf: 'Planilla de Campo',
+      urlExcelVisorPdf: '',
+      nombrePdfVisor: 'Planilla_Campo.pdf',
+      nombreExcelVisor: 'Planilla_Campo.csv',
+      exportandoExcel: false,
     };
   },
   computed: {
@@ -431,6 +536,90 @@ export default {
       } finally {
         this.abriendoPeriodo = false;
       }
+    },
+    obtenerColorEstado(estado) {
+      const e = String(estado || '').toUpperCase();
+      if (['LECTURA', 'L', 'ABIERTO'].includes(e)) return 'blue darken-1';
+      if (['FACTURACION', 'F', 'FACTURADO'].includes(e)) return 'orange darken-2';
+      if (['CERRADO', 'C'].includes(e)) return 'blue-grey darken-1';
+      return 'grey';
+    },
+    obtenerIconoEstado(estado) {
+      const e = String(estado || '').toUpperCase();
+      if (['LECTURA', 'L', 'ABIERTO'].includes(e)) return 'mdi-counter';
+      if (['FACTURACION', 'F', 'FACTURADO'].includes(e)) return 'mdi-cash-register';
+      if (['CERRADO', 'C'].includes(e)) return 'mdi-lock';
+      return 'mdi-clock-outline';
+    },
+    abrirModalPlanillaCampo() {
+      this.opcionesPlanilla = {
+        id_zona: this.filtroZona || null,
+        a_ciegas: false,
+      };
+      this.modalPlanillaCampo = true;
+    },
+    async descargarArchivoBlob(url, nombreArchivo) {
+      this.exportandoExcel = true;
+      try {
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        }
+        const client = window.axios || axios;
+        const res = await client.get(url, {
+          responseType: 'blob',
+          headers,
+        });
+        const blob = new Blob([res.data], {
+          type: res.headers['content-type'] || 'text/csv;charset=utf-8;',
+        });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = blobUrl;
+        link.setAttribute('download', nombreArchivo);
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 200);
+        this.$toast?.success(`Archivo ${nombreArchivo} descargado exitosamente.`);
+      } catch (err) {
+        console.error('Error al descargar archivo:', err);
+        this.$toast?.error('No se pudo descargar el archivo solicitado.');
+      } finally {
+        this.exportandoExcel = false;
+      }
+    },
+    descargarPlanillaPdf() {
+      if (!this.periodoSeleccionado) return;
+      const q = new URLSearchParams();
+      q.append('id_periodo', this.periodoSeleccionado);
+      if (this.opcionesPlanilla.id_zona) q.append('id_zona', this.opcionesPlanilla.id_zona);
+      if (this.opcionesPlanilla.a_ciegas) q.append('a_ciegas', '1');
+
+      const periodoNombre = this.periodoInfo ? String(this.periodoInfo.periodo).replace('/', '_') : 'Actual';
+      this.tituloVisorPdf = `Planilla de Campo - Período ${this.periodoInfo?.periodo || ''}`;
+      this.urlVisorPdf = `/api/comercial/reportes/planilla-lecturas/pdf?${q.toString()}`;
+      this.urlExcelVisorPdf = `/api/comercial/reportes/planilla-lecturas/excel?${q.toString()}`;
+      this.nombrePdfVisor = `Planilla_Campo_${periodoNombre}.pdf`;
+      this.nombreExcelVisor = `Planilla_Campo_${periodoNombre}.csv`;
+      this.modalPlanillaCampo = false;
+      this.modalVisorPdf = true;
+    },
+    async descargarPlanillaExcel() {
+      if (!this.periodoSeleccionado) return;
+      const q = new URLSearchParams();
+      q.append('id_periodo', this.periodoSeleccionado);
+      if (this.opcionesPlanilla.id_zona) q.append('id_zona', this.opcionesPlanilla.id_zona);
+      if (this.opcionesPlanilla.a_ciegas) q.append('a_ciegas', '1');
+
+      const periodoNombre = this.periodoInfo ? String(this.periodoInfo.periodo).replace('/', '_') : 'Actual';
+      const url = `/api/comercial/reportes/planilla-lecturas/excel?${q.toString()}`;
+      await this.descargarArchivoBlob(url, `Planilla_Campo_${periodoNombre}.csv`);
+      this.modalPlanillaCampo = false;
     },
   },
 };

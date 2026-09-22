@@ -1,7 +1,7 @@
 <template>
   <v-dialog
     v-model="dialogVisible"
-    max-width="1000px"
+    :max-width="maxWidth"
     persistent
     scrollable
     transition="dialog-bottom-transition"
@@ -42,11 +42,24 @@
             </v-btn>
           </v-btn-toggle>
 
+          <!-- Botón Exportar Excel Directo si aplica (sin abrir pestañas) -->
+          <v-btn
+            v-if="urlExcel"
+            color="green darken-2"
+            outlined
+            class="rounded-pill mr-2 font-weight-bold"
+            small
+            :loading="descargandoExcel"
+            @click="descargarExcelDirecto"
+          >
+            <v-icon left small>mdi-file-excel</v-icon> Excel
+          </v-btn>
+
           <!-- Botón Descargar PDF Directo -->
           <v-btn
             v-if="blobUrl"
             :href="blobUrl"
-            download="documento_oficial.pdf"
+            :download="nombreDescarga"
             color="grey darken-3"
             outlined
             class="rounded-pill mr-2 font-weight-bold"
@@ -130,6 +143,8 @@
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   name: 'ModalVisorPdf',
   props: {
@@ -157,6 +172,22 @@ export default {
       type: String,
       default: 'rollo',
     },
+    maxWidth: {
+      type: String,
+      default: '1050px',
+    },
+    nombreDescarga: {
+      type: String,
+      default: 'documento_oficial.pdf',
+    },
+    urlExcel: {
+      type: String,
+      default: '',
+    },
+    nombreExcel: {
+      type: String,
+      default: 'reporte.csv',
+    },
   },
   data() {
     return {
@@ -165,6 +196,7 @@ export default {
       mensajeError: '',
       blobUrl: null,
       formatoActual: this.formatoInicial,
+      descargandoExcel: false,
     };
   },
   computed: {
@@ -295,6 +327,41 @@ export default {
           printWindow.focus();
           printWindow.print();
         }
+      }
+    },
+    async descargarExcelDirecto() {
+      if (!this.urlExcel) return;
+      this.descargandoExcel = true;
+      try {
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        }
+        const client = window.axios || axios;
+        const res = await client.get(this.urlExcel, {
+          responseType: 'blob',
+          headers,
+        });
+
+        const blob = new Blob([res.data], {
+          type: res.headers['content-type'] || 'text/csv;charset=utf-8;',
+        });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = blobUrl;
+        link.setAttribute('download', this.nombreExcel || 'reporte.csv');
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 200);
+      } catch (err) {
+        console.error('Error al exportar Excel directo:', err);
+      } finally {
+        this.descargandoExcel = false;
       }
     },
     cerrar() {

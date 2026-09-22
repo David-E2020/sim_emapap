@@ -170,9 +170,25 @@ class AbonadoController extends Controller
         $ultimoId = Abonado::max('id') ?? 0;
         $codigoNuevo = sprintf('%05d', $ultimoId + 1);
 
-        $abonado = Abonado::create(array_merge($request->all(), [
+        $nroMedidor = trim((string) $request->input('numero_medidor', ''));
+        $idMedidor = null;
+        if (!empty($nroMedidor)) {
+            $medidor = Medidor::firstOrCreate(
+                ['numero_serie' => $nroMedidor],
+                [
+                    'marca' => 'Sensus',
+                    'diametro' => '1/2"',
+                    'estado' => 'OPERATIVO',
+                ]
+            );
+            $idMedidor = $medidor->id;
+        }
+
+        $abonado = Abonado::create(array_merge($request->except('numero_medidor'), [
             'codigo' => $codigoNuevo,
-            'estado_servicio' => 'ACTIVO',
+            'estado_servicio' => $request->input('estado_servicio', 'ACTIVO'),
+            'id_medidor_actual' => $idMedidor,
+            'tiene_medidor' => ($idMedidor !== null || $request->boolean('tiene_medidor')),
             'fecha_ingreso' => $request->input('fecha_ingreso', date('Y-m-d')),
             'saldo_deuda' => 0.00,
             'meses_mora' => 0,
@@ -181,7 +197,7 @@ class AbonadoController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Abonado registrado exitosamente con código ' . $codigoNuevo,
-            'data' => $abonado->load(['zona', 'calle', 'categoria']),
+            'data' => $abonado->load(['zona', 'calle', 'categoria', 'medidorActual']),
         ], Response::HTTP_CREATED);
     }
 
@@ -214,6 +230,7 @@ class AbonadoController extends Controller
             'tiene_alcantarillado' => 'boolean',
             'es_tercera_edad' => 'boolean',
             'estado_servicio' => 'sometimes|string',
+            'numero_medidor' => 'nullable|string|max:50',
             'fecha_ingreso' => 'nullable|date',
             'observaciones' => 'nullable|string',
         ]);
@@ -225,7 +242,34 @@ class AbonadoController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $abonado->update($request->all());
+        $abonado->update($request->except('numero_medidor'));
+
+        if ($request->has('numero_medidor')) {
+            $nroMedidor = trim((string) $request->input('numero_medidor', ''));
+            if (!empty($nroMedidor)) {
+                if (!$abonado->medidorActual || $abonado->medidorActual->numero_serie !== $nroMedidor) {
+                    $medidor = Medidor::firstOrCreate(
+                        ['numero_serie' => $nroMedidor],
+                        [
+                            'marca' => 'Sensus',
+                            'diametro' => '1/2"',
+                            'estado' => 'OPERATIVO',
+                        ]
+                    );
+                    $abonado->update([
+                        'id_medidor_actual' => $medidor->id,
+                        'tiene_medidor' => true,
+                    ]);
+                }
+            } else {
+                if ($request->has('tiene_medidor') && !$request->boolean('tiene_medidor')) {
+                    $abonado->update([
+                        'id_medidor_actual' => null,
+                        'tiene_medidor' => false,
+                    ]);
+                }
+            }
+        }
 
         return response()->json([
             'success' => true,

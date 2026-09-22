@@ -355,6 +355,14 @@ export const routes = [
     },
   },
   {
+    path: '/comercial/periodos',
+    name: 'comercial_periodos',
+    component: () => import('@/views/comercial/RegistroPeriodos.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
     path: '/comercial/lecturas',
     name: 'comercial_lecturas',
     component: () => import('@/views/comercial/TomaLecturas.vue'),

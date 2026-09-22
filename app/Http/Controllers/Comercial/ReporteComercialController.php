@@ -16,6 +16,7 @@ use App\Models\Comercial\ReciboCaja;
 use App\Models\Comercial\Zona;
 use App\Models\Facturacion\SiatPuntoVenta;
 use App\Services\Comercial\ReporteRecaudacionConsolidadaPdfService;
+use App\Services\Comercial\ReportesOperativosPdfService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,7 +27,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ReporteComercialController extends Controller
 {
     public function __construct(
-        protected ReporteRecaudacionConsolidadaPdfService $pdfConsolidadoService
+        protected ReporteRecaudacionConsolidadaPdfService $pdfConsolidadoService,
+        protected ReportesOperativosPdfService $pdfOperativosService
     ) {}
 
     /**
@@ -603,5 +605,365 @@ class ReporteComercialController extends Controller
             'success' => true,
             'periodos' => $periodos,
         ], Response::HTTP_OK);
+    }
+
+    /**
+     * Descarga la Planilla de Campo de Toma de Lecturas en PDF.
+     */
+    public function descargarPlanillaLecturasPdf(Request $request): Response
+    {
+        $idPeriodo = (int) $request->input('id_periodo');
+        $idZona = $request->input('id_zona') ? (int) $request->input('id_zona') : null;
+        $idCalle = $request->input('id_calle') ? (int) $request->input('id_calle') : null;
+        $aCiegas = $request->boolean('a_ciegas', false);
+
+        $pdf = $this->pdfOperativosService->generarPlanillaLecturasPdf($idPeriodo, $idZona, $idCalle, $aCiegas);
+
+        $sufijo = $aCiegas ? 'A_CIEGAS' : 'NORMAL';
+        return response($pdf, Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"Planilla_Lecturas_Periodo_{$idPeriodo}_{$sufijo}.pdf\"",
+        ]);
+    }
+
+    /**
+     * Exporta la Planilla de Campo de Toma de Lecturas en formato Excel / CSV.
+     */
+    public function exportarPlanillaLecturasExcel(Request $request): StreamedResponse
+    {
+        $idPeriodo = (int) $request->input('id_periodo');
+        $idZona = $request->input('id_zona') ? (int) $request->input('id_zona') : null;
+        $idCalle = $request->input('id_calle') ? (int) $request->input('id_calle') : null;
+        $aCiegas = $request->boolean('a_ciegas', false);
+
+        $query = LecturaMensual::with([
+            'abonado.zona',
+            'abonado.calle',
+            'abonado.categoria',
+            'medidor',
+        ])->where('id_periodo', $idPeriodo);
+
+        if ($idZona) {
+            $query->whereHas('abonado', fn($q) => $q->where('id_zona', $idZona));
+        }
+        if ($idCalle) {
+            $query->whereHas('abonado', fn($q) => $q->where('id_calle', $idCalle));
+        }
+
+        $lecturas = $query->join('comercial.abonados', 'lecturas_mensuales.id_abonado', '=', 'abonados.id')
+            ->leftJoin('comercial.zonas', 'abonados.id_zona', '=', 'zonas.id')
+            ->leftJoin('comercial.calles', 'abonados.id_calle', '=', 'calles.id')
+            ->orderBy('zonas.nombre')
+            ->orderBy('calles.nombre')
+            ->orderBy('abonados.codigo')
+            ->select('comercial.lecturas_mensuales.*')
+            ->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"Planilla_Lecturas_Periodo_{$idPeriodo}.csv\"",
+        ];
+
+        return response()->stream(function () use ($lecturas, $aCiegas) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+
+            fputcsv($handle, [
+                'N°',
+                'Código Abonado',
+                'Titular / Abonado',
+                'Zona',
+                'Calle / Dirección',
+                'N° Vivienda',
+                'Categoría',
+                'N° Medidor',
+                'Lectura Anterior (m³)',
+                'Lectura Actual (m³)',
+                'Observación / Novedad',
+            ], ';');
+
+            foreach ($lecturas as $idx => $l) {
+                fputcsv($handle, [
+                    $idx + 1,
+                    $l->abonado?->codigo ?? '',
+                    $l->abonado?->nombre_completo ?? '',
+                    $l->abonado?->zona?->nombre ?? '',
+                    $l->abonado?->calle?->nombre ?? '',
+                    $l->abonado?->numero_vivienda ?? '',
+                    $l->abonado?->categoria?->nombre ?? '',
+                    $l->medidor?->numero_serie ?? $l->abonado?->numero_medidor ?? '',
+                    $aCiegas ? '[A CIEGAS]' : number_format((float) $l->lectura_anterior, 0),
+                    '',
+                    '',
+                ], ';');
+            }
+
+            fclose($handle);
+        }, Response::HTTP_OK, $headers);
+    }
+
+    /**
+     * Resumen de Operaciones y Facturación por Zonas (JSON).
+     */
+    public function resumenOperacionesZonas(Request $request): JsonResponse
+    {
+        $idPeriodo = (int) $request->input('id_periodo');
+        $periodo = $idPeriodo ? PeriodoFacturacion::find($idPeriodo) : PeriodoFacturacion::latest('id')->first();
+
+        if (!$periodo) {
+            return response()->json(['success' => false, 'message' => 'No se encontró ningún período activo.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $filas = DB::table('comercial.lecturas_mensuales as l')
+            ->join('comercial.abonados as a', 'l.id_abonado', '=', 'a.id')
+            ->leftJoin('comercial.zonas as z', 'a.id_zona', '=', 'z.id')
+            ->where('l.id_periodo', $periodo->id)
+            ->groupBy('z.id', 'z.codigo', 'z.nombre')
+            ->orderBy('z.nombre')
+            ->select([
+                'z.id as id_zona',
+                DB::raw("COALESCE(z.nombre, 'SIN ZONA ASIGNADA') as zona_nombre"),
+                DB::raw("COALESCE(z.codigo, 'S/Z') as zona_codigo"),
+                DB::raw("COUNT(l.id) as total_abonados"),
+                DB::raw("SUM(COALESCE(l.consumo_m3, 0)) as consumo_total_m3"),
+                DB::raw("SUM(COALESCE(l.monto_agua, 0)) as total_agua_bs"),
+                DB::raw("SUM(COALESCE(l.monto_alcantarillado, 0)) as total_alcantarillado_bs"),
+                DB::raw("SUM(COALESCE(l.monto_otros, 0)) as total_otros_cargos_bs"),
+                DB::raw("SUM(COALESCE(l.monto_descuento_ley1886, 0)) as total_ley1886_bs"),
+                DB::raw("SUM(COALESCE(l.total_facturado, 0)) as total_facturado_bs"),
+                DB::raw("COUNT(CASE WHEN l.estado_pago = 'PAGADO' THEN 1 END) as abonados_pagados"),
+                DB::raw("SUM(CASE WHEN l.estado_pago = 'PAGADO' THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as total_cobrado_bs"),
+            ])
+            ->get();
+
+        $totales = [
+            'abonados' => $filas->sum('total_abonados'),
+            'consumo_m3' => (float) $filas->sum('consumo_total_m3'),
+            'agua_bs' => (float) $filas->sum('total_agua_bs'),
+            'alcantarillado_bs' => (float) $filas->sum('total_alcantarillado_bs'),
+            'otros_cargos_bs' => (float) $filas->sum('total_otros_cargos_bs'),
+            'ley1886_bs' => (float) $filas->sum('total_ley1886_bs'),
+            'facturado_bs' => (float) $filas->sum('total_facturado_bs'),
+            'cobrado_bs' => (float) $filas->sum('total_cobrado_bs'),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'periodo' => $periodo,
+            'filas' => $filas,
+            'totales' => $totales,
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Descarga el Resumen de Operaciones y Facturación por Zonas en PDF.
+     */
+    public function descargarResumenOperacionesZonasPdf(Request $request): Response
+    {
+        $idPeriodo = (int) $request->input('id_periodo');
+        $pdf = $this->pdfOperativosService->generarResumenZonasPdf($idPeriodo);
+
+        return response($pdf, Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"Resumen_Facturacion_Zonas_Periodo_{$idPeriodo}.pdf\"",
+        ]);
+    }
+
+    /**
+     * Exporta el Resumen de Operaciones y Facturación por Zonas en Excel / CSV.
+     */
+    public function exportarResumenOperacionesZonasExcel(Request $request): StreamedResponse
+    {
+        $idPeriodo = (int) $request->input('id_periodo');
+        $periodo = PeriodoFacturacion::findOrFail($idPeriodo);
+
+        $filas = DB::table('comercial.lecturas_mensuales as l')
+            ->join('comercial.abonados as a', 'l.id_abonado', '=', 'a.id')
+            ->leftJoin('comercial.zonas as z', 'a.id_zona', '=', 'z.id')
+            ->where('l.id_periodo', $idPeriodo)
+            ->groupBy('z.id', 'z.codigo', 'z.nombre')
+            ->orderBy('z.nombre')
+            ->select([
+                DB::raw("COALESCE(z.codigo, 'S/Z') as zona_codigo"),
+                DB::raw("COALESCE(z.nombre, 'SIN ZONA ASIGNADA') as zona_nombre"),
+                DB::raw("COUNT(l.id) as total_abonados"),
+                DB::raw("SUM(COALESCE(l.consumo_m3, 0)) as consumo_total_m3"),
+                DB::raw("SUM(COALESCE(l.monto_agua, 0)) as total_agua_bs"),
+                DB::raw("SUM(COALESCE(l.monto_alcantarillado, 0)) as total_alcantarillado_bs"),
+                DB::raw("SUM(COALESCE(l.monto_otros, 0)) as total_otros_cargos_bs"),
+                DB::raw("SUM(COALESCE(l.monto_descuento_ley1886, 0)) as total_ley1886_bs"),
+                DB::raw("SUM(COALESCE(l.total_facturado, 0)) as total_facturado_bs"),
+                DB::raw("SUM(CASE WHEN l.estado_pago = 'PAGADO' THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as total_cobrado_bs"),
+            ])
+            ->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"Resumen_Zonas_Periodo_{$idPeriodo}.csv\"",
+        ];
+
+        return response()->stream(function () use ($filas) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+
+            fputcsv($handle, [
+                'N°',
+                'Código Zona',
+                'Zona Comercial',
+                'Abonados',
+                'Consumo (m³)',
+                'Importe Agua (Bs)',
+                'Alcantarillado (Bs)',
+                'Otros Cargos (Bs)',
+                'Desc. Ley 1886 (Bs)',
+                'Total Facturado (Bs)',
+                'Total Recaudado (Bs)',
+                '% Cobro',
+            ], ';');
+
+            foreach ($filas as $idx => $f) {
+                $pct = (float) $f->total_facturado_bs > 0 ? ((float) $f->total_cobrado_bs / (float) $f->total_facturado_bs) * 100 : 0;
+                fputcsv($handle, [
+                    $idx + 1,
+                    $f->zona_codigo,
+                    $f->zona_nombre,
+                    $f->total_abonados,
+                    number_format((float) $f->consumo_total_m3, 0),
+                    number_format((float) $f->total_agua_bs, 2),
+                    number_format((float) $f->total_alcantarillado_bs, 2),
+                    number_format((float) $f->total_otros_cargos_bs, 2),
+                    number_format((float) $f->total_ley1886_bs, 2),
+                    number_format((float) $f->total_facturado_bs, 2),
+                    number_format((float) $f->total_cobrado_bs, 2),
+                    number_format($pct, 1) . '%',
+                ], ';');
+            }
+
+            fclose($handle);
+        }, Response::HTTP_OK, $headers);
+    }
+
+    /**
+     * Nómina de abonados sujetos a cortes masivos por morosidad (JSON).
+     */
+    public function nominaCortes(Request $request): JsonResponse
+    {
+        $idZona = $request->input('id_zona') ? (int) $request->input('id_zona') : null;
+        $mesesMoraMin = (int) $request->input('meses_mora', 2);
+
+        $query = Abonado::with(['zona', 'calle', 'categoria', 'medidorActual'])
+            ->where('meses_mora', '>=', $mesesMoraMin)
+            ->where('saldo_deuda', '>', 0)
+            ->whereNotIn('estado_servicio', ['BAJA', 'CORTADO']);
+
+        if ($idZona) {
+            $query->where('id_zona', $idZona);
+        }
+
+        $abonados = $query->leftJoin('comercial.zonas', 'abonados.id_zona', '=', 'zonas.id')
+            ->leftJoin('comercial.calles', 'abonados.id_calle', '=', 'calles.id')
+            ->orderBy('zonas.nombre')
+            ->orderBy('calles.nombre')
+            ->orderBy('abonados.codigo')
+            ->select('comercial.abonados.*')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'total_deudores' => $abonados->count(),
+            'total_deuda' => (float) $abonados->sum('saldo_deuda'),
+            'meses_mora_min' => $mesesMoraMin,
+            'abonados' => $abonados,
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Descarga la Planilla / Nómina de Cortes Masivos por Zona en PDF.
+     */
+    public function descargarNominaCortesPdf(Request $request): Response
+    {
+        $idZona = $request->input('id_zona') ? (int) $request->input('id_zona') : null;
+        $mesesMoraMin = (int) $request->input('meses_mora', 2);
+
+        $pdf = $this->pdfOperativosService->generarNominaCortesPdf($idZona, $mesesMoraMin);
+
+        return response($pdf, Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="Nomina_Cortes_Masivos.pdf"',
+        ]);
+    }
+
+    /**
+     * Exporta la Planilla / Nómina de Cortes Masivos por Zona en Excel / CSV.
+     */
+    public function exportarNominaCortesExcel(Request $request): StreamedResponse
+    {
+        $idZona = $request->input('id_zona') ? (int) $request->input('id_zona') : null;
+        $mesesMoraMin = (int) $request->input('meses_mora', 2);
+
+        $query = Abonado::with(['zona', 'calle', 'categoria', 'medidorActual'])
+            ->where('meses_mora', '>=', $mesesMoraMin)
+            ->where('saldo_deuda', '>', 0)
+            ->whereNotIn('estado_servicio', ['BAJA', 'CORTADO']);
+
+        if ($idZona) {
+            $query->where('id_zona', $idZona);
+        }
+
+        $abonados = $query->leftJoin('comercial.zonas', 'abonados.id_zona', '=', 'zonas.id')
+            ->leftJoin('comercial.calles', 'abonados.id_calle', '=', 'calles.id')
+            ->orderBy('zonas.nombre')
+            ->orderBy('calles.nombre')
+            ->orderBy('abonados.codigo')
+            ->select('comercial.abonados.*')
+            ->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="Nomina_Cortes_Masivos.csv"',
+        ];
+
+        return response()->stream(function () use ($abonados) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+
+            fputcsv($handle, [
+                'N°',
+                'Código Abonado',
+                'Titular / Abonado',
+                'Zona',
+                'Calle / Dirección',
+                'N° Vivienda',
+                'Categoría',
+                'N° Medidor',
+                'Meses Mora',
+                'Saldo Deuda (Bs)',
+                'Lectura Retiro',
+                'N° Precinto',
+                'Fecha Ejecución',
+                'Técnico',
+            ], ';');
+
+            foreach ($abonados as $idx => $a) {
+                fputcsv($handle, [
+                    $idx + 1,
+                    $a->codigo,
+                    $a->nombre_completo,
+                    $a->zona?->nombre ?? '',
+                    $a->calle?->nombre ?? '',
+                    $a->numero_vivienda ?? '',
+                    $a->categoria?->nombre ?? '',
+                    $a->medidorActual?->numero_serie ?? $a->numero_medidor ?? '',
+                    $a->meses_mora,
+                    number_format((float) $a->saldo_deuda, 2),
+                    '',
+                    '',
+                    '',
+                    '',
+                ], ';');
+            }
+
+            fclose($handle);
+        }, Response::HTTP_OK, $headers);
     }
 }

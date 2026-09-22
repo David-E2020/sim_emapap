@@ -355,6 +355,9 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     // 2. Ciclos y Lecturas
     Route::get('comercial/periodos', [LecturaController::class, 'indexPeriodos']);
     Route::post('comercial/periodos/abrir', [LecturaController::class, 'abrirPeriodo']);
+    Route::put('comercial/periodos/{id}', [LecturaController::class, 'actualizarPeriodo']);
+    Route::post('comercial/periodos/{id}/cambiar-estado', [LecturaController::class, 'cambiarEstadoPeriodo']);
+    Route::delete('comercial/periodos/{id}', [LecturaController::class, 'eliminarPeriodo']);
     Route::get('comercial/periodos/{id}/planilla', [LecturaController::class, 'obtenerPlanilla']);
     Route::get('comercial/periodos/{id}/avisos-cobranza/pdf', [LecturaController::class, 'descargarAvisosLote']);
     Route::post('comercial/lecturas/{id}', [LecturaController::class, 'guardarLectura']);
@@ -419,6 +422,16 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::get('comercial/reportes/recaudacion-consolidada/csv', [ReporteComercialController::class, 'exportarCsvConsolidado']);
     Route::get('comercial/reportes/morosidad', [ReporteComercialController::class, 'morosidad']);
     Route::get('comercial/reportes/balance-consumo', [ReporteComercialController::class, 'balanceConsumo']);
+
+    // Reportes Operativos del Ciclo Comercial (Planilla de Campo, Resumen por Zonas, Nómina de Cortes)
+    Route::get('comercial/reportes/planilla-lecturas/pdf', [ReporteComercialController::class, 'descargarPlanillaLecturasPdf']);
+    Route::get('comercial/reportes/planilla-lecturas/excel', [ReporteComercialController::class, 'exportarPlanillaLecturasExcel']);
+    Route::get('comercial/reportes/resumen-operaciones-zonas', [ReporteComercialController::class, 'resumenOperacionesZonas']);
+    Route::get('comercial/reportes/resumen-operaciones-zonas/pdf', [ReporteComercialController::class, 'descargarResumenOperacionesZonasPdf']);
+    Route::get('comercial/reportes/resumen-operaciones-zonas/excel', [ReporteComercialController::class, 'exportarResumenOperacionesZonasExcel']);
+    Route::get('comercial/reportes/nomina-cortes', [ReporteComercialController::class, 'nominaCortes']);
+    Route::get('comercial/reportes/nomina-cortes/pdf', [ReporteComercialController::class, 'descargarNominaCortesPdf']);
+    Route::get('comercial/reportes/nomina-cortes/excel', [ReporteComercialController::class, 'exportarNominaCortesExcel']);
 
     // ==========================================
     // MÓDULO DE CONTABILIDAD GUBERNAMENTAL E INTEGRADA (LEY 1178 SAFCO)

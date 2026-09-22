@@ -26,8 +26,14 @@ class LecturaController extends Controller
     public function indexPeriodos(): JsonResponse
     {
         $periodos = PeriodoFacturacion::withCount('lecturas')
-            ->orderByDesc('id')
-            ->get();
+            ->orderByDesc('gestion')
+            ->orderByDesc('mes')
+            ->get()
+            ->map(function ($p) {
+                $p->estado_label = $p->estado_label;
+                $p->estado_normalizado = $p->estado_normalizado;
+                return $p;
+            });
 
         return response()->json([
             'success' => true,
@@ -220,5 +226,93 @@ class LecturaController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => "inline; filename=\"Avisos_Cobranza_Periodo_{$idPeriodo}.pdf\"",
         ]);
+    }
+
+    /**
+     * Actualiza fechas y observaciones de un período existente.
+     */
+    public function actualizarPeriodo(Request $request, int $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'fecha_inicio_consumo' => 'nullable|date',
+            'fecha_fin_consumo' => 'nullable|date',
+            'fecha_vencimiento_pago' => 'nullable|date',
+            'observaciones' => 'nullable|string',
+            'estado' => 'nullable|string|in:LECTURA,FACTURACION,CERRADO,ABIERTO,FACTURADO',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $periodo = $this->lecturacionService->actualizarPeriodo($id, $request->all());
+
+            return response()->json([
+                'success' => true,
+                'message' => "Periodo {$periodo->periodo} actualizado correctamente.",
+                'data' => $periodo,
+            ], Response::HTTP_OK);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar periodo: ' . $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Cambia el estado del período en el ciclo de vida comercial (LECTURA, FACTURACION, CERRADO).
+     */
+    public function cambiarEstadoPeriodo(Request $request, int $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'estado' => 'required|string|in:LECTURA,FACTURACION,CERRADO,ABIERTO,FACTURADO',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $periodo = $this->lecturacionService->cambiarEstadoPeriodo($id, (string) $request->input('estado'));
+
+            return response()->json([
+                'success' => true,
+                'message' => "Estado del periodo {$periodo->periodo} actualizado a {$periodo->estado_label}.",
+                'data' => $periodo,
+            ], Response::HTTP_OK);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al cambiar estado del periodo: ' . $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Elimina un período si no tiene lecturas pagadas.
+     */
+    public function eliminarPeriodo(int $id): JsonResponse
+    {
+        try {
+            $this->lecturacionService->eliminarPeriodo($id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Periodo eliminado exitosamente.',
+            ], Response::HTTP_OK);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 }
