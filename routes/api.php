@@ -200,6 +200,14 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::post('datos/empresa', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'guardar']);
     Route::post('datos/empresa/probar-conexion', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'probarConexion']);
 
+    // Migrador y Comparador de Respaldos FoxPro (Módulo Datos)
+    Route::get('datos/migracion/rutas-predefinidas', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'rutasPredefinidas']);
+    Route::post('datos/migracion/escanear', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'escanear']);
+    Route::post('datos/migracion/subir-respaldo', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'subirRespaldo']);
+    Route::post('datos/migracion/ejecutar', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'ejecutar']);
+    Route::get('datos/migracion/historial', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'historial']);
+    Route::post('datos/migracion/revertir', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'revertir']);
+
     // ==========================================
     // MÓDULO DE CORRESPONDENCIA Y HOJAS DE RUTA (LONDRA)
     // ==========================================

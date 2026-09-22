@@ -77,8 +77,32 @@ class MenuSeeder extends Seeder
             ]
         );
 
+        $subEmpresa = Menu::updateOrCreate(
+            ['route' => 'datos_empresa'],
+            [
+                'icon' => 'mdiDomain',
+                'menu_id' => $menuDatos->id,
+                'level' => 1,
+                'label' => 'Configuración Empresa / SIAT',
+                'order' => 2,
+                'estado' => true,
+            ]
+        );
+
+        $subMigrador = Menu::updateOrCreate(
+            ['route' => 'datos_migrador_respaldos'],
+            [
+                'icon' => 'mdiDatabaseSyncOutline',
+                'menu_id' => $menuDatos->id,
+                'level' => 1,
+                'label' => 'Migrador de Respaldos (FoxPro)',
+                'order' => 3,
+                'estado' => true,
+            ]
+        );
+
         // ASIGNACIONES DE ROLES PARA TODOS LOS MENUS HIJOS
-        $subMenus = [$subUsuarios->id, $subRolesPermisos->id, $subParametrica->id];
+        $subMenus = [$subUsuarios->id, $subRolesPermisos->id, $subParametrica->id, $subEmpresa->id, $subMigrador->id];
         $roles = Rol::pluck('id');
 
         foreach ($subMenus as $menuId) {

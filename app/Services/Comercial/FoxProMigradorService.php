@@ -106,6 +106,9 @@ class FoxProMigradorService
      */
     public function iterarDbf(string $rutaArchivo, callable $callback, int $chunkSize = 1000, int $limite = 0): int
     {
+        @set_time_limit(0);
+        DB::disableQueryLog();
+
         if (!file_exists($rutaArchivo)) {
             throw new Exception("El archivo DBF no existe en la ruta: {$rutaArchivo}");
         }
@@ -173,6 +176,56 @@ class FoxProMigradorService
         fclose($fp);
 
         return $totalProcesados;
+    }
+
+    /**
+     * Analiza o migra las zonas desde zonas.dbf.
+     */
+    public function migrarZonas(string $rutaZonasDbf, bool $dryRun = true): array
+    {
+        $data = $this->leerDbf($rutaZonasDbf);
+        $total = count($data['records']);
+        $insertadas = 0;
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $nombreZona = trim($r['ZONA'] ?? '');
+                if (empty($nombreZona)) {
+                    continue;
+                }
+
+                if (!$dryRun) {
+                    $zona = Zona::firstOrCreate(
+                        ['codigo' => $nombreZona],
+                        ['nombre' => "Zona {$nombreZona}"]
+                    );
+                    if ($zona->wasRecentlyCreated) {
+                        $insertadas++;
+                    }
+                } else {
+                    $insertadas++;
+                }
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertadas,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
     }
 
     /**
@@ -400,6 +453,31 @@ class FoxProMigradorService
                     if ($updated > 0) {
                         $actualizados++;
                     }
+
+                    // Registrar en comercial.abonados_bajas
+                    $abonado = Abonado::where('codigo', $codigoPad)->first();
+                    $fechaRaw = trim($r['FECHA'] ?? '');
+                    $fechaBaja = (!empty($fechaRaw) && strlen($fechaRaw) === 8)
+                        ? Carbon::createFromFormat('Ymd', $fechaRaw)->toDateString()
+                        : Carbon::now()->toDateString();
+
+                    DB::table('comercial.abonados_bajas')->updateOrInsert(
+                        [
+                            'codigo_socio' => $codigoPad,
+                            'factura' => trim($r['FACTURA'] ?? '') ?: '0',
+                        ],
+                        [
+                            'nombre_socio' => trim($r['NOMBRE'] ?? '') ?: ($abonado ? $abonado->nombre : 'ABONADO ' . $codigoPad),
+                            'ci_ruc' => trim($r['RUC'] ?? '') ?: null,
+                            'fecha_baja' => $fechaBaja,
+                            'motivo' => $motivo,
+                            'importe' => (float) ($r['IMPORTE'] ?? 0),
+                            'saldo' => (float) ($r['NETO'] ?? 0),
+                            'observaciones' => trim(($r['AUTORIZ'] ?? '') . ' ' . $motivo),
+                            'created_at' => Carbon::now(),
+                            'updated_at' => Carbon::now(),
+                        ]
+                    );
                 } else {
                     $actualizados++;
                 }
@@ -412,7 +490,9 @@ class FoxProMigradorService
             return [
                 'dry_run' => $dryRun,
                 'total_bajas_dbf' => count($data['records']),
+                'total_en_dbf' => count($data['records']),
                 'abonados_dados_de_baja' => $actualizados,
+                'insertados' => $actualizados,
             ];
         } catch (Exception $e) {
             if (!$dryRun) {
@@ -522,9 +602,11 @@ class FoxProMigradorService
             '07' => 'CAMBIO_MEDIDOR',
         ];
 
+        $seenKeys = [];
         $chunkHandler = function (array $chunk, int $procesados, int $total) use (
             &$insertados,
             &$totalRecords,
+            &$seenKeys,
             $dryRun,
             $abonadosMap,
             $conceptosMap,
@@ -536,11 +618,21 @@ class FoxProMigradorService
             foreach ($chunk as $r) {
                 $factura = trim($r['FACTURA'] ?? '');
                 $numero = trim($r['NUMERO'] ?? '');
-                $nroId = $factura ?: ($numero ?: (string) rand(100000, 999999));
+                $nroId = $factura ?: ($numero ?: (string) ($procesados + count($batch) + 1));
                 $codcon = trim($r['CODCON'] ?? '');
                 $conceptoTipo = $conceptosMap[$codcon] ?? 'OTROS_INGRESOS';
 
-                $nroRecibo = "REC-{$nroId}-{$codcon}";
+                $baseKey = 'REC-' . substr($nroId, 0, 10);
+                if (!empty($codcon)) {
+                    $baseKey .= '-' . substr($codcon, 0, 2);
+                }
+                if (isset($seenKeys[$baseKey])) {
+                    $seenKeys[$baseKey]++;
+                    $nroRecibo = substr($baseKey, 0, 20) . '-' . $seenKeys[$baseKey];
+                } else {
+                    $seenKeys[$baseKey] = 1;
+                    $nroRecibo = $baseKey;
+                }
 
                 $socio = trim($r['SOCIO'] ?? '');
                 $idAbonado = null;
@@ -574,7 +666,9 @@ class FoxProMigradorService
             }
 
             if (!$dryRun && !empty($batch)) {
-                DB::table('comercial.recibos_caja')->insertOrIgnore($batch);
+                DB::transaction(function () use ($batch) {
+                    DB::table('comercial.recibos_caja')->insertOrIgnore($batch);
+                });
             }
 
             $insertados += count($batch);
@@ -590,6 +684,7 @@ class FoxProMigradorService
             'dry_run' => $dryRun,
             'total_en_dbf' => $totalRecords,
             'recibos_migrados' => $insertados,
+            'insertados' => $insertados,
         ];
     }
 
@@ -702,7 +797,9 @@ class FoxProMigradorService
             }
 
             if (!$dryRun && !empty($batchFacturas)) {
-                DB::table('facturacion.facturas')->insertOrIgnore($batchFacturas);
+                DB::transaction(function () use ($batchFacturas) {
+                    DB::table('facturacion.facturas')->insertOrIgnore($batchFacturas);
+                });
             }
 
             $insertados += count($batchFacturas);
@@ -764,8 +861,55 @@ class FoxProMigradorService
                 $codigoPad = str_pad($codigo, 5, '0', STR_PAD_LEFT);
                 $idAbonado = $abonadosMap[$codigoPad] ?? null;
                 if (!$idAbonado) {
-                    $omitidos++;
-                    continue;
+                    if (!$dryRun) {
+                        $nomSocio = trim($r['NOMBRE'] ?? "ABONADO HISTORICO {$codigoPad}");
+                        $zonaCod = trim($r['ZONA'] ?? '');
+                        $calleNom = trim($r['CALLE'] ?? '');
+                        $idZona = null;
+                        if (!empty($zonaCod)) {
+                            $idZona = DB::table('comercial.zonas')->where('codigo', $zonaCod)->value('id');
+                            if (!$idZona) {
+                                $idZona = DB::table('comercial.zonas')->insertGetId([
+                                    'codigo' => $zonaCod,
+                                    'nombre' => "Zona {$zonaCod}",
+                                    '_estado' => 'ACTIVO',
+                                    '_transaccion' => 'MIG_AUTO_FK',
+                                    '_fecha_creacion' => $ahora,
+                                ]);
+                            }
+                        } else {
+                            $idZona = DB::table('comercial.zonas')->value('id');
+                        }
+                        $idCat = DB::table('comercial.categorias_tarifarias')->value('id');
+
+                        $idAbonado = DB::table('comercial.abonados')->insertGetId([
+                            'codigo' => $codigoPad,
+                            'tipo_persona' => 'NATURAL',
+                            'nombre_completo' => substr($nomSocio, 0, 200) ?: "ABONADO {$codigoPad}",
+                            'nombres' => substr($nomSocio, 0, 100),
+                            'primer_apellido' => null,
+                            'segundo_apellido' => null,
+                            'numero_documento' => null,
+                            'referencia_direccion' => substr($calleNom ?: 'PATACAMAYA', 0, 150),
+                            'id_categoria' => $idCat,
+                            'id_zona' => $idZona,
+                            'tiene_alcantarillado' => false,
+                            'es_tercera_edad' => false,
+                            'tiene_medidor' => false,
+                            'estado_servicio' => 'BAJA',
+                            'saldo_deuda' => 0.00,
+                            'meses_mora' => 0,
+                            'observaciones' => 'Abonado histórico recuperado desde operacio.dbf para preservar integridad referencial',
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIG_HISTORICO',
+                            '_usuario_creacion' => 1,
+                            '_fecha_creacion' => $ahora,
+                        ]);
+                        $abonadosMap[$codigoPad] = $idAbonado;
+                    } else {
+                        $idAbonado = 999999;
+                        $abonadosMap[$codigoPad] = 999999;
+                    }
                 }
 
                 $perStr = trim($r['PERIODO'] ?? '');
@@ -876,24 +1020,26 @@ class FoxProMigradorService
             }
 
             if (!$dryRun && !empty($batch)) {
-                DB::table('comercial.lecturas_mensuales')->upsert(
-                    $batch,
-                    ['id_periodo', 'id_abonado'],
-                    [
-                        'lectura_anterior',
-                        'lectura_actual',
-                        'consumo_m3',
-                        'fecha_lectura',
-                        'monto_agua',
-                        'monto_alcantarillado',
-                        'monto_descuento_ley1886',
-                        'monto_otros',
-                        'total_facturado',
-                        'estado_pago',
-                        'fecha_pago',
-                        '_fecha_modificacion' => $ahora,
-                    ]
-                );
+                DB::transaction(function () use ($batch, $ahora) {
+                    DB::table('comercial.lecturas_mensuales')->upsert(
+                        $batch,
+                        ['id_periodo', 'id_abonado'],
+                        [
+                            'lectura_anterior',
+                            'lectura_actual',
+                            'consumo_m3',
+                            'fecha_lectura',
+                            'monto_agua',
+                            'monto_alcantarillado',
+                            'monto_descuento_ley1886',
+                            'monto_otros',
+                            'total_facturado',
+                            'estado_pago',
+                            'fecha_pago',
+                            '_fecha_modificacion' => $ahora,
+                        ]
+                    );
+                });
             }
 
             $insertados += count($batch);
@@ -912,4 +1058,883 @@ class FoxProMigradorService
             'omitidos' => $omitidos,
         ];
     }
+
+    /**
+     * Migra aportes de conexión de agua o alcantarillado (apagua.dbf / alcanta.dbf).
+     */
+    public function migrarAportesConexiones(string $rutaDbf, string $tipoServicio, bool $dryRun = true, int $limite = 0): array
+    {
+        $data = $this->leerDbf($rutaDbf, $limite);
+        $total = count($data['records']);
+        $insertados = 0;
+        $batch = [];
+        $ahora = Carbon::now();
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $codigo = trim($r['CODIGO'] ?? '');
+                if (empty($codigo)) {
+                    continue;
+                }
+
+                $fechaStr = trim($r['FECHA'] ?? '');
+                $fecha = null;
+                if (!empty($fechaStr) && strlen($fechaStr) === 8 && is_numeric($fechaStr)) {
+                    $fecha = Carbon::createFromFormat('Ymd', $fechaStr)->format('Y-m-d');
+                }
+
+                $fechaPagoStr = trim($r['FECHAPA'] ?? '');
+                $fechaPago = null;
+                if (!empty($fechaPagoStr) && strlen($fechaPagoStr) === 8 && is_numeric($fechaPagoStr)) {
+                    $fechaPago = Carbon::createFromFormat('Ymd', $fechaPagoStr)->format('Y-m-d');
+                }
+
+                $pagado = strtoupper(trim($r['PAGADO'] ?? ''));
+                $esPagado = ($pagado === 'S' || $pagado === 'T' || $pagado === '1');
+
+                $batch[] = [
+                    'tipo_servicio' => $tipoServicio,
+                    'periodo' => substr(trim($r['PERIODO'] ?? ''), 0, 20),
+                    'codigo_socio' => substr($codigo, 0, 50),
+                    'nombre_socio' => substr(utf8_encode(trim($r['NOMBRE'] ?? '')), 0, 255),
+                    'zona' => substr(trim($r['ZONA'] ?? ''), 0, 50),
+                    'estado' => substr(trim($r['ESTADO'] ?? 'ACTIVO'), 0, 20),
+                    'fecha' => $fecha,
+                    'aporte' => (float) trim($r['APORTE'] ?? 0),
+                    'instalacion' => (float) trim($r['INSTAL'] ?? 0),
+                    'total' => (float) trim($r['TOTAL'] ?? 0),
+                    'abono' => (float) trim($r['ABONO'] ?? 0),
+                    'saldo' => (float) trim($r['SALDO'] ?? 0),
+                    'plazo' => (int) trim($r['PLAZO'] ?? 0),
+                    'pagado' => $esPagado,
+                    'fecha_pago' => $fechaPago,
+                    'orden' => substr(trim($r['ORDEN'] ?? ''), 0, 50),
+                    'factura' => substr(trim($r['FACTURA'] ?? ''), 0, 50),
+                    'observaciones' => utf8_encode(trim($r['OBSER'] ?? '')),
+                    'created_at' => $ahora,
+                    'updated_at' => $ahora,
+                ];
+
+                if (count($batch) >= 500) {
+                    if (!$dryRun) {
+                        DB::table('comercial.aportes_conexiones')->insert($batch);
+                    }
+                    $insertados += count($batch);
+                    $batch = [];
+                }
+            }
+
+            if (!empty($batch)) {
+                if (!$dryRun) {
+                    DB::table('comercial.aportes_conexiones')->insert($batch);
+                }
+                $insertados += count($batch);
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+                'tipo_servicio' => $tipoServicio,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra el libro de compras de FoxPro (compras.dbf).
+     */
+    public function migrarFacturasCompra(string $rutaComprasDbf, bool $dryRun = true, int $limite = 0): array
+    {
+        $data = $this->leerDbf($rutaComprasDbf, $limite);
+        $total = count($data['records']);
+        $insertados = 0;
+        $batch = [];
+        $ahora = Carbon::now();
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $numFactura = trim((string) ($r['FACTURA'] ?? ''));
+                if (empty($numFactura)) {
+                    continue;
+                }
+
+                $fechaStr = trim((string) ($r['FECHA'] ?? ''));
+                $fecha = Carbon::now()->format('Y-m-d');
+                if (!empty($fechaStr) && strlen($fechaStr) === 8 && is_numeric($fechaStr)) {
+                    $fecha = Carbon::createFromFormat('Ymd', $fechaStr)->format('Y-m-d');
+                }
+
+                $batch[] = [
+                    'especificacion' => substr(trim((string) ($r['ESPECIF'] ?? '1')), 0, 50),
+                    'numero_factura' => substr($numFactura, 0, 50),
+                    'fecha_factura' => $fecha,
+                    'nit_proveedor' => substr(trim((string) ($r['RUC'] ?? '0')), 0, 50),
+                    'razon_social_proveedor' => substr(utf8_encode(trim((string) ($r['NOMBRE'] ?? 'SIN PROVEEDOR'))), 0, 255),
+                    'codigo_autorizacion' => substr(trim((string) ($r['ALFANUMERI'] ?? ($r['ORDEN'] ?? ''))), 0, 255),
+                    'codigo_control' => substr(trim((string) ($r['CCONTROL'] ?? '')), 0, 50),
+                    'importe_total' => (float) trim((string) ($r['IMPORTE'] ?? 0)),
+                    'importe_ice' => (float) trim((string) ($r['ICE'] ?? 0)),
+                    'importe_exento' => (float) trim((string) ($r['EXCENTO'] ?? 0)),
+                    'importe_tasa_cero' => (float) trim((string) ($r['IMPCERO'] ?? 0)),
+                    'subtotal' => (float) trim((string) ($r['SUBTOTAL'] ?? 0)),
+                    'descuentos' => (float) trim((string) ($r['DESCTOS'] ?? 0)),
+                    'importe_base_cf' => (float) trim((string) ($r['IMPORBA'] ?? 0)),
+                    'credito_fiscal' => (float) trim((string) ($r['DEBITO'] ?? 0)),
+                    'tipo_compra' => substr(trim((string) ($r['TIPO'] ?? '1')), 0, 50),
+                    'gestion' => (int) trim((string) ($r['YEA'] ?? Carbon::now()->year)),
+                    'mes' => (int) trim((string) ($r['MES'] ?? Carbon::now()->month)),
+                    'created_at' => $ahora,
+                    'updated_at' => $ahora,
+                ];
+
+                if (count($batch) >= 500) {
+                    if (!$dryRun) {
+                        DB::table('contabilidad.facturas_compra')->insert($batch);
+                    }
+                    $insertados += count($batch);
+                    $batch = [];
+                }
+            }
+
+            if (!empty($batch)) {
+                if (!$dryRun) {
+                    DB::table('contabilidad.facturas_compra')->insert($batch);
+                }
+                $insertados += count($batch);
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra catálogo de materiales e insumos de Almacén (almacen.dbf).
+     */
+    public function migrarMaterialesAlmacen(string $rutaAlmacenDbf, bool $dryRun = true, int $limite = 0): array
+    {
+        $data = $this->leerDbf($rutaAlmacenDbf, $limite);
+        $total = count($data['records']);
+        $insertados = 0;
+        $batch = [];
+        $ahora = Carbon::now();
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $codItem = trim($r['CODITEM'] ?? '');
+                if (empty($codItem)) {
+                    continue;
+                }
+
+                $batch[] = [
+                    'codigo_item' => substr($codItem, 0, 50),
+                    'nombre' => substr(utf8_encode(trim($r['NOMBRE'] ?? '')), 0, 255),
+                    'unidad_medida' => substr(trim($r['UNIDAD'] ?? 'PZA'), 0, 50),
+                    'stock_minimo' => (float) trim($r['MINIMO'] ?? 0),
+                    'stock_actual' => (float) trim($r['SALDO'] ?? 0),
+                    'precio_promedio' => (float) trim($r['PROMEDIO'] ?? 0),
+                    'precio_venta' => (float) trim($r['PVENTA'] ?? 0),
+                    'moneda' => substr(trim($r['MONEDA'] ?? 'BS'), 0, 10),
+                    'grupo' => substr(utf8_encode(trim($r['GRUPO'] ?? '')), 0, 50),
+                    'subgrupo' => substr(utf8_encode(trim($r['SUBGRUPO'] ?? '')), 0, 50),
+                    'estado' => true,
+                    'created_at' => $ahora,
+                    'updated_at' => $ahora,
+                ];
+
+                if (count($batch) >= 200) {
+                    if (!$dryRun) {
+                        DB::table('almacen.materiales')->upsert($batch, ['codigo_item'], [
+                            'nombre', 'unidad_medida', 'stock_minimo', 'stock_actual',
+                            'precio_promedio', 'precio_venta', 'grupo', 'subgrupo', 'updated_at'
+                        ]);
+                    }
+                    $insertados += count($batch);
+                    $batch = [];
+                }
+            }
+
+            if (!empty($batch)) {
+                if (!$dryRun) {
+                    DB::table('almacen.materiales')->upsert($batch, ['codigo_item'], [
+                        'nombre', 'unidad_medida', 'stock_minimo', 'stock_actual',
+                        'precio_promedio', 'precio_venta', 'grupo', 'subgrupo', 'updated_at'
+                    ]);
+                }
+                $insertados += count($batch);
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra rubros de Activos Fijos (afrubros.dbf).
+     */
+    public function migrarRubrosActivos(string $rutaRubrosDbf, bool $dryRun = true): array
+    {
+        $data = $this->leerDbf($rutaRubrosDbf);
+        $total = count($data['records']);
+        $insertados = 0;
+        $ahora = Carbon::now();
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $codigo = trim($r['RUBRO'] ?? '');
+                if (empty($codigo)) {
+                    continue;
+                }
+
+                if (!$dryRun) {
+                    DB::table('activos_fijos.rubros')->updateOrInsert(
+                        ['codigo' => substr($codigo, 0, 20)],
+                        [
+                            'nombre' => substr(utf8_encode(trim($r['NOMBRE'] ?? '')), 0, 100),
+                            'tasa_depreciacion' => (float) trim($r['TASDEP'] ?? 0),
+                            'actualiza' => (strtoupper(trim($r['ACTUALIZ'] ?? '')) === 'S'),
+                            'updated_at' => $ahora,
+                        ]
+                    );
+                }
+                $insertados++;
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra catálogo de cuentas contables desde cuentas.dbf.
+     */
+    public function migrarPlanCuentas(string $rutaCuentasDbf, bool $dryRun = true, int $limite = 0): array
+    {
+        $data = $this->leerDbf($rutaCuentasDbf, $limite);
+        $total = count($data['records']);
+        $insertados = 0;
+        $ahora = Carbon::now();
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $codigo = trim($r['CODIGO'] ?? '');
+                if (empty($codigo)) {
+                    continue;
+                }
+
+                $nombre = substr(utf8_encode(trim($r['NOMBRE'] ?? '')), 0, 255);
+                $tipoChar = strtoupper(trim($r['TIPO'] ?? ''));
+                $nivel = strlen($codigo) <= 1 ? 1 : (strlen($codigo) <= 2 ? 2 : (strlen($codigo) <= 4 ? 3 : 4));
+                $primerDigito = substr($codigo, 0, 1);
+                $naturaleza = in_array($primerDigito, ['1', '5', '6']) ? 'DEUDORA' : 'ACREEDORA';
+                $tipo = match($primerDigito) {
+                    '1' => 'ACTIVO',
+                    '2' => 'PASIVO',
+                    '3' => 'PATRIMONIO',
+                    '4' => 'INGRESO',
+                    '5' => 'GASTO',
+                    '6' => 'COSTO',
+                    default => 'ACTIVO',
+                };
+
+                if (!$dryRun) {
+                    DB::table('contabilidad.plan_cuentas')->updateOrInsert(
+                        ['codigo' => $codigo],
+                        [
+                            'nombre' => $nombre,
+                            'nivel' => $nivel,
+                            'naturaleza' => $naturaleza,
+                            'tipo' => $tipo,
+                            'permite_movimiento' => ($tipoChar === 'D' || strlen($codigo) >= 6),
+                            'estado' => 'ACTIVO',
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIG_FOXPRO',
+                            '_fecha_modificacion' => $ahora,
+                        ]
+                    );
+                }
+                $insertados++;
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra bienes de Activos Fijos desde afijo.dbf.
+     */
+    public function migrarBienesActivos(string $rutaAfijoDbf, bool $dryRun = true, int $limite = 0): array
+    {
+        $data = $this->leerDbf($rutaAfijoDbf, $limite);
+        $total = count($data['records']);
+        $insertados = 0;
+        $batch = [];
+        $ahora = Carbon::now();
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $codItem = trim($r['CODITEM'] ?? '');
+                if (empty($codItem)) {
+                    continue;
+                }
+
+                $batch[] = [
+                    'codigo_item' => substr($codItem, 0, 50),
+                    'nombre' => substr(utf8_encode(trim($r['NOMBRE'] ?? '')), 0, 255),
+                    'unidad' => substr(trim($r['UNIDAD'] ?? 'PZA'), 0, 50),
+                    'cantidad' => (float) trim($r['CANTIDAD'] ?? 1),
+                    'valor_inicial' => (float) trim($r['VALOR'] ?? 0),
+                    'valor_actualizado' => (float) trim($r['VALORACT'] ?? 0),
+                    'depreciacion_acumulada' => (float) trim($r['DEPACUM'] ?? 0),
+                    'valor_residual' => (float) trim($r['VALRES'] ?? 0),
+                    'estado' => substr(trim($r['ESTADO'] ?? 'BUENO'), 0, 20),
+                    'created_at' => $ahora,
+                    'updated_at' => $ahora,
+                ];
+
+                if (count($batch) >= 100) {
+                    if (!$dryRun) {
+                        DB::table('activos_fijos.bienes')->upsert($batch, ['codigo_item'], [
+                            'nombre', 'unidad', 'cantidad', 'valor_inicial', 'valor_actualizado',
+                            'depreciacion_acumulada', 'valor_residual', 'estado', 'updated_at'
+                        ]);
+                    }
+                    $insertados += count($batch);
+                    $batch = [];
+                }
+            }
+
+            if (!empty($batch)) {
+                if (!$dryRun) {
+                    DB::table('activos_fijos.bienes')->upsert($batch, ['codigo_item'], [
+                        'nombre', 'unidad', 'cantidad', 'valor_inicial', 'valor_actualizado',
+                        'depreciacion_acumulada', 'valor_residual', 'estado', 'updated_at'
+                    ]);
+                }
+                $insertados += count($batch);
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra y sincroniza las categorías tarifarias y tarifas escalonadas desde categor.DBF.
+     */
+    public function migrarTarifas(string $rutaCategorDbf, bool $dryRun = true): array
+    {
+        $data = $this->leerDbf($rutaCategorDbf);
+        $total = count($data['records']);
+        $insertados = 0;
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $codigo = trim($r['CODIGO'] ?? '');
+                if (empty($codigo)) {
+                    continue;
+                }
+
+                $nombre = trim($r['DESCRIP'] ?? "CATEGORIA {$codigo}");
+                $volumenBase = (float) ($r['METROS'] ?? 6.00);
+                $tarifaMinima = (float) ($r['MINIMO'] ?? 12.60);
+                $tarifaExcedenteBase = (float) ($r['MINMET'] ?? ($r['TARIFA1'] ?? 2.10));
+                $tarifaAlcanta = (float) ($r['ALCANTA'] ?? 2.00);
+
+                if (!$dryRun) {
+                    $catId = DB::table('comercial.categorias_tarifarias')->where('codigo', $codigo)->value('id');
+
+                    if ($catId) {
+                        DB::table('comercial.categorias_tarifarias')->where('id', $catId)->update([
+                            'nombre' => $nombre,
+                            'volumen_base' => $volumenBase,
+                            'tarifa_minima' => $tarifaMinima,
+                            'tarifa_excedente_base' => $tarifaExcedenteBase,
+                            'tarifa_alcantarillado' => $tarifaAlcanta,
+                            'activo' => true,
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIGRACION',
+                            '_fecha_modificacion' => Carbon::now(),
+                        ]);
+                    } else {
+                        $catId = DB::table('comercial.categorias_tarifarias')->insertGetId([
+                            'codigo' => $codigo,
+                            'nombre' => $nombre,
+                            'volumen_base' => $volumenBase,
+                            'tarifa_minima' => $tarifaMinima,
+                            'tarifa_excedente_base' => $tarifaExcedenteBase,
+                            'tarifa_alcantarillado' => $tarifaAlcanta,
+                            'aplica_ley_1886' => ($codigo === 'D'),
+                            'activo' => true,
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIGRACION',
+                            '_usuario_creacion' => 1,
+                            '_fecha_creacion' => Carbon::now(),
+                        ]);
+                    }
+
+                    // Sincronizar escalones en tarifas_escalonadas
+                    DB::table('comercial.tarifas_escalonadas')->where('id_categoria', $catId)->delete();
+                    $escalones = [
+                        ['desde' => 0, 'hasta' => 6, 'precio' => (float) ($r['TARIFA1'] ?? 2.10)],
+                        ['desde' => 7, 'hasta' => 15, 'precio' => (float) ($r['TARIFA2'] ?? 2.10)],
+                        ['desde' => 16, 'hasta' => 30, 'precio' => (float) ($r['TARIFA3'] ?? 2.10)],
+                        ['desde' => 31, 'hasta' => 50, 'precio' => (float) ($r['TARIFA4'] ?? 2.10)],
+                        ['desde' => 51, 'hasta' => 75, 'precio' => (float) ($r['TARIFA5'] ?? 2.10)],
+                        ['desde' => 76, 'hasta' => 100, 'precio' => (float) ($r['TARIFA6'] ?? 2.20)],
+                        ['desde' => 101, 'hasta' => 150, 'precio' => (float) ($r['TARIFA7'] ?? 2.20)],
+                        ['desde' => 151, 'hasta' => 200, 'precio' => (float) ($r['TARIFA8'] ?? 2.30)],
+                        ['desde' => 201, 'hasta' => 300, 'precio' => (float) ($r['TARIFA9'] ?? 2.30)],
+                        ['desde' => 301, 'hasta' => 500, 'precio' => (float) ($r['TARIFA10'] ?? 2.40)],
+                        ['desde' => 501, 'hasta' => 9999, 'precio' => (float) ($r['TARIFA11'] ?? 2.40)],
+                    ];
+
+                    $batchEscalones = [];
+                    foreach ($escalones as $esc) {
+                        $batchEscalones[] = [
+                            'id_categoria' => $catId,
+                            'desde_m3' => $esc['desde'],
+                            'hasta_m3' => $esc['hasta'],
+                            'precio_m3' => $esc['precio'],
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIGRACION',
+                            '_usuario_creacion' => 1,
+                            '_fecha_creacion' => Carbon::now(),
+                        ];
+                    }
+                    DB::table('comercial.tarifas_escalonadas')->insert($batchEscalones);
+                }
+
+                $insertados++;
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra comprobantes de diario y sus líneas de detalle contables desde diariotr.DBF y glosastr.DBF.
+     */
+    public function migrarComprobantesDiario(
+        string $rutaDiarioDbf,
+        ?string $rutaGlosasDbf = null,
+        bool $dryRun = true,
+        int $limite = 0
+    ): array {
+        $diarioData = $this->leerDbf($rutaDiarioDbf, $limite);
+        $totalLineas = count($diarioData['records']);
+
+        // Cargar glosas de cabecera si existe glosastr.DBF
+        $glosasMap = [];
+        if ($rutaGlosasDbf && file_exists($rutaGlosasDbf)) {
+            $glosasData = $this->leerDbf($rutaGlosasDbf);
+            foreach ($glosasData['records'] as $g) {
+                $k = trim($g['TIPO'] ?? '') . '-' . trim($g['NUMERO'] ?? '') . '-' . trim($g['FECHA'] ?? '');
+                $glosasMap[$k] = [
+                    'glosa' => trim($g['GLOSA1'] ?? ''),
+                    'cliente' => trim($g['CLIENTE'] ?? ''),
+                ];
+            }
+        }
+
+        // Cache de cuentas contables existentes por código
+        $cuentasMap = DB::table('contabilidad.plan_cuentas')->pluck('id', 'codigo')->toArray();
+
+        // Agrupar detalles por comprobante: tipo-numero-fecha
+        $comprobantesAgrupados = [];
+        foreach ($diarioData['records'] as $idx => $r) {
+            $tipoNum = trim($r['TIPO'] ?? '3');
+            $tipoTexto = match ($tipoNum) {
+                '1' => 'INGRESO',
+                '2' => 'EGRESO',
+                default => 'TRASPASO',
+            };
+            $numero = trim($r['NUMERO'] ?? '1');
+            $fechaRaw = trim($r['FECHA'] ?? '');
+            $key = "{$tipoNum}-{$numero}-{$fechaRaw}";
+
+            if (!isset($comprobantesAgrupados[$key])) {
+                $comprobantesAgrupados[$key] = [
+                    'tipo' => $tipoTexto,
+                    'numero' => $numero,
+                    'fecha' => $fechaRaw,
+                    'lineas' => [],
+                ];
+            }
+            $comprobantesAgrupados[$key]['lineas'][] = $r;
+        }
+
+        $comprobantesInsertados = 0;
+        $detallesInsertados = 0;
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            $gestionesCache = DB::table('contabilidad.gestiones')->pluck('id', 'gestion')->toArray();
+
+            foreach ($comprobantesAgrupados as $key => $comp) {
+                $fechaStr = $comp['fecha'];
+                $fecha = (!empty($fechaStr) && strlen($fechaStr) === 8)
+                    ? Carbon::createFromFormat('Ymd', $fechaStr)->startOfDay()
+                    : Carbon::now()->startOfDay();
+
+                $year = (int) $fecha->format('Y');
+                $mes = (int) $fecha->format('n');
+
+                if (!isset($gestionesCache[$year])) {
+                    if (!$dryRun) {
+                        $gestionesCache[$year] = DB::table('contabilidad.gestiones')->insertGetId([
+                            'gestion' => $year,
+                            'fecha_inicio' => "{$year}-01-01",
+                            'fecha_fin' => "{$year}-12-31",
+                            'estado' => 'CERRADA',
+                            'observaciones' => "Gestión Fiscal {$year} FoxPro",
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIGRACION',
+                            '_usuario_creacion' => 1,
+                            '_fecha_creacion' => Carbon::now(),
+                        ]);
+                    } else {
+                        $gestionesCache[$year] = 1;
+                    }
+                }
+                $idGestion = $gestionesCache[$year];
+
+                $glosaCabecera = $glosasMap[$key]['glosa'] ?? "Comprobante {$comp['tipo']} Nro {$comp['numero']}";
+                $beneficiario = $glosasMap[$key]['cliente'] ?? null;
+
+                $totalDebe = 0.0;
+                $totalHaber = 0.0;
+                foreach ($comp['lineas'] as $lin) {
+                    $totalDebe += (float) ($lin['DBOL'] ?? 0);
+                    $totalHaber += (float) ($lin['HBOL'] ?? 0);
+                }
+                $diferencia = round($totalDebe - $totalHaber, 2);
+
+                $nroComprobante = sprintf('%s-%04d-%04d', strtoupper(substr($comp['tipo'], 0, 1)), $year, (int) $comp['numero']);
+
+                if (!$dryRun) {
+                    $idComp = DB::table('contabilidad.comprobantes')
+                        ->where('numero_comprobante', $nroComprobante)
+                        ->where('id_gestion', $idGestion)
+                        ->value('id');
+
+                    if (!$idComp) {
+                        $idComp = DB::table('contabilidad.comprobantes')->insertGetId([
+                            'numero_comprobante' => $nroComprobante,
+                            'tipo' => $comp['tipo'],
+                            'fecha' => $fecha->toDateString(),
+                            'id_gestion' => $idGestion,
+                            'mes' => $mes,
+                            'glosa_principal' => $glosaCabecera ?: "Comprobante {$nroComprobante}",
+                            'beneficiario' => $beneficiario,
+                            'total_debe' => $totalDebe,
+                            'total_haber' => $totalHaber,
+                            'diferencia' => $diferencia,
+                            'estado' => 'APROBADO',
+                            'origen_modulo' => 'MIGRACION_FOXPRO',
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIGRACION',
+                            '_usuario_creacion' => 1,
+                            '_fecha_creacion' => Carbon::now(),
+                        ]);
+                        $comprobantesInsertados++;
+                    }
+
+                    $detallesBatch = [];
+                    foreach ($comp['lineas'] as $orden => $lin) {
+                        $codCuenta = trim($lin['CODIGO'] ?? '');
+                        $idCuenta = $cuentasMap[$codCuenta] ?? null;
+                        if (!$idCuenta) {
+                            continue;
+                        }
+
+                        $detallesBatch[] = [
+                            'id_comprobante' => $idComp,
+                            'id_cuenta' => $idCuenta,
+                            'id_centro_costo' => null,
+                            'glosa_linea' => trim($lin['GLOSA'] ?? '') ?: $glosaCabecera,
+                            'debe' => (float) ($lin['DBOL'] ?? 0),
+                            'haber' => (float) ($lin['HBOL'] ?? 0),
+                            'orden' => $orden + 1,
+                            '_estado' => 'ACTIVO',
+                            '_fecha_creacion' => Carbon::now(),
+                        ];
+                    }
+
+                    if (!empty($detallesBatch)) {
+                        DB::table('contabilidad.comprobante_detalles')->insert($detallesBatch);
+                        $detallesInsertados += count($detallesBatch);
+                    }
+                } else {
+                    $comprobantesInsertados++;
+                    $detallesInsertados += count($comp['lineas']);
+                }
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $totalLineas,
+                'comprobantes_cabeceras' => $comprobantesInsertados,
+                'insertados' => $detallesInsertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Reversión segura y transaccional de una migración por Job ID.
+     * Ejecuta eliminaciones en orden inverso de dependencias de Foreign Key.
+     */
+    public function revertirJob(string $jobId): array
+    {
+        $logs = DB::table('migracion.logs')->where('job_id', $jobId)->get();
+        if ($logs->isEmpty()) {
+            throw new Exception("No se encontraron registros de migración para el Job ID: {$jobId}");
+        }
+
+        $modulos = $logs->pluck('modulo')->unique()->toArray();
+        $esSimulacion = (bool) $logs->first()->es_simulacion;
+
+        $eliminados = [];
+
+        if ($esSimulacion) {
+            DB::table('migracion.logs')->where('job_id', $jobId)->update([
+                'mensaje' => DB::raw("CONCAT(COALESCE(mensaje, ''), ' [REVERTIDO: " . Carbon::now()->format('Y-m-d H:i:s') . "]')"),
+                'updated_at' => Carbon::now(),
+            ]);
+
+            return [
+                'status' => 'success',
+                'job_id' => $jobId,
+                'es_simulacion' => true,
+                'mensaje' => 'Simulación anulada del historial correctamente.',
+                'registros_eliminados' => [],
+                'total_eliminados' => 0,
+            ];
+        }
+
+        DB::beginTransaction();
+        try {
+            // Revertir únicamente los módulos incluidos en este Job ID en orden inverso
+            if (in_array('lecturas', $modulos)) {
+                $eliminados['comercial.lecturas_mensuales'] = DB::table('comercial.lecturas_mensuales')
+                    ->where('_transaccion', 'MIG_OPERACIO')
+                    ->delete();
+            }
+
+            if (in_array('facturas', $modulos)) {
+                $eliminados['facturacion.facturas'] = DB::table('facturacion.facturas')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            if (in_array('recibos', $modulos)) {
+                $eliminados['comercial.recibos_caja'] = DB::table('comercial.recibos_caja')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            if (in_array('convenios', $modulos)) {
+                $eliminados['comercial.convenio_cuotas'] = DB::table('comercial.convenio_cuotas')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+                $eliminados['comercial.convenios_pago'] = DB::table('comercial.convenios_pago')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            if (in_array('aportes_agua', $modulos) || in_array('aportes_alcantarillado', $modulos)) {
+                $query = DB::table('comercial.aportes_conexiones')->where('_transaccion', 'MIGRACION');
+                if (in_array('aportes_agua', $modulos) && !in_array('aportes_alcantarillado', $modulos)) {
+                    $query->where('tipo_servicio', 'AGUA');
+                } elseif (!in_array('aportes_agua', $modulos) && in_array('aportes_alcantarillado', $modulos)) {
+                    $query->where('tipo_servicio', 'ALCANTARILLADO');
+                }
+                $eliminados['comercial.aportes_conexiones'] = $query->delete();
+            }
+
+            if (in_array('bajas_socios', $modulos)) {
+                $eliminados['comercial.abonados_bajas'] = DB::table('comercial.abonados_bajas')->delete();
+            }
+
+            if (in_array('comprobantes', $modulos)) {
+                $eliminados['contabilidad.comprobante_detalles'] = DB::table('contabilidad.comprobante_detalles')
+                    ->whereExists(function ($query) {
+                        $query->select(DB::raw(1))
+                            ->from('contabilidad.comprobantes')
+                            ->whereColumn('comprobantes.id', 'comprobante_detalles.id_comprobante')
+                            ->where('comprobantes._transaccion', 'MIGRACION');
+                    })
+                    ->delete();
+                $eliminados['contabilidad.comprobantes'] = DB::table('contabilidad.comprobantes')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            if (in_array('compras', $modulos)) {
+                $eliminados['contabilidad.facturas_compra'] = DB::table('contabilidad.facturas_compra')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            if (in_array('materiales_almacen', $modulos)) {
+                $eliminados['almacen.materiales'] = DB::table('almacen.materiales')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            if (in_array('bienes_activos', $modulos)) {
+                $eliminados['activos_fijos.bienes'] = DB::table('activos_fijos.bienes')->delete();
+            }
+
+            if (in_array('calles', $modulos)) {
+                $eliminados['comercial.calles'] = DB::table('comercial.calles')
+                    ->where('_transaccion', 'MIGRACION')
+                    ->delete();
+            }
+
+            // Marcar el log como revertido
+            DB::table('migracion.logs')->where('job_id', $jobId)->update([
+                'mensaje' => DB::raw("CONCAT(COALESCE(mensaje, ''), ' [REVERTIDO: " . Carbon::now()->format('Y-m-d H:i:s') . "]')"),
+                'updated_at' => Carbon::now(),
+            ]);
+
+            DB::commit();
+
+            return [
+                'status' => 'success',
+                'job_id' => $jobId,
+                'es_simulacion' => false,
+                'mensaje' => 'Reversión transaccional completada con éxito.',
+                'registros_eliminados' => $eliminados,
+                'total_eliminados' => array_sum($eliminados),
+            ];
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
 }
+

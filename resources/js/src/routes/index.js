@@ -40,6 +40,14 @@ export const routes = [
       requiresAuth: true,
     },
   },
+  {
+    path: '/datos/migrador-respaldos',
+    name: 'datos_migrador_respaldos',
+    component: () => import('@/views/datos/MigradorRespaldosFoxPro.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
 
   // MENU ADMINISTRACION
   {
