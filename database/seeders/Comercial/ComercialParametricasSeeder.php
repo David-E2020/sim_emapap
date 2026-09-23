@@ -136,46 +136,40 @@ class ComercialParametricasSeeder extends Seeder
                 'order' => 3,
             ],
             [
-                'label' => 'Caja y Cobranzas',
-                'route' => 'comercial_caja',
-                'icon' => 'mdi-cash-register',
-                'order' => 4,
-            ],
-            [
                 'label' => 'Convenios de Pago',
                 'route' => 'comercial_convenios',
                 'icon' => 'mdi-handshake-outline',
-                'order' => 5,
+                'order' => 4,
             ],
             [
                 'label' => 'Cortes y Reconexiones',
                 'route' => 'comercial_cortes',
                 'icon' => 'mdi-pipe-disconnected',
-                'order' => 6,
+                'order' => 5,
             ],
             [
                 'label' => 'Zonas y Calles',
                 'route' => 'comercial_zonas_calles',
                 'icon' => 'mdi-map-marker-multiple',
-                'order' => 7,
+                'order' => 6,
             ],
             [
                 'label' => 'Estructura Tarifaria',
                 'route' => 'comercial_tarifas',
                 'icon' => 'mdi-currency-usd',
-                'order' => 8,
+                'order' => 7,
             ],
             [
                 'label' => 'Reportes Comerciales',
                 'route' => 'comercial_reportes',
                 'icon' => 'mdi-chart-box-outline',
-                'order' => 9,
+                'order' => 8,
             ],
             [
                 'label' => 'Aportes e Instalaciones',
                 'route' => 'comercial_aportes',
                 'icon' => 'mdi-pipe-wrench',
-                'order' => 10,
+                'order' => 9,
             ],
         ];
 

@@ -372,11 +372,7 @@ export const routes = [
   },
   {
     path: '/comercial/caja',
-    name: 'comercial_caja',
-    component: () => import('@/views/comercial/CajaCobranzas.vue'),
-    meta: {
-      requiresAuth: true,
-    },
+    redirect: '/facturacion/caja',
   },
   {
     path: '/comercial/convenios',

@@ -230,7 +230,7 @@
             <v-btn icon small color="amber darken-2" title="Editar datos del socio" @click="abrirModalEditar(item)">
               <v-icon small>mdi-pencil</v-icon>
             </v-btn>
-            <v-btn icon small color="teal" title="Cobrar en ventanilla" :to="{ path: '/comercial/caja', query: { codigo: item.codigo } }">
+            <v-btn icon small color="teal" title="Cobrar en ventanilla" :to="{ path: '/facturacion/caja', query: { codigo: item.codigo } }">
               <v-icon small>mdi-cash-register</v-icon>
             </v-btn>
           </div>

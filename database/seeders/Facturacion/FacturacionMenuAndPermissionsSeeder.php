@@ -28,52 +28,58 @@ class FacturacionMenuAndPermissionsSeeder extends Seeder
         // 2. Submódulos de Facturación
         $submodulos = [
             [
-                'label' => 'Emitir Factura',
+                'label' => 'Caja y Facturación en Ventanilla',
+                'route' => 'facturacion_caja',
+                'icon' => 'mdi-cash-register',
+                'order' => 1,
+            ],
+            [
+                'label' => 'Facturación Libre / Especial',
                 'route' => 'facturacion_crear',
                 'icon' => 'mdi-receipt-text-plus',
-                'order' => 1,
+                'order' => 2,
             ],
             [
                 'label' => 'Bandeja de Facturas',
                 'route' => 'facturacion_bandeja',
                 'icon' => 'mdi-file-table-box-outline',
-                'order' => 2,
+                'order' => 3,
             ],
             [
                 'label' => 'Facturas de Contingencia',
                 'route' => 'facturacion_contingencias',
                 'icon' => 'mdi-file-document-alert-outline',
-                'order' => 3,
+                'order' => 4,
             ],
             [
                 'label' => 'Eventos Significativos',
                 'route' => 'facturacion_eventos',
                 'icon' => 'mdi-alert-octagon-outline',
-                'order' => 4,
+                'order' => 5,
             ],
             [
                 'label' => 'Sucursales y Puntos de Venta',
                 'route' => 'facturacion_puntos_venta',
                 'icon' => 'mdi-store-cog-outline',
-                'order' => 5,
+                'order' => 6,
             ],
             [
                 'label' => 'Clientes / Padrón',
                 'route' => 'facturacion_clientes',
                 'icon' => 'mdi-account-group-outline',
-                'order' => 6,
+                'order' => 7,
             ],
             [
                 'label' => 'Productos y Servicios SIN',
                 'route' => 'facturacion_productos',
                 'icon' => 'mdi-package-variant-closed',
-                'order' => 7,
+                'order' => 8,
             ],
             [
                 'label' => 'Libro de Ventas IVA',
                 'route' => 'facturacion_libro_ventas',
                 'icon' => 'mdi-book-open-page-variant',
-                'order' => 8,
+                'order' => 9,
             ],
         ];
 
