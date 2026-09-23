@@ -144,4 +144,9 @@ class Factura extends Model
     {
         return $this->hasMany(FacturaDetalle::class, 'id_factura');
     }
+
+    public function lecturas(): HasMany
+    {
+        return $this->hasMany(\App\Models\Comercial\LecturaMensual::class, 'id_factura');
+    }
 }

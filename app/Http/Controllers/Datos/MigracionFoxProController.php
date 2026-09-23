@@ -558,6 +558,22 @@ class MigracionFoxProController extends Controller
             return null;
         };
 
+        // Orden lógico de ejecución para garantizar que las dependencias existan
+        $ordenLogico = [
+            'zonas', 'calles', 'estados_abonado', 'conceptos_ingresos',
+            'tarifas', 'abonados', 'aportes_agua', 'aportes_alcantarillado',
+            'bajas_socios', 'convenios', 'recibos', 'periodos',
+            'facturas', 'lecturas', 'plan_cuentas', 'comprobantes',
+            'compras', 'materiales_almacen', 'rubros_activos', 'bienes_activos'
+        ];
+        usort($modulos, function ($a, $b) use ($ordenLogico) {
+            $idxA = array_search($a, $ordenLogico);
+            $idxB = array_search($b, $ordenLogico);
+            $valA = $idxA === false ? 999 : $idxA;
+            $valB = $idxB === false ? 999 : $idxB;
+            return $valA <=> $valB;
+        });
+
         foreach ($modulos as $mod) {
             $logItem = [
                 'id' => $mod,
@@ -703,7 +719,8 @@ class MigracionFoxProController extends Controller
                         if ($path) {
                             $res = $this->migrador->migrarOperacionesDbf($path, $esSimulacion, null, $limite);
                             $logItem['estado'] = 'EXITO';
-                            $logItem['mensaje'] = "Lecturas procesadas: {$res['total_en_dbf']} (Migradas: {$res['lecturas_migradas']})";
+                            $extraInfo = (!empty($res['facturas_vinculadas'])) ? ", Facturas vinculadas: {$res['facturas_vinculadas']}" : "";
+                            $logItem['mensaje'] = "Lecturas procesadas: {$res['total_en_dbf']} (Migradas: {$res['lecturas_migradas']}{$extraInfo})";
                             $resultados['lecturas'] = $res;
                         }
                         break;
@@ -723,7 +740,20 @@ class MigracionFoxProController extends Controller
                         if ($path) {
                             $res = $this->migrador->migrarFacturasVentas($path, $esSimulacion, $limite);
                             $logItem['estado'] = 'EXITO';
-                            $logItem['mensaje'] = "Facturas procesadas: {$res['total_en_dbf']} (Migradas: {$res['facturas_migradas']})";
+                            $extraMsg = '';
+
+                            // VINCULACIÓN AUTOMÁTICA: Si ya existen lecturas migradas en PostgreSQL, vincular de inmediato con las facturas recién migradas
+                            if (!$esSimulacion) {
+                                $pathOperacio = $resolverArchivo(['operacio.dbf', 'operahis.dbf']);
+                                if ($pathOperacio && DB::table('comercial.lecturas_mensuales')->exists()) {
+                                    $vinculadas = $this->migrador->vincularFacturasConLecturas($pathOperacio);
+                                    if ($vinculadas > 0) {
+                                        $extraMsg = ", Facturas enlazadas con lecturas: {$vinculadas}";
+                                    }
+                                }
+                            }
+
+                            $logItem['mensaje'] = "Facturas procesadas: {$res['total_en_dbf']} (Migradas: {$res['facturas_migradas']}{$extraMsg})";
                             $resultados['facturas'] = $res;
                         }
                         break;
@@ -900,5 +930,57 @@ class MigracionFoxProController extends Controller
                 'message' => "Error al revertir la migración: {$e->getMessage()}",
             ], 500);
         }
+    }
+
+    /**
+     * Vincula en lote facturas con lecturas mensuales usando operacio.dbf bajo demanda.
+     */
+    public function vincularFacturasLecturas(Request $request): JsonResponse
+    {
+        @set_time_limit(0);
+        @ini_set('max_execution_time', '0');
+        @ini_set('memory_limit', '2048M');
+
+        $ruta = $request->input('ruta');
+        if (empty($ruta)) {
+            $ruta = '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO/DATA_19_09_2026/DATA';
+        }
+
+        $resolverArchivo = function (array $nombresPosibles) use ($ruta): ?string {
+            if (!file_exists($ruta)) {
+                return null;
+            }
+            $files = scandir($ruta);
+            foreach ($nombresPosibles as $posible) {
+                foreach ($files as $f) {
+                    if (strcasecmp($f, $posible) === 0) {
+                        return "{$ruta}/{$f}";
+                    }
+                }
+            }
+            return null;
+        };
+
+        $pathOperacio = $resolverArchivo(['operacio.dbf', 'operahis.dbf']);
+        if (!$pathOperacio) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No se encontró el archivo operacio.dbf en la ruta especificada.',
+            ], 404);
+        }
+
+        $inicio = microtime(true);
+        $totalVinculadas = $this->migrador->vincularFacturasConLecturas($pathOperacio);
+        $segundos = round(microtime(true) - $inicio, 2);
+
+        $totalConFactura = DB::table('comercial.lecturas_mensuales')->whereNotNull('id_factura')->count();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Proceso de vinculación completado en {$segundos}s. Lecturas vinculadas con factura: {$totalConFactura}",
+            'vinculadas' => $totalVinculadas,
+            'total_con_factura' => $totalConFactura,
+            'tiempo_segundos' => $segundos,
+        ]);
     }
 }

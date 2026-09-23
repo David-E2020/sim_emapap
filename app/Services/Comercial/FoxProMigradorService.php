@@ -1217,12 +1217,117 @@ class FoxProMigradorService
 
         $totalEnDbf = $this->iterarDbf($rutaOperacioDbf, $chunkHandler, 1000, $limite);
 
+        $facturasVinculadas = 0;
+        if (!$dryRun) {
+            $facturasVinculadas = $this->vincularFacturasConLecturas($rutaOperacioDbf);
+        }
+
         return [
             'dry_run' => $dryRun,
             'total_en_dbf' => $totalEnDbf,
             'lecturas_migradas' => $insertados,
+            'facturas_vinculadas' => $facturasVinculadas,
             'omitidos' => $omitidos,
         ];
+    }
+
+    /**
+     * Vincula en lote las facturas emitidas con sus correspondientes lecturas mensuales usando operacio.dbf.
+     */
+    public function vincularFacturasConLecturas(string $rutaOperacioDbf): int
+    {
+        if (!file_exists($rutaOperacioDbf)) {
+            return 0;
+        }
+
+        DB::statement('DROP TABLE IF EXISTS comercial.tmp_op_fac');
+        DB::statement('
+            CREATE UNLOGGED TABLE comercial.tmp_op_fac (
+                codigo varchar(10),
+                periodo varchar(10),
+                numero_factura bigint,
+                cuf text
+            )
+        ');
+
+        $fp = fopen($rutaOperacioDbf, 'rb');
+        fseek($fp, 8);
+        $hdr = unpack('vheader_len/vrecord_len', fread($fp, 4));
+        $recordLen = $hdr['record_len'];
+        fseek($fp, $hdr['header_len']);
+
+        $pdo = DB::connection()->getPdo();
+        $batch = [];
+        $chunkSize = 10000;
+
+        while (!feof($fp)) {
+            $buf = fread($fp, $recordLen * 2000);
+            if (empty($buf)) {
+                break;
+            }
+            $n = strlen($buf) / $recordLen;
+            for ($i = 0; $i < $n; $i++) {
+                $rec = substr($buf, $i * $recordLen, $recordLen);
+                if (strlen($rec) < $recordLen) {
+                    break;
+                }
+
+                $fac = (int) trim(substr($rec, 291, 8));
+                $cuf = trim(substr($rec, 410, 64));
+
+                if ($fac > 0 || !empty($cuf)) {
+                    $per = trim(substr($rec, 1, 7));
+                    $cod = str_pad(trim(substr($rec, 24, 5)), 5, '0', STR_PAD_LEFT);
+                    $batch[] = "{$cod}\t{$per}\t{$fac}\t{$cuf}\n";
+
+                    if (count($batch) >= $chunkSize) {
+                        $pdo->pgsqlCopyFromArray('comercial.tmp_op_fac', $batch);
+                        $batch = [];
+                    }
+                }
+            }
+        }
+        fclose($fp);
+
+        if (!empty($batch)) {
+            $pdo->pgsqlCopyFromArray('comercial.tmp_op_fac', $batch);
+        }
+
+        DB::statement('CREATE INDEX IF NOT EXISTS idx_tmp_op_cuf ON comercial.tmp_op_fac(cuf) WHERE cuf != \'\'');
+        DB::statement('CREATE INDEX IF NOT EXISTS idx_tmp_op_cod_fac ON comercial.tmp_op_fac(codigo, numero_factura) WHERE numero_factura > 0');
+        DB::statement('CREATE INDEX IF NOT EXISTS idx_tmp_op_cod_per ON comercial.tmp_op_fac(codigo, periodo)');
+
+        // Pase 1: CUF exacto (SIAT)
+        $afectadosCuf = DB::update('
+            UPDATE comercial.lecturas_mensuales l
+            SET id_factura = f.id
+            FROM comercial.tmp_op_fac tmp
+            JOIN comercial.abonados a ON a.codigo = tmp.codigo
+            JOIN comercial.periodos_facturacion p ON p.periodo = tmp.periodo
+            JOIN facturacion.facturas f ON f.cuf = tmp.cuf
+            WHERE l.id_abonado = a.id
+              AND l.id_periodo = p.id
+              AND l.id_factura IS NULL
+              AND tmp.cuf != \'\'
+        ');
+
+        // Pase 2: Número de factura y abonado (SFV)
+        $afectadosNum = DB::update('
+            UPDATE comercial.lecturas_mensuales l
+            SET id_factura = f.id
+            FROM comercial.tmp_op_fac tmp
+            JOIN comercial.abonados a ON a.codigo = tmp.codigo
+            JOIN comercial.periodos_facturacion p ON p.periodo = tmp.periodo
+            JOIN facturacion.facturas f ON f.id_abonado = a.id AND f.numero_factura = tmp.numero_factura
+            WHERE l.id_abonado = a.id
+              AND l.id_periodo = p.id
+              AND l.id_factura IS NULL
+              AND tmp.numero_factura > 0
+        ');
+
+        DB::statement('DROP TABLE IF EXISTS comercial.tmp_op_fac');
+
+        return $afectadosCuf + $afectadosNum;
     }
 
     /**

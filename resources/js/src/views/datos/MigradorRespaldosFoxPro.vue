@@ -657,6 +657,19 @@
                       <v-icon left>{{ esSimulacion ? 'mdi-play-circle-outline' : 'mdi-database-import' }}</v-icon>
                       {{ esSimulacion ? 'Iniciar Simulación (Dry-Run)' : 'Iniciar Migración Oficial' }}
                     </v-btn>
+
+                    <v-btn
+                      color="primary darken-1"
+                      outlined
+                      block
+                      class="text-capitalize font-weight-bold rounded-pill mt-2"
+                      :loading="vinculandoFacturas"
+                      :disabled="ejecutando"
+                      @click="vincularFacturasLecturas"
+                    >
+                      <v-icon left small>mdi-link-variant</v-icon>
+                      Vincular Facturas & Lecturas Manualmente
+                    </v-btn>
                   </v-card>
                 </v-col>
               </v-row>
@@ -966,6 +979,7 @@ export default {
       progresoMigracion: 0,
       moduloActualMigracion: '',
       archivoSubida: null,
+      vinculandoFacturas: false,
 
       rutaSeleccionada: '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO/DATA_19_09_2026/DATA',
       rutaManual: '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO/DATA_19_09_2026/DATA',
@@ -989,7 +1003,7 @@ export default {
         'estados_abonado', 'conceptos_ingresos',
         'calles', 'zonas', 'tarifas', 'abonados', 'aportes_agua',
         'aportes_alcantarillado', 'bajas_socios', 'convenios', 'recibos',
-        'lecturas', 'facturas', 'plan_cuentas', 'comprobantes', 'compras',
+        'facturas', 'lecturas', 'plan_cuentas', 'comprobantes', 'compras',
         'materiales_almacen', 'rubros_activos', 'bienes_activos'
       ],
 
@@ -1237,7 +1251,7 @@ export default {
         'estados_abonado', 'conceptos_ingresos',
         'calles', 'zonas', 'tarifas', 'abonados', 'bajas_socios',
         'aportes_agua', 'aportes_alcantarillado', 'convenios', 'recibos',
-        'lecturas', 'facturas', 'plan_cuentas', 'comprobantes', 'compras',
+        'facturas', 'lecturas', 'plan_cuentas', 'comprobantes', 'compras',
         'materiales_almacen', 'rubros_activos', 'bienes_activos'
       ];
 
@@ -1321,6 +1335,26 @@ export default {
 
     deseleccionarTodosModulos() {
       this.modulosSeleccionados = [];
+    },
+
+    async vincularFacturasLecturas() {
+      this.vinculandoFacturas = true;
+      const ruta = this.rutaManual || this.rutaSeleccionada;
+      this.agregarLogTerminal('FACTURAS-LECTURAS', 'PROCESANDO', 'Iniciando vinculación de facturas con lecturas...');
+
+      try {
+        const res = await axios.post('api/datos/migracion/vincular-facturas-lecturas', { ruta });
+        const data = res.data;
+        this.agregarLogTerminal('FACTURAS-LECTURAS', 'EXITO', data.message);
+        this.mostrarMensaje(data.message, 'success', 'mdi-check-decagram');
+        this.escanearDirectorio();
+      } catch (err) {
+        const msg = err.response?.data?.message || err.message || 'Error al vincular facturas';
+        this.agregarLogTerminal('FACTURAS-LECTURAS', 'ERROR', msg);
+        this.mostrarMensaje(msg, 'error', 'mdi-alert');
+      } finally {
+        this.vinculandoFacturas = false;
+      }
     },
 
     // ==========================================

@@ -208,6 +208,7 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::post('datos/migracion/ejecutar', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'ejecutar']);
     Route::get('datos/migracion/historial', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'historial']);
     Route::post('datos/migracion/revertir', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'revertir']);
+    Route::post('datos/migracion/vincular-facturas-lecturas', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'vincularFacturasLecturas']);
 
     // ==========================================
     // MÓDULO DE CORRESPONDENCIA Y HOJAS DE RUTA (LONDRA)
