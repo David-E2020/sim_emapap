@@ -97,7 +97,8 @@ class PrepararProduccionCommand extends Command
         $this->info('==> Verificando tablas transaccionales (deben estar en 0)...');
         $tablasVacias = [
             'migracion.logs' => DB::table('migracion.logs')->count(),
-            'parametricas (comercial)' => DB::table('parametricas')->where('param_tabla', 'like', 'TABLA_COMERCIAL_%')->count(),
+            'comercial.aportes_conexiones' => DB::table('comercial.aportes_conexiones')->count(),
+            'comercial.convenios_pago' => DB::table('comercial.convenios_pago')->count(),
             'comercial.zonas' => DB::table('comercial.zonas')->count(),
             'comercial.calles' => DB::table('comercial.calles')->count(),
             'comercial.categorias_tarifarias' => DB::table('comercial.categorias_tarifarias')->count(),

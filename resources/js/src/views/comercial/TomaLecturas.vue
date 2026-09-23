@@ -429,6 +429,23 @@ export default {
       return this.planilla.reduce((sum, item) => sum + this.calcularConsumo(item), 0);
     },
   },
+  watch: {
+    '$route.query.periodo_id'(newId) {
+      if (newId) {
+        const numId = parseInt(newId);
+        if (this.periodos.some(p => p.id === numId)) {
+          this.periodoSeleccionado = numId;
+          this.cargarPlanilla();
+        }
+      }
+    },
+    '$route.query.periodo'(newPeriodo) {
+      if (newPeriodo && this.periodos.some(p => p.periodo === newPeriodo)) {
+        this.periodoSeleccionado = this.periodos.find(p => p.periodo === newPeriodo).id;
+        this.cargarPlanilla();
+      }
+    },
+  },
   mounted() {
     this.cargarPeriodos();
     this.cargarZonas();
@@ -455,8 +472,19 @@ export default {
       try {
         const res = await axios.get('/api/comercial/periodos');
         this.periodos = res.data.data || [];
-        if (this.periodos.length > 0 && !this.periodoSeleccionado) {
+
+        const qId = this.$route.query.periodo_id ? parseInt(this.$route.query.periodo_id) : null;
+        const qPeriodo = this.$route.query.periodo ? String(this.$route.query.periodo).trim() : null;
+
+        if (qId && this.periodos.some(p => p.id === qId)) {
+          this.periodoSeleccionado = qId;
+        } else if (qPeriodo && this.periodos.some(p => p.periodo === qPeriodo)) {
+          this.periodoSeleccionado = this.periodos.find(p => p.periodo === qPeriodo).id;
+        } else if (this.periodos.length > 0 && !this.periodoSeleccionado) {
           this.periodoSeleccionado = this.periodos[0].id;
+        }
+
+        if (this.periodoSeleccionado) {
           this.cargarPlanilla();
         }
       } catch (e) {

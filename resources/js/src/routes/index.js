@@ -419,6 +419,14 @@ export const routes = [
     },
   },
   {
+    path: '/comercial/aportes',
+    name: 'comercial_aportes',
+    component: () => import('@/views/comercial/AportesInstalaciones.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
     path: '/comercial/sesiones-caja',
     name: 'comercial_sesiones_caja',
     component: () => import('@/views/comercial/ReportesComerciales.vue'),

@@ -20,12 +20,18 @@ class ReporteFacturacionController extends Controller
      */
     public function libroVentas(Request $request): JsonResponse
     {
-        $fechaDesde = $request->input('fecha_desde', Carbon::now()->startOfMonth()->format('Y-m-d'));
-        $fechaHasta = $request->input('fecha_hasta', Carbon::now()->endOfMonth()->format('Y-m-d'));
+        if ($request->filled('mes') && $request->filled('gestion')) {
+            $fechaDesde = Carbon::create((int) $request->input('gestion'), (int) $request->input('mes'), 1)->startOfMonth()->format('Y-m-d');
+            $fechaHasta = Carbon::create((int) $request->input('gestion'), (int) $request->input('mes'), 1)->endOfMonth()->format('Y-m-d');
+        } else {
+            $fechaDesde = $request->input('fecha_desde', Carbon::now()->startOfMonth()->format('Y-m-d'));
+            $fechaHasta = $request->input('fecha_hasta', Carbon::now()->endOfMonth()->format('Y-m-d'));
+        }
+
         $sucursalId = $request->input('id_sucursal');
         $estado = $request->input('estado'); // VALIDADA, ANULADA, o null
 
-        $query = Factura::with(['cliente', 'sucursal', 'puntoVenta'])
+        $query = Factura::query()
             ->whereDate('fecha_emision', '>=', $fechaDesde)
             ->whereDate('fecha_emision', '<=', $fechaHasta);
 
@@ -37,27 +43,30 @@ class ReporteFacturacionController extends Controller
             $query->where('estado_factura', $estado);
         }
 
-        $facturas = (clone $query)->orderBy('numero_factura', 'asc')->get();
+        // Métricas agregadas calculadas en base de datos de forma ultra-rápida y eficiente
+        $metricas = (clone $query)->selectRaw("
+            COUNT(*) as total_registros,
+            COUNT(CASE WHEN estado_factura != 'ANULADA' THEN 1 END) as cantidad_validas,
+            COUNT(CASE WHEN estado_factura = 'ANULADA' THEN 1 END) as cantidad_anuladas,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total ELSE 0 END), 0) as total_facturado,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_descuento ELSE 0 END), 0) as total_descuento,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total_sujeto_iva ELSE 0 END), 0) as total_base_debito_fiscal
+        ")->first();
 
-        // Métricas agregadas
-        $totalFacturado = 0.0;
-        $totalSujetoIva = 0.0;
-        $totalDescuento = 0.0;
-        $cantidadValidas = 0;
-        $cantidadAnuladas = 0;
+        $totalRegistros = (int) ($metricas->total_registros ?? 0);
+        $cantidadValidas = (int) ($metricas->cantidad_validas ?? 0);
+        $cantidadAnuladas = (int) ($metricas->cantidad_anuladas ?? 0);
+        $totalFacturado = (float) ($metricas->total_facturado ?? 0);
+        $totalDescuento = (float) ($metricas->total_descuento ?? 0);
+        $totalBaseDebito = (float) ($metricas->total_base_debito_fiscal ?? 0);
+        $debitoFiscal = round($totalBaseDebito * 0.13, 2);
 
-        foreach ($facturas as $f) {
-            if ($f->estado_factura === 'ANULADA') {
-                $cantidadAnuladas++;
-            } else {
-                $cantidadValidas++;
-                $totalFacturado += (float) $f->monto_total;
-                $totalSujetoIva += (float) $f->monto_total_sujeto_iva;
-                $totalDescuento += (float) $f->monto_descuento;
-            }
-        }
-
-        $debitoFiscal = round($totalSujetoIva * 0.13, 2);
+        // Limitamos la lista para respuesta JSON evitando desbordamiento de memoria en meses con miles de facturas
+        $facturas = (clone $query)
+            ->with(['cliente:id,razon_social,numero_documento,complemento', 'sucursal:id,nombre,codigo_sucursal', 'puntoVenta:id,nombre,codigo_punto_venta'])
+            ->orderBy('numero_factura', 'asc')
+            ->limit(1000)
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -66,12 +75,12 @@ class ReporteFacturacionController extends Controller
                 'hasta' => $fechaHasta,
             ],
             'resumen' => [
-                'total_registros' => $facturas->count(),
+                'total_registros' => $totalRegistros,
                 'cantidad_validas' => $cantidadValidas,
                 'cantidad_anuladas' => $cantidadAnuladas,
                 'total_facturado' => round($totalFacturado, 2),
                 'total_descuento' => round($totalDescuento, 2),
-                'total_base_debito_fiscal' => round($totalSujetoIva, 2),
+                'total_base_debito_fiscal' => round($totalBaseDebito, 2),
                 'debito_fiscal_iva' => $debitoFiscal,
             ],
             'data' => $facturas,
@@ -84,11 +93,17 @@ class ReporteFacturacionController extends Controller
      */
     public function exportarCsvLibroVentas(Request $request): StreamedResponse
     {
-        $fechaDesde = $request->input('fecha_desde', Carbon::now()->startOfMonth()->format('Y-m-d'));
-        $fechaHasta = $request->input('fecha_hasta', Carbon::now()->endOfMonth()->format('Y-m-d'));
+        if ($request->filled('mes') && $request->filled('gestion')) {
+            $fechaDesde = Carbon::create((int) $request->input('gestion'), (int) $request->input('mes'), 1)->startOfMonth()->format('Y-m-d');
+            $fechaHasta = Carbon::create((int) $request->input('gestion'), (int) $request->input('mes'), 1)->endOfMonth()->format('Y-m-d');
+        } else {
+            $fechaDesde = $request->input('fecha_desde', Carbon::now()->startOfMonth()->format('Y-m-d'));
+            $fechaHasta = $request->input('fecha_hasta', Carbon::now()->endOfMonth()->format('Y-m-d'));
+        }
+
         $sucursalId = $request->input('id_sucursal');
 
-        $query = Factura::with(['cliente', 'sucursal'])
+        $query = Factura::query()
             ->whereDate('fecha_emision', '>=', $fechaDesde)
             ->whereDate('fecha_emision', '<=', $fechaHasta);
 
@@ -96,7 +111,7 @@ class ReporteFacturacionController extends Controller
             $query->where('id_sucursal', (int) $sucursalId);
         }
 
-        $facturas = $query->orderBy('numero_factura', 'asc')->get();
+        $query->orderBy('numero_factura', 'asc');
         $filename = "Libro_Ventas_IVA_EMAPAP_{$fechaDesde}_a_{$fechaHasta}.csv";
 
         $headers = [
@@ -104,7 +119,7 @@ class ReporteFacturacionController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        return response()->stream(function () use ($facturas) {
+        return response()->stream(function () use ($query) {
             $handle = fopen('php://output', 'w');
             
             // BOM para compatibilidad con Excel UTF-8
@@ -139,7 +154,8 @@ class ReporteFacturacionController extends Controller
 
             $correlativo = 1;
 
-            foreach ($facturas as $f) {
+            // Procesamiento en streaming mediante cursor para mínimo consumo de memoria
+            foreach ($query->cursor() as $f) {
                 $esAnulada = ($f->estado_factura === 'ANULADA');
                 
                 $totalVenta = $esAnulada ? 0.00 : (float) $f->monto_total;

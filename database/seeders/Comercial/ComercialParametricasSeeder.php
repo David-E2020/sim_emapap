@@ -8,6 +8,7 @@ use App\Models\Comercial\CategoriaTarifaria;
 use App\Models\Comercial\Zona;
 use App\Models\Menu;
 use App\Models\MenuRol;
+use App\Models\Parametrica;
 use App\Models\Rol;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
@@ -30,6 +31,78 @@ class ComercialParametricasSeeder extends Seeder
                 '_usuario_creacion' => 1,
             ]
         );
+
+        // 2. CATÁLOGOS PARAMÉTRICOS DE GESTIÓN COMERCIAL
+        $parametricasComercial = [
+            [
+                'tabla' => 'TABLA_COMERCIAL_ESTADOS_ABONADO',
+                'nombre' => 'ESTADOS DE SERVICIO DEL ABONADO',
+                'descripcion' => 'Estados operativos del suministro de agua potable: Activo, Corte, Suspendido, Permiso',
+                'items' => [
+                    ['codigo' => 'A', 'nombre' => 'ACTIVO', 'detalle' => 'Suministro normal, regular y habilitado'],
+                    ['codigo' => 'C', 'nombre' => 'CORTE', 'detalle' => 'Servicio cortado físicamente en llave de paso o acometida por mora'],
+                    ['codigo' => 'S', 'nombre' => 'SUSPENDIDO', 'detalle' => 'Suspensión temporal solicitada o administrativa'],
+                    ['codigo' => 'P', 'nombre' => 'PERMISO', 'detalle' => 'Permiso especial de no consumo o remodelación'],
+                ],
+            ],
+            [
+                'tabla' => 'TABLA_COMERCIAL_CONCEPTOS_OTROS_INGRESOS',
+                'nombre' => 'CONCEPTOS DE OTROS INGRESOS Y SERVICIOS',
+                'descripcion' => 'Catálogo de cobros no tarifarios: Reconexión, Multas, Cambio de Medidor, etc.',
+                'items' => [
+                    ['codigo' => 'REC', 'nombre' => 'Reconexión de Servicio de Agua', 'detalle' => 'Cobro por rehabilitación de servicio tras corte'],
+                    ['codigo' => 'CAM', 'nombre' => 'Cambio de Nombre o Titularidad', 'detalle' => 'Trámite administrativo de transferencia de póliza'],
+                    ['codigo' => 'FRA', 'nombre' => 'Multa por Conexión Clandestina / Fraude', 'detalle' => 'Sanción legal por uso indebido o manipulación'],
+                    ['codigo' => 'CIS', 'nombre' => 'Venta de Agua Potable por Cisterna', 'detalle' => 'Carga y venta de agua en bloque por cisterna'],
+                    ['codigo' => 'MED', 'nombre' => 'Reposición o Cambio de Medidor', 'detalle' => 'Costo por suministro e instalación de nuevo medidor'],
+                ],
+            ],
+            [
+                'tabla' => 'TABLA_COMERCIAL_TIPOS_MEDIDOR',
+                'nombre' => 'TIPOS Y DIÁMETROS DE MEDIDORES',
+                'descripcion' => 'Especificaciones técnicas de los medidores de agua instalados (1/2", 3/4", 1", etc.)',
+                'items' => [
+                    ['codigo' => '1/2"', 'nombre' => 'Medidor Chorro Único 1/2" (15mm) - Domiciliario', 'detalle' => 'Diámetro estándar para conexiones domiciliarias'],
+                    ['codigo' => '3/4"', 'nombre' => 'Medidor Chorro Múltiple 3/4" (20mm) - Comercial', 'detalle' => 'Diámetro para conexiones comerciales o alto consumo'],
+                    ['codigo' => '1"', 'nombre' => 'Medidor Chorro Múltiple 1" (25mm) - Industrial', 'detalle' => 'Diámetro para industrias o instituciones'],
+                    ['codigo' => '1 1/2"', 'nombre' => 'Medidor Gran Consumo 1 1/2" (40mm)', 'detalle' => 'Medidor para grandes consumidores o baterías'],
+                    ['codigo' => '2"', 'nombre' => 'Medidor Woltman / Brida 2" (50mm) - Macromedición', 'detalle' => 'Macromedición de sectores hidráulicos o tanques'],
+                ],
+            ],
+        ];
+
+        foreach ($parametricasComercial as $grupo) {
+            Parametrica::updateOrCreate(
+                [
+                    'param_tabla' => $grupo['tabla'],
+                    'param_codigo' => 'ORIGEN',
+                    'param_valor' => 0,
+                ],
+                [
+                    'param_nombre' => $grupo['nombre'],
+                    'param_descripcion' => $grupo['descripcion'],
+                    'param_estado' => 'A',
+                    'param_usr_registrado' => 1,
+                ]
+            );
+
+            $orden = 1;
+            foreach ($grupo['items'] as $item) {
+                Parametrica::updateOrCreate(
+                    [
+                        'param_tabla' => $grupo['tabla'],
+                        'param_codigo' => $item['codigo'],
+                    ],
+                    [
+                        'param_nombre' => $item['nombre'],
+                        'param_descripcion' => $item['detalle'],
+                        'param_valor' => $orden++,
+                        'param_estado' => 'A',
+                        'param_usr_registrado' => 1,
+                    ]
+                );
+            }
+        }
 
         // 3. MENÚ PRINCIPAL "Gestión Comercial"
         $menuComercial = Menu::updateOrCreate(
@@ -97,6 +170,12 @@ class ComercialParametricasSeeder extends Seeder
                 'route' => 'comercial_reportes',
                 'icon' => 'mdi-chart-box-outline',
                 'order' => 9,
+            ],
+            [
+                'label' => 'Aportes e Instalaciones',
+                'route' => 'comercial_aportes',
+                'icon' => 'mdi-pipe-wrench',
+                'order' => 10,
             ],
         ];
 

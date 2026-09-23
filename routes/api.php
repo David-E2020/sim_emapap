@@ -46,6 +46,7 @@ use App\Http\Controllers\Comercial\ConvenioController;
 use App\Http\Controllers\Comercial\CorteReconexionController;
 use App\Http\Controllers\Comercial\TarifaZonaController;
 use App\Http\Controllers\Comercial\ReporteComercialController;
+use App\Http\Controllers\Comercial\AporteConexionController;
 use App\Http\Controllers\Contabilidad\ContabilidadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Rrhh\SolicitudSalidaController;
@@ -432,6 +433,12 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::get('comercial/reportes/nomina-cortes', [ReporteComercialController::class, 'nominaCortes']);
     Route::get('comercial/reportes/nomina-cortes/pdf', [ReporteComercialController::class, 'descargarNominaCortesPdf']);
     Route::get('comercial/reportes/nomina-cortes/excel', [ReporteComercialController::class, 'exportarNominaCortesExcel']);
+
+    // 8. Aportes e Instalaciones (Agua y Alcantarillado)
+    Route::get('comercial/aportes', [AporteConexionController::class, 'index']);
+    Route::post('comercial/aportes', [AporteConexionController::class, 'store']);
+    Route::get('comercial/aportes/{id}/contrato-pdf', [AporteConexionController::class, 'contratoPdf']);
+    Route::get('comercial/abonados/{id}/aportes', [AporteConexionController::class, 'porAbonado']);
 
     // ==========================================
     // MÓDULO DE CONTABILIDAD GUBERNAMENTAL E INTEGRADA (LEY 1178 SAFCO)

@@ -146,6 +146,15 @@ class MigracionFoxProController extends Controller
                 'archivos_dbf' => ['operacio.dbf', 'operahis.dbf'],
                 'icono' => 'mdi-gauge',
             ],
+            [
+                'id' => 'periodos',
+                'modulo' => 'comercial',
+                'label' => 'Cronograma de Períodos',
+                'schema' => 'comercial',
+                'table' => 'periodos_facturacion',
+                'archivos_dbf' => ['periodos.dbf'],
+                'icono' => 'mdi-calendar-sync',
+            ],
 
             // ==========================================
             // ESQUEMA FACTURACION
@@ -696,6 +705,16 @@ class MigracionFoxProController extends Controller
                             $logItem['estado'] = 'EXITO';
                             $logItem['mensaje'] = "Lecturas procesadas: {$res['total_en_dbf']} (Migradas: {$res['lecturas_migradas']})";
                             $resultados['lecturas'] = $res;
+                        }
+                        break;
+
+                    case 'periodos':
+                        $path = $resolverArchivo(['periodos.dbf']);
+                        if ($path) {
+                            $res = $this->migrador->migrarPeriodos($path, $esSimulacion);
+                            $logItem['estado'] = 'EXITO';
+                            $logItem['mensaje'] = "Períodos procesados: {$res['total_en_dbf']} (Migrados: {$res['insertados']})";
+                            $resultados['periodos'] = $res;
                         }
                         break;
 

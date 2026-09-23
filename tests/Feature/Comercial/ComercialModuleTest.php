@@ -645,6 +645,37 @@ class ComercialModuleTest extends TestCase
         $l2->refresh();
         $this->assertEquals('PAGADO', $l2->estado_pago);
     }
+
+    public function test_aportes_conexiones_listado_y_contrato_pdf(): void
+    {
+        $aporte = \App\Models\Comercial\AporteConexion::firstOrCreate(
+            ['codigo_socio' => 'TEST01', 'tipo_servicio' => 'AGUA'],
+            [
+                'periodo' => '09/2026',
+                'nombre_socio' => 'BENEFICIARIO DE PRUEBA',
+                'zona' => 'CENTRO',
+                'estado' => 'ACTIVO',
+                'fecha' => '2026-09-17',
+                'aporte' => 294.90,
+                'instalacion' => 1592.10,
+                'total' => 1887.00,
+                'plazo' => 1,
+                'pagado' => true,
+                'fecha_pago' => '2026-09-17',
+                'factura' => '9999',
+            ]
+        );
+
+        $responseIndex = $this->withHeader('Authorization', "Bearer {$this->token}")
+            ->getJson('/api/comercial/aportes?search=TEST01');
+        $responseIndex->assertStatus(200)
+            ->assertJsonPath('success', true);
+
+        $responsePdf = $this->withHeader('Authorization', "Bearer {$this->token}")
+            ->get("/api/comercial/aportes/{$aporte->id}/contrato-pdf");
+        $responsePdf->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/pdf');
+    }
 }
 
 

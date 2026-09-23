@@ -628,6 +628,9 @@
             <v-btn color="primary" outlined small class="rounded-pill text-capitalize" @click="descargarExtracto(abonadoSeleccionado)">
               <v-icon left small>mdi-file-pdf-box</v-icon> Descargar Extracto Histórico
             </v-btn>
+            <v-btn color="cyan darken-3" outlined small class="rounded-pill text-capitalize font-weight-bold" v-if="aportesAbonado && aportesAbonado.length > 0" @click="imprimirContratoAporte(aportesAbonado[0])">
+              <v-icon left small>mdi-file-sign</v-icon> Contrato Conexión ({{ aportesAbonado.length }})
+            </v-btn>
             <v-btn color="warning" outlined small class="rounded-pill text-capitalize" @click="abrirCambioMedidor(abonadoSeleccionado)">
               <v-icon left small>mdi-counter</v-icon> Cambiar Medidor
             </v-btn>
@@ -682,6 +685,7 @@
           <v-tabs v-model="tabFicha" color="primary" dense>
             <v-tab><v-icon small left>mdi-counter</v-icon> Historial Lecturas</v-tab>
             <v-tab><v-icon small left>mdi-handshake-outline</v-icon> Convenios</v-tab>
+            <v-tab><v-icon small left>mdi-pipe-wrench</v-icon> Aportes e Instalaciones ({{ aportesAbonado.length }})</v-tab>
           </v-tabs>
 
           <v-tabs-items v-model="tabFicha" class="pt-3">
@@ -759,6 +763,69 @@
                 </v-card>
               </div>
               <div v-else class="text-center text-secondary py-4">No tiene convenios de pago registrados</div>
+            </v-tab-item>
+
+            <!-- TAB 3: APORTES E INSTALACIONES (AGUA / ALCANTARILLADO) -->
+            <v-tab-item>
+              <div style="max-height: 420px; overflow-y: auto;">
+                <v-simple-table dense>
+                  <template v-slot:default>
+                    <thead>
+                      <tr>
+                        <th>Servicio</th>
+                        <th>Periodo</th>
+                        <th>Fecha Reg.</th>
+                        <th class="text-right">Aporte Bs</th>
+                        <th class="text-right">Instalación Bs</th>
+                        <th class="text-right">Total Bs</th>
+                        <th class="text-center">Plazo</th>
+                        <th class="text-center">Estado Pago</th>
+                        <th class="text-center">N° Factura</th>
+                        <th class="text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="ap in aportesAbonado" :key="ap.id">
+                        <td>
+                          <v-chip x-small :color="ap.tipo_servicio === 'AGUA' ? 'primary' : 'teal'" text-color="white" class="font-weight-bold">
+                            <v-icon x-small left>{{ ap.tipo_servicio === 'AGUA' ? 'mdi-water' : 'mdi-pipe' }}</v-icon>
+                            {{ ap.tipo_servicio === 'AGUA' ? 'Agua Potable' : 'Alcantarillado' }}
+                          </v-chip>
+                        </td>
+                        <td><strong>{{ ap.periodo || '-' }}</strong></td>
+                        <td class="text-caption">{{ ap.fecha ? ap.fecha.slice(0, 10) : '-' }}</td>
+                        <td class="text-right">{{ parseFloat(ap.aporte).toFixed(2) }}</td>
+                        <td class="text-right">{{ parseFloat(ap.instalacion).toFixed(2) }}</td>
+                        <td class="text-right font-weight-bold primary--text">Bs {{ parseFloat(ap.total).toFixed(2) }}</td>
+                        <td class="text-center font-weight-medium">{{ ap.plazo }} mes(es)</td>
+                        <td class="text-center">
+                          <v-chip x-small :color="ap.pagado ? 'success' : 'warning'" text-color="white" class="font-weight-medium">
+                            {{ ap.pagado ? 'PAGADO' : 'PENDIENTE' }}
+                          </v-chip>
+                        </td>
+                        <td class="text-center text-caption font-weight-bold">
+                          {{ ap.factura ? '#' + ap.factura : '-' }}
+                        </td>
+                        <td class="text-center">
+                          <v-btn
+                            x-small
+                            color="primary"
+                            outlined
+                            class="text-capitalize rounded-pill font-weight-bold"
+                            title="Reimprimir Contrato de Pago Diferido"
+                            @click="imprimirContratoAporte(ap)"
+                          >
+                            <v-icon x-small left>mdi-file-document-outline</v-icon> Contrato PDF
+                          </v-btn>
+                        </td>
+                      </tr>
+                      <tr v-if="!aportesAbonado || aportesAbonado.length === 0">
+                        <td colspan="10" class="text-center text-secondary py-3">No registra contratos de aportes o instalaciones de conexión</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+              </div>
             </v-tab-item>
           </v-tabs-items>
         </v-card-text>
@@ -902,19 +969,8 @@ export default {
       ],
       estadosOpciones: [
         { valor: 'TODOS', texto: 'Todos los Estados' },
-        { valor: 'ACTIVO', texto: 'A - ACTIVO' },
-        { valor: 'CORTE', texto: 'C - CORTE' },
-        { valor: 'SUSPENDIDO', texto: 'S - SUSPENDIDO' },
-        { valor: 'PERMISO', texto: 'P - PERMISO' },
-        { valor: 'BAJA', texto: 'B - BAJA (Histórico)' },
-        { valor: 'EN_MORA', texto: 'EN MORA (>= 2 meses)' },
       ],
-      estadosServicioOpciones: [
-        { text: 'A - ACTIVO', value: 'ACTIVO' },
-        { text: 'C - CORTE', value: 'CORTE' },
-        { text: 'S - SUSPENDIDO', value: 'SUSPENDIDO' },
-        { text: 'P - PERMISO', value: 'PERMISO' },
-      ],
+      estadosServicioOpciones: [],
       busqueda: '',
       filtroZona: null,
       filtroCategoria: null,
@@ -960,6 +1016,7 @@ export default {
       formValido: true,
       tabFicha: 0,
       abonadoSeleccionado: null,
+      aportesAbonado: [],
       formAbonado: {
         id: null,
         codigo: '',
@@ -1046,14 +1103,34 @@ export default {
     },
     async cargarParametricas() {
       try {
-        const [resZonas, resCategorias] = await Promise.all([
+        const [resZonas, resCategorias, resEstados] = await Promise.all([
           axios.get('/api/comercial/zonas'),
           axios.get('/api/comercial/tarifas'),
+          axios.get('/api/parametrica-api/TABLA_COMERCIAL_ESTADOS_ABONADO'),
         ]);
         this.zonas = resZonas.data.data || [];
         this.categorias = resCategorias.data.data || [];
+
+        const estadosParam = Array.isArray(resEstados.data) ? resEstados.data : (resEstados.data?.data || []);
+        this.estadosServicioOpciones = estadosParam.map(p => ({
+          text: `${p.param_codigo} - ${p.param_nombre}`,
+          value: p.param_nombre,
+        }));
+
+        const opcionesFiltro = [{ valor: 'TODOS', texto: 'Todos los Estados' }];
+        estadosParam.forEach(p => {
+          opcionesFiltro.push({
+            valor: p.param_nombre,
+            texto: `${p.param_codigo} - ${p.param_nombre}`,
+          });
+        });
+        if (estadosParam.length > 0) {
+          opcionesFiltro.push({ valor: 'BAJA', texto: 'B - BAJA (Histórico)' });
+          opcionesFiltro.push({ valor: 'EN_MORA', texto: 'EN MORA (>= 2 meses)' });
+        }
+        this.estadosOpciones = opcionesFiltro;
       } catch (e) {
-        console.error('Error cargando zonas y tarifas:', e);
+        console.error('Error cargando zonas, tarifas y estados:', e);
       }
     },
     async cargarCallesPorZona(idZona) {
@@ -1220,12 +1297,26 @@ export default {
     },
     async verFicha(item) {
       try {
-        const res = await axios.get(`/api/comercial/abonados/${item.id}`);
-        this.abonadoSeleccionado = res.data.data;
+        const [resAbonado, resAportes] = await Promise.all([
+          axios.get(`/api/comercial/abonados/${item.id}`),
+          axios.get(`/api/comercial/abonados/${item.id}/aportes`),
+        ]);
+        this.abonadoSeleccionado = resAbonado.data.data;
+        this.aportesAbonado = resAportes.data.data || [];
         this.modalFicha = true;
       } catch (e) {
         console.error('Error cargando ficha:', e);
       }
+    },
+    imprimirContratoAporte(aporte) {
+      if (!aporte) return;
+      const esAgua = (aporte.tipo_servicio || 'AGUA').toUpperCase() === 'AGUA';
+      this.urlVisorPdf = `/api/comercial/aportes/${aporte.id}/contrato-pdf`;
+      this.tituloVisorPdf = esAgua
+        ? `Contrato de Pago Diferido de Conexión Domiciliaria - Socio #${aporte.codigo_socio}`
+        : `Cronograma de Pagos / Instalación Alcantarillado - Socio #${aporte.codigo_socio}`;
+      this.subtituloVisorPdf = `${aporte.nombre_socio || ''} | Total: Bs ${parseFloat(aporte.total).toFixed(2)}`;
+      this.mostrarVisorPdf = true;
     },
     descargarExtracto(item) {
       if (!item) return;

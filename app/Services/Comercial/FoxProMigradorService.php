@@ -1266,7 +1266,7 @@ class FoxProMigradorService
                     'tipo_servicio' => $tipoServicio,
                     'periodo' => substr(trim($r['PERIODO'] ?? ''), 0, 20),
                     'codigo_socio' => substr($codigo, 0, 50),
-                    'nombre_socio' => substr(utf8_encode(trim($r['NOMBRE'] ?? '')), 0, 255),
+                    'nombre_socio' => substr(trim($r['NOMBRE'] ?? ''), 0, 255),
                     'zona' => substr(trim($r['ZONA'] ?? ''), 0, 50),
                     'estado' => substr(trim($r['ESTADO'] ?? 'ACTIVO'), 0, 20),
                     'fecha' => $fecha,
@@ -1280,7 +1280,7 @@ class FoxProMigradorService
                     'fecha_pago' => $fechaPago,
                     'orden' => substr(trim($r['ORDEN'] ?? ''), 0, 50),
                     'factura' => substr(trim($r['FACTURA'] ?? ''), 0, 50),
-                    'observaciones' => utf8_encode(trim($r['OBSER'] ?? '')),
+                    'observaciones' => trim($r['OBSER'] ?? ''),
                     'created_at' => $ahora,
                     'updated_at' => $ahora,
                 ];
@@ -1779,6 +1779,95 @@ class FoxProMigradorService
                 }
 
                 $insertados++;
+            }
+
+            if (!$dryRun) {
+                DB::commit();
+            }
+
+            return [
+                'dry_run' => $dryRun,
+                'total_en_dbf' => $total,
+                'insertados' => $insertados,
+            ];
+        } catch (Exception $e) {
+            if (!$dryRun) {
+                DB::rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Migra períodos de facturación y cronogramas de lectura/vencimiento desde periodos.dbf.
+     */
+    public function migrarPeriodos(string $rutaPeriodosDbf, bool $dryRun = true): array
+    {
+        $data = $this->leerDbf($rutaPeriodosDbf);
+        $total = count($data['records']);
+        $insertados = 0;
+        $ahora = Carbon::now();
+
+        if (!$dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            foreach ($data['records'] as $r) {
+                $perStr = trim($r['PERIODO'] ?? '');
+                if (empty($perStr) || !str_contains($perStr, '/')) {
+                    continue;
+                }
+
+                $partesPer = explode('/', $perStr);
+                $mesPer = max(1, min(12, (int) ($partesPer[0] ?? 1)));
+                $gestionPer = max(2000, (int) ($partesPer[1] ?? 2026));
+
+                $fechaD = trim($r['FECHAD'] ?? '');
+                $fechaH = trim($r['FECHAH'] ?? '');
+                $fechaV = trim($r['FECHAV'] ?? '');
+
+                $inicioConsumo = (strlen($fechaD) === 8 && is_numeric($fechaD))
+                    ? substr($fechaD, 0, 4) . '-' . substr($fechaD, 4, 2) . '-' . substr($fechaD, 6, 2)
+                    : sprintf('%04d-%02d-01', $gestionPer, $mesPer);
+
+                $finConsumo = (strlen($fechaH) === 8 && is_numeric($fechaH))
+                    ? substr($fechaH, 0, 4) . '-' . substr($fechaH, 4, 2) . '-' . substr($fechaH, 6, 2)
+                    : date('Y-m-t', strtotime($inicioConsumo));
+
+                $vencimiento = (strlen($fechaV) === 8 && is_numeric($fechaV))
+                    ? substr($fechaV, 0, 4) . '-' . substr($fechaV, 4, 2) . '-' . substr($fechaV, 6, 2)
+                    : sprintf('%04d-%02d-25', $gestionPer, $mesPer);
+
+                $estadoFox = strtoupper(trim($r['ESTADO'] ?? 'C'));
+                $estado = match ($estadoFox) {
+                    'C' => 'CERRADO',
+                    'F' => 'FACTURADO',
+                    'L' => 'EN_LECTURACION',
+                    default => 'ABIERTO',
+                };
+
+                if (!$dryRun) {
+                    DB::table('comercial.periodos_facturacion')->updateOrInsert(
+                        ['periodo' => $perStr],
+                        [
+                            'mes' => $mesPer,
+                            'gestion' => $gestionPer,
+                            'fecha_inicio_consumo' => $inicioConsumo,
+                            'fecha_fin_consumo' => $finConsumo,
+                            'fecha_vencimiento_pago' => $vencimiento,
+                            'estado' => $estado,
+                            'observaciones' => trim($r['OBS'] ?? '') ?: null,
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'MIGRACION',
+                            '_usuario_creacion' => 1,
+                            '_fecha_creacion' => $ahora,
+                        ]
+                    );
+                    $insertados++;
+                } else {
+                    $insertados++;
+                }
             }
 
             if (!$dryRun) {

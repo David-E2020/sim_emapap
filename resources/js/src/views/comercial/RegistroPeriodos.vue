@@ -145,7 +145,14 @@
 
         <!-- Período -->
         <template v-slot:item.periodo="{ item }">
-          <span class="font-weight-bold text-primary">{{ item.periodo }}</span>
+          <router-link
+            :to="{ path: '/comercial/lecturas', query: { periodo_id: item.id, periodo: item.periodo } }"
+            class="text-decoration-none font-weight-bold primary--text d-inline-flex align-center"
+            title="Ir a Toma de Lecturas de este período"
+          >
+            {{ item.periodo }}
+            <v-icon x-small color="primary" class="ml-1">mdi-arrow-right</v-icon>
+          </router-link>
         </template>
 
         <!-- Fechas Formateadas -->
@@ -207,7 +214,25 @@
 
         <!-- Botones de Acción Operativa por Fila -->
         <template v-slot:item.acciones="{ item }">
-          <div class="d-flex align-center">
+          <div class="d-flex align-center justify-center">
+            <!-- 0. Ir a Toma de Lecturas del Período con flecha -->
+            <v-tooltip bottom>
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  color="blue darken-2"
+                  class="mr-1"
+                  v-bind="attrs"
+                  v-on="on"
+                  :to="{ path: '/comercial/lecturas', query: { periodo_id: item.id, periodo: item.periodo } }"
+                >
+                  <v-icon small>mdi-arrow-right-bold-circle</v-icon>
+                </v-btn>
+              </template>
+              <span>Ver Toma de Lecturas (Período {{ item.periodo }})</span>
+            </v-tooltip>
+
             <!-- 1. Reporte: Planilla de Campo (Lecturas) -->
             <v-tooltip bottom>
               <template v-slot:activator="{ on, attrs }">
@@ -686,13 +711,13 @@ export default {
       headers: [
         { text: 'MES', value: 'mes', align: 'center', width: '70px', sortable: true },
         { text: 'AÑO', value: 'gestion', align: 'center', width: '75px', sortable: true },
-        { text: 'PERÍODO', value: 'periodo', align: 'center', width: '90px' },
+        { text: 'PERÍODO', value: 'periodo', align: 'center', width: '105px' },
         { text: 'FECHA DESDE', value: 'fecha_inicio_consumo', width: '110px' },
         { text: 'FECHA HASTA', value: 'fecha_fin_consumo', width: '110px' },
         { text: 'FECHA VNCMTO.', value: 'fecha_vencimiento_pago', width: '115px' },
         { text: 'ESTADO', value: 'estado', align: 'center', width: '140px' },
         { text: 'ABONADOS', value: 'lecturas_count', align: 'center', width: '95px' },
-        { text: 'ACCIONES OPERATIVAS', value: 'acciones', align: 'center', sortable: false, width: '180px' },
+        { text: 'ACCIONES OPERATIVAS', value: 'acciones', align: 'center', sortable: false, width: '215px' },
       ],
 
       // Nuevo Período
