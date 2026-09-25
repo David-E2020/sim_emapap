@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Comercial;
 
 use App\Http\Controllers\Controller;
 use App\Models\Comercial\Abonado;
+use App\Models\Comercial\Medidor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -166,9 +167,14 @@ class AbonadoController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        // Generar correlativo de código de socio de 5 dígitos
-        $ultimoId = Abonado::max('id') ?? 0;
-        $codigoNuevo = sprintf('%05d', $ultimoId + 1);
+        // Generar correlativo de código de socio de 5 dígitos sin colisiones
+        $maxCodigo = (int) (Abonado::selectRaw("COALESCE(MAX(CAST(NULLIF(regexp_replace(codigo, '[^0-9]', '', 'g'), '') AS INTEGER)), 0) as max_cod")->value('max_cod') ?? 0);
+        $siguienteNum = max($maxCodigo + 1, 1);
+        $codigoNuevo = sprintf('%05d', $siguienteNum);
+        while (Abonado::where('codigo', $codigoNuevo)->exists()) {
+            $siguienteNum++;
+            $codigoNuevo = sprintf('%05d', $siguienteNum);
+        }
 
         $nroMedidor = trim((string) $request->input('numero_medidor', ''));
         $idMedidor = null;

@@ -12,6 +12,10 @@
       </v-card-title>
 
       <v-card-text class="pt-4">
+        <v-alert v-if="errorMensaje" type="error" dense dismissible class="mb-3">
+          {{ errorMensaje }}
+        </v-alert>
+
         <!-- Resumen de la Sesión / Turno -->
         <v-row dense class="mb-3">
           <v-col cols="12" md="6">
@@ -208,6 +212,7 @@ export default {
         m010: 0,
       },
       totalContado: 0,
+      errorMensaje: '',
     };
   },
   computed: {
@@ -306,6 +311,7 @@ export default {
       }
 
       this.guardando = true;
+      this.errorMensaje = '';
       try {
         const payload = {
           id_sesion: this.sesion.id,
@@ -317,7 +323,7 @@ export default {
         const res = await axios.post('/api/comercial/caja-sesiones/cerrar', payload);
         this.$emit('sesion-cerrada', res.data.data);
       } catch (e) {
-        alert(e.response?.data?.message || 'Error al cerrar la sesión de caja.');
+        this.errorMensaje = e.response?.data?.message || 'Error al cerrar la sesión de caja.';
       } finally {
         this.guardando = false;
       }

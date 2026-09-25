@@ -129,11 +129,11 @@ class EmisionFacturaService
             );
         }
 
-        // 4. Correlativo de Factura
-        $ultimoNumero = Factura::where('id_sucursal', $sucursal->id)
-            ->where('id_punto_venta', $puntoVenta->id)
-            ->max('numero_factura') ?? 0;
-        $numeroFactura = $ultimoNumero + 1;
+        // 4. Correlativo de Factura (secuencia unificada continua por sucursal)
+        $ultimaFactura = Factura::where('id_sucursal', $sucursal->id)
+            ->orderBy('id', 'desc')
+            ->first();
+        $numeroFactura = ($ultimaFactura ? (int) $ultimaFactura->numero_factura : 0) + 1;
 
         $fechaEmision = Carbon::now();
 
@@ -208,6 +208,7 @@ class EmisionFacturaService
             $factura = Factura::create([
                 'id_sucursal' => $sucursal->id,
                 'id_punto_venta' => $puntoVenta->id,
+                'id_sesion_caja' => $datos['id_sesion_caja'] ?? null,
                 'id_cliente' => $cliente?->id,
                 'id_abonado' => $datos['id_abonado'] ?? null,
                 'id_cufd' => $cufdVigente->id,
@@ -254,7 +255,7 @@ class EmisionFacturaService
                 'tipo_cambio' => 1.00,
                 'leyenda' => $leyenda,
                 'usuario_emision' => $datos['usuario_emision'] ?? 'admin',
-                'estado_factura' => $tipoEmision === 2 ? 'OFFLINE' : 'VALIDADA',
+                'estado_factura' => 'CONTINGENCIA', // Se inicializa en contingencia hasta confirmación del SIN
             ]);
 
             foreach ($items as $item) {
@@ -292,18 +293,56 @@ class EmisionFacturaService
         Storage::disk('local')->put($xmlPath, $xmlContent);
 
         // Representación gráfica QR oficial del SIAT
-        $nitConfig = $empresa && !empty($empresa->nit) ? (string) $empresa->nit : config('siat.nit_emisor', '123456789');
+        $nitConfig = $empresa && !empty($empresa->nit) ? (string) $empresa->nit : config('siat.nit_emisor', '1002393029');
         $qrData = sprintf(
             'https://siat.impuestos.gob.bo/consulta/QR?nit=%s&cuf=%s&numero=%d&t=%d',
             $nitConfig,
             $factura->cuf,
             $factura->numero_factura,
-            1
+            2
         );
+
+        // 8. Intentar Envío en Línea al SIN (o confirmar CONTINGENCIA si falla la conexión)
+        $estadoFactura = 'CONTINGENCIA';
+        $tipoEmisionFinal = 2; // Emisión fuera de línea / contingencia por defecto
+        $codigoRecepcion = null;
+
+        if ($tipoEmision === 1) {
+            try {
+                $cuisCodigo = $cuisVigente?->codigo ?? 'CUIS_EMAPAP_GENERAL';
+                $respSiat = $this->siatSoapService->enviarFactura(
+                    $xmlContent,
+                    $cuisCodigo,
+                    $cufdVigente->codigo,
+                    (int) $sucursal->codigo_sucursal,
+                    (int) $puntoVenta->codigo_punto_venta,
+                    1,
+                    $documentoSector,
+                    $tipoFactura
+                );
+
+                if (!empty($respSiat['success']) && ($respSiat['estado'] ?? '') === 'VALIDADA') {
+                    $estadoFactura = 'VALIDADA';
+                    $tipoEmisionFinal = 1;
+                    $codigoRecepcion = $respSiat['codigo_recepcion'] ?? null;
+                } else {
+                    // Si el SIN no valida en línea (por ejemplo error 995, rechazo, o falta de conexión), entra a CONTINGENCIA
+                    $estadoFactura = 'CONTINGENCIA';
+                    $tipoEmisionFinal = 2;
+                }
+            } catch (\Throwable $e) {
+                // Falla de red, timeout o excepción SOAP -> CONTINGENCIA
+                $estadoFactura = 'CONTINGENCIA';
+                $tipoEmisionFinal = 2;
+            }
+        }
 
         $factura->update([
             'xml_firmado_path' => $xmlPath,
             'representacion_grafica_qr' => $qrData,
+            'estado_factura' => $estadoFactura,
+            'tipo_emision' => $tipoEmisionFinal,
+            'codigo_recepcion' => $codigoRecepcion,
         ]);
 
         return $factura->fresh(['detalles', 'sucursal', 'puntoVenta', 'cliente', 'abonado']);

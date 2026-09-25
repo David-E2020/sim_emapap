@@ -63,7 +63,7 @@ class ReporteFacturacionController extends Controller
 
         // Limitamos la lista para respuesta JSON evitando desbordamiento de memoria en meses con miles de facturas
         $facturas = (clone $query)
-            ->with(['cliente:id,razon_social,numero_documento,complemento', 'sucursal:id,nombre,codigo_sucursal', 'puntoVenta:id,nombre,codigo_punto_venta'])
+            ->with(['cliente:id,nombre_razon_social,numero_documento,complemento', 'sucursal:id,nombre,codigo_sucursal', 'puntoVenta:id,nombre,codigo_punto_venta'])
             ->orderBy('numero_factura', 'asc')
             ->limit(1000)
             ->get();

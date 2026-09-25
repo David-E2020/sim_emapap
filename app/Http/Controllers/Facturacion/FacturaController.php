@@ -271,8 +271,18 @@ class FacturaController extends Controller
 
         $viewName = ($formato === 'rollo') ? 'facturacion.factura-rollo-pdf' : 'facturacion.factura-pdf';
 
+        $empresa = null;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('facturacion.configuracion_empresa')) {
+                $empresa = \App\Models\Facturacion\ConfiguracionEmpresa::getActiva();
+            }
+        } catch (\Throwable $e) {
+            $empresa = null;
+        }
+
         return response()->view($viewName, [
             'factura' => $factura,
+            'empresa' => $empresa,
             'urlQr' => $urlQr,
             'qrBase64' => $qrBase64,
             'literal' => $literal,
@@ -340,6 +350,9 @@ class FacturaController extends Controller
         $cufd = $factura->cufd;
         $sucursal = $factura->sucursal ? (int) $factura->sucursal->codigo_sucursal : 0;
         $puntoVenta = $factura->puntoVenta ? (int) $factura->puntoVenta->codigo_punto_venta : 0;
+        $modalidad = (int) ($factura->codigo_modalidad ?? 1);
+        $ambiente = ($factura->_transaccion === 'MIGRACION' || str_contains($factura->cufd ?? '', 'HISTORICO')) ? 1 : null;
+        $urlQr = $this->representacionGraficaService->generarUrlQr($factura);
 
         $res = $this->siatSoapService->verificarEstadoFactura(
             $factura->cuf,
@@ -347,29 +360,140 @@ class FacturaController extends Controller
             $cufd,
             $sucursal,
             $puntoVenta,
-            (int) $factura->tipo_emision
+            (int) $factura->tipo_emision,
+            (int) ($factura->codigo_documento_sector ?? 13),
+            (int) ($factura->tipo_factura_documento ?? 1),
+            $modalidad,
+            $ambiente
         );
 
-        if ($res['success'] && !empty($res['codigo_descripcion'])) {
+        $mensajeDetalle = $res['mensajes'] ?? $res['mensaje'] ?? 'Consulta de estado procesada con el SIN.';
+        if (is_array($mensajeDetalle)) {
+            $mensajeDetalle = json_encode($mensajeDetalle);
+        }
+
+        if (!empty($res['success']) && !empty($res['codigo_descripcion']) && in_array($res['codigo_descripcion'], ['VALIDADA', 'ANULADA'])) {
             $estadoSin = $res['codigo_descripcion'];
-            if (in_array($estadoSin, ['VALIDADA', 'ANULADA', 'OBSERVADA', 'RECHAZADA'])) {
-                $factura->estado_factura = $estadoSin;
-                $factura->save();
+            $factura->estado_factura = $estadoSin;
+            $factura->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Factura N° {$factura->numero_factura} confirmada como {$estadoSin} en los servidores del SIN.",
+                'estado_local' => $factura->estado_factura,
+                'estado_sin' => $estadoSin,
+                'url_qr' => $urlQr,
+                'siat' => [
+                    'codigoDescripcion' => $estadoSin,
+                    'codigoEstado' => $res['codigo_estado'] ?? null,
+                    'codigoRecepcion' => $res['codigo_recepcion'] ?? null,
+                    'mensajes' => $mensajeDetalle,
+                ],
+                'data' => $factura,
+            ], Response::HTTP_OK);
+        }
+
+        // Si el SIN NO validó la factura:
+        // Para facturas emitidas en el sistema local que aún no existen en el SIN, SU ESTADO ES CONTINGENCIA
+        if ($factura->_transaccion !== 'MIGRACION') {
+            $factura->estado_factura = 'CONTINGENCIA';
+            $factura->tipo_emision = 2; // Emisión fuera de línea / contingencia
+            $factura->save();
+
+            return response()->json([
+                'success' => false,
+                'message' => "La Factura N° {$factura->numero_factura} NO se encuentra validada en el SIN ({$mensajeDetalle}). Su estado se ha actualizado a CONTINGENCIA (pendiente de reenvío).",
+                'estado_local' => 'CONTINGENCIA',
+                'estado_sin' => 'NO_VALIDADA_SIN',
+                'url_qr' => $urlQr,
+                'siat' => [
+                    'codigoDescripcion' => 'CONTINGENCIA',
+                    'mensajes' => $mensajeDetalle,
+                ],
+                'data' => $factura,
+            ], Response::HTTP_OK);
+        }
+
+        // Para facturas migradas históricas (válidas en portal SIAT):
+        return response()->json([
+            'success' => true,
+            'message' => "Factura histórica N° {$factura->numero_factura} verificable en el portal oficial SIAT mediante el botón QR.",
+            'estado_local' => $factura->estado_factura,
+            'estado_sin' => 'VALIDADA_HISTORICO',
+            'url_qr' => $urlQr,
+            'siat' => [
+                'codigoDescripcion' => $factura->estado_factura,
+                'mensajes' => $mensajeDetalle,
+            ],
+            'data' => $factura,
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Envío o reenvío manual de una factura en contingencia hacia el SIN.
+     */
+    public function enviarSiat(int $id): JsonResponse
+    {
+        $factura = Factura::with(['sucursal', 'puntoVenta', 'detalles', 'cufdModel'])->findOrFail($id);
+
+        if ($factura->estado_factura === 'VALIDADA') {
+            return response()->json([
+                'success' => true,
+                'message' => "La Factura N° {$factura->numero_factura} ya se encuentra VALIDADA.",
+                'data' => $factura,
+            ], Response::HTTP_OK);
+        }
+
+        $cuisActivo = SiatCuis::where('id_sucursal', $factura->id_sucursal)->latest('id')->first();
+        $cuis = $cuisActivo ? $cuisActivo->codigo_cuis : 'CUIS_EMAPAP_DEFAULT';
+        $cufd = $factura->cufd;
+        $sucursal = $factura->sucursal ? (int) $factura->sucursal->codigo_sucursal : 0;
+        $puntoVenta = $factura->puntoVenta ? (int) $factura->puntoVenta->codigo_punto_venta : 0;
+
+        if ($factura->xml_firmado_path && Storage::disk('local')->exists($factura->xml_firmado_path)) {
+            $xmlContent = Storage::disk('local')->get($factura->xml_firmado_path);
+        } else {
+            $xmlContent = $this->xmlFacturaService->construirXml($factura);
+        }
+
+        $resp = $this->siatSoapService->enviarFactura(
+            $xmlContent,
+            $cuis,
+            $cufd,
+            $sucursal,
+            $puntoVenta,
+            (int) $factura->tipo_emision,
+            (int) ($factura->codigo_documento_sector ?? 13),
+            (int) ($factura->tipo_factura_documento ?? 1)
+        );
+
+        if (!empty($resp['success']) && ($resp['estado'] ?? '') === 'VALIDADA') {
+            $factura->estado_factura = 'VALIDADA';
+            $factura->codigo_recepcion = $resp['codigo_recepcion'] ?? null;
+            $factura->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Factura N° {$factura->numero_factura} enviada y VALIDADA exitosamente por el SIN.",
+                'codigo_recepcion' => $factura->codigo_recepcion,
+                'data' => $factura,
+            ], Response::HTTP_OK);
+        }
+
+        $mensajeError = $resp['mensajes'] ?? $resp['mensaje'] ?? 'El SIN no pudo validar la factura.';
+        if (is_object($mensajeError) || is_array($mensajeError)) {
+            if (is_object($mensajeError) && isset($mensajeError->descripcion)) {
+                $mensajeError = (string) $mensajeError->descripcion;
+            } elseif (is_object($mensajeError) && isset($mensajeError->mensajesList->descripcion)) {
+                $mensajeError = (string) $mensajeError->mensajesList->descripcion;
+            } else {
+                $mensajeError = json_encode($mensajeError, JSON_UNESCAPED_UNICODE);
             }
         }
 
         return response()->json([
-            'success' => true,
-            'message' => $res['mensajes'] ?? $res['mensaje'] ?? 'Estado consultado en el SIN.',
-            'estado_local' => $factura->estado_factura,
-            'estado_sin' => $res['codigo_descripcion'] ?? $factura->estado_factura,
-            'mensaje_sin' => $res['mensajes'] ?? $res['mensaje'] ?? 'Estado consultado en el SIN.',
-            'siat' => [
-                'codigoDescripcion' => $res['codigo_descripcion'] ?? $factura->estado_factura,
-                'codigoEstado' => $res['codigo_estado'] ?? null,
-                'codigoRecepcion' => $res['codigo_recepcion'] ?? null,
-                'mensajes' => $res['mensajes'] ?? $res['mensaje'] ?? null,
-            ],
+            'success' => false,
+            'message' => "No se pudo validar la factura en el SIN: {$mensajeError}. Permanece en CONTINGENCIA.",
             'data' => $factura,
         ], Response::HTTP_OK);
     }

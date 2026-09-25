@@ -532,6 +532,25 @@
               </div>
             </div>
 
+            <!-- Panel de Cobro QR Interoperable (Método 7) -->
+            <div v-if="datosCobro.codigo_metodo_pago === 7" class="mb-3 pa-3 calculator-card rounded-lg text-center">
+              <div class="text-caption font-weight-bold text-secondary mb-1">
+                <v-icon small color="cyan darken-2">mdi-qrcode-scan</v-icon> Cobro Digital Simple QR (BCB)
+              </div>
+              <div class="text-caption mb-2 text--secondary">
+                Genera un código QR dinámico por <strong>Bs {{ totalSeleccionado.toFixed(2) }}</strong> para que el abonado pague desde su celular.
+              </div>
+              <v-btn
+                color="cyan darken-2"
+                class="rounded-pill font-weight-bold text-white elevation-1"
+                block
+                :disabled="totalSeleccionado <= 0"
+                @click="mostrarModalQr = true"
+              >
+                <v-icon left>mdi-qrcode-scan</v-icon> MOSTRAR QR EN PANTALLA
+              </v-btn>
+            </div>
+
             <!-- Botón de Cobro y Emisión SIAT -->
             <v-btn
               block
@@ -540,7 +559,7 @@
               class="rounded-pill font-weight-bold elevation-2 text-white"
               :disabled="totalSeleccionado <= 0 || (datosCobro.codigo_metodo_pago === 1 && efectivoRecibido < totalSeleccionado)"
               :loading="procesandoCobro"
-              @click="procesarCobro"
+              @click="procesarCobro(false)"
             >
               <v-icon left>mdi-check-decagram</v-icon> COBRAR Y FACTURAR SIAT
             </v-btn>
@@ -877,8 +896,38 @@
       v-model="mostrarModalMovimiento"
       :sesion-id="sesionActiva ? sesionActiva.id : null"
       @cancelar="mostrarModalMovimiento = false"
+      :caja-sesion-id="sesionActiva ? sesionActiva.id : null"
       @movimiento-registrado="alRegistrarMovimiento"
     ></modal-movimiento-caja>
+
+    <!-- MODAL DE COBRO CON QR SIMPLE (BCB INTEROPERABLE) -->
+    <modal-cobro-qr-simple
+      v-model="mostrarModalQr"
+      :monto="totalSeleccionado"
+      :glosa="'Pago de agua ' + (estadoCuenta && estadoCuenta.abonado ? estadoCuenta.abonado.numero_cuenta : '')"
+      :abonado-id="estadoCuenta && estadoCuenta.abonado ? estadoCuenta.abonado.id : null"
+      :sesion-caja-id="sesionActiva ? sesionActiva.id : null"
+      @pago-completado="alConfirmarPagoQr"
+    ></modal-cobro-qr-simple>
+
+    <!-- NOTIFICACIÓN NATIVA DEL SISTEMA (SNACKBAR) -->
+    <v-snackbar
+      v-model="snackbar.status"
+      :color="snackbar.color"
+      :timeout="4500"
+      top
+      right
+      rounded="pill"
+      elevation="6"
+    >
+      <div class="d-flex align-center">
+        <v-icon dark left class="mr-2">{{ snackbar.icon || 'mdi-information' }}</v-icon>
+        <span class="font-weight-medium">{{ snackbar.text }}</span>
+      </div>
+      <template v-slot:action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
@@ -888,6 +937,7 @@ import ModalVisorPdf from '@/components/ModalVisorPdf.vue';
 import ModalAperturaCaja from './components/ModalAperturaCaja.vue';
 import ModalCierreArqueoCaja from './components/ModalCierreArqueoCaja.vue';
 import ModalMovimientoCaja from './components/ModalMovimientoCaja.vue';
+import ModalCobroQrSimple from './components/ModalCobroQrSimple.vue';
 
 export default {
   name: 'CajaCobranzas',
@@ -896,6 +946,7 @@ export default {
     ModalAperturaCaja,
     ModalCierreArqueoCaja,
     ModalMovimientoCaja,
+    ModalCobroQrSimple,
   },
   data() {
     return {
@@ -907,6 +958,7 @@ export default {
       mostrarModalApertura: false,
       mostrarModalCierre: false,
       mostrarModalMovimiento: false,
+      mostrarModalQr: false,
 
       buscando: false,
       procesandoCobro: false,
@@ -957,6 +1009,12 @@ export default {
         { codigo: 2, nombre: '2 - Tarjeta Débito / Crédito' },
         { codigo: 7, nombre: '7 - Transferencia Bancaria / QR' },
       ],
+      snackbar: {
+        status: false,
+        text: '',
+        color: 'success',
+        icon: 'mdi-check-circle',
+      },
     };
   },
   computed: {
@@ -1031,6 +1089,14 @@ export default {
     }
   },
   methods: {
+    mostrarNotificacion(texto, color = 'success', icon = 'mdi-check-circle') {
+      this.snackbar = {
+        status: true,
+        text: texto,
+        color: color,
+        icon: icon,
+      };
+    },
     formatearHora(fecha) {
       if (!fecha) return '';
       const d = new Date(fecha);
@@ -1171,12 +1237,12 @@ export default {
           if (this.tipoBusqueda === 'todos' || this.tipoBusqueda === 'codigo_abonado') {
             await this.cargarEstadoCuenta(query);
           } else {
-            alert('No se encontraron abonados con el criterio ingresado.');
+            this.mostrarNotificacion('No se encontraron abonados con el criterio ingresado.', 'info', 'mdi-account-search');
             this.estadoCuenta = null;
           }
         }
       } catch (e) {
-        alert(e.response?.data?.message || 'Abonado no encontrado en el sistema.');
+        this.mostrarNotificacion(e.response?.data?.message || 'Abonado no encontrado en el sistema.', 'warning', 'mdi-account-alert');
         this.estadoCuenta = null;
       } finally {
         this.buscando = false;
@@ -1228,22 +1294,32 @@ export default {
       this.efectivoRecibido = (parseFloat(this.efectivoRecibido) || 0) + monto;
     },
 
-    async procesarCobro() {
+    alConfirmarPagoQr(datosQr) {
+      this.datosCobro.codigo_metodo_pago = 7;
+      this.procesarCobro(true);
+    },
+
+    async procesarCobro(qrYaValidado = false) {
       if (!this.tieneSesionActiva) {
-        alert('Debe realizar la apertura formal del turno de caja antes de cobrar.');
+        this.mostrarNotificacion('Debe realizar la apertura formal del turno de caja antes de cobrar.', 'warning', 'mdi-cash-register');
         this.mostrarModalApertura = true;
         return;
       }
       if (this.totalSeleccionado <= 0) {
-        alert('Debe seleccionar al menos una factura para cobrar.');
+        this.mostrarNotificacion('Debe seleccionar al menos una factura para cobrar.', 'warning', 'mdi-alert');
         return;
       }
       if (!this.datosCobro.nombre_razon_social || !this.datosCobro.numero_documento) {
-        alert('Ingrese la razón social y número de documento para la factura SIAT.');
+        this.mostrarNotificacion('Ingrese la razón social y número de documento para la factura SIAT.', 'warning', 'mdi-card-account-details-outline');
         return;
       }
       if (this.datosCobro.codigo_metodo_pago === 1 && this.efectivoRecibido < this.totalSeleccionado) {
-        alert('El efectivo recibido es menor al total a cobrar.');
+        this.mostrarNotificacion('El efectivo recibido es menor al total a cobrar.', 'warning', 'mdi-cash-remove');
+        return;
+      }
+      // Si el método de pago es QR y aún no se ha validado, abrir el modal de QR
+      if (this.datosCobro.codigo_metodo_pago === 7 && !qrYaValidado) {
+        this.mostrarModalQr = true;
         return;
       }
 
@@ -1265,14 +1341,22 @@ export default {
         this.ordenReconexionGenerada = res.data.data.orden_reconexion;
         this.modalFacturaEmitida = true;
 
+        const numFac = this.facturaResultado.numero_factura || this.facturaResultado.id;
+        const montoFac = parseFloat(this.facturaResultado.monto_total || 0).toFixed(2);
+        this.mostrarNotificacion(
+          `¡Cobro exitoso! Factura SIAT N° ${numFac} emitida por Bs ${montoFac}.`,
+          'success',
+          'mdi-check-decagram'
+        );
+
         // Abrir automáticamente el visor modal en formato rollo 80mm
         this.abrirVisorFactura(this.facturaResultado.id, 'rollo');
 
         // Refrescar estado de cuenta del abonado y sesión de caja activa
         this.buscarAbonado();
-        this.verificarEstadoSesion();
+        await this.verificarEstadoSesion();
       } catch (e) {
-        alert(e.response?.data?.message || 'Error al procesar el cobro en ventanilla.');
+        this.mostrarNotificacion(e.response?.data?.message || 'Error al procesar el cobro en ventanilla.', 'error', 'mdi-alert-circle');
       } finally {
         this.procesandoCobro = false;
       }

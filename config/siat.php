@@ -21,7 +21,7 @@ return [
     */
     'modalidad' => (int) env('SIAT_MODALIDAD', 1),
 
-    'nit_emisor' => (string) env('SIAT_NIT_EMISOR', '123456789'),
+    'nit_emisor' => (string) env('SIAT_NIT_EMISOR', '1002393029'),
     'codigo_sistema' => (string) env('SIAT_CODIGO_SISTEMA', 'EMAPA_SISTEMA'),
     'token_delegado' => (string) env('SIAT_TOKEN_DELEGADO', ''),
 
@@ -36,6 +36,8 @@ return [
             'operaciones' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/FacturacionOperaciones?wsdl',
             'sincronizacion' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/FacturacionSincronizacion?wsdl',
             'compra_venta' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/ServicioFacturacionCompraVenta?wsdl',
+            'computarizada' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/ServicioFacturacionComputarizada?wsdl',
+            'electronica' => 'https://pilotosiatservicios.impuestos.gob.bo/v2/ServicioFacturacionElectronica?wsdl',
             'qr' => 'https://pilotosiat.impuestos.gob.bo/consulta/QR?',
         ],
         'produccion' => [
@@ -43,6 +45,8 @@ return [
             'operaciones' => 'https://siatrest.impuestos.gob.bo/v2/FacturacionOperaciones?wsdl',
             'sincronizacion' => 'https://siatrest.impuestos.gob.bo/v2/FacturacionSincronizacion?wsdl',
             'compra_venta' => 'https://siatrest.impuestos.gob.bo/v2/ServicioFacturacionCompraVenta?wsdl',
+            'computarizada' => 'https://siatrest.impuestos.gob.bo/v2/ServicioFacturacionComputarizada?wsdl',
+            'electronica' => 'https://siatrest.impuestos.gob.bo/v2/ServicioFacturacionElectronica?wsdl',
             'qr' => 'https://siat.impuestos.gob.bo/consulta/QR?',
         ],
     ],

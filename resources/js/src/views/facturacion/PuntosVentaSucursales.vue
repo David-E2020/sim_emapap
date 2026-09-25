@@ -236,6 +236,24 @@
         </div>
       </v-card>
     </v-dialog>
+    <!-- NOTIFICACIÓN NATIVA DEL SISTEMA (SNACKBAR) -->
+    <v-snackbar
+      v-model="snackbar.status"
+      :color="snackbar.color"
+      :timeout="4000"
+      top
+      right
+      rounded="pill"
+      elevation="6"
+    >
+      <div class="d-flex align-center">
+        <v-icon dark left class="mr-2">{{ snackbar.icon || 'mdi-information' }}</v-icon>
+        <span class="font-weight-medium">{{ snackbar.text }}</span>
+      </div>
+      <template v-slot:action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
@@ -265,12 +283,26 @@ export default {
         { codigo: 5, descripcion: 'Punto de Venta Fijo' },
         { codigo: 2, descripcion: 'Punto Móvil' },
       ],
+      snackbar: {
+        status: false,
+        text: '',
+        color: 'success',
+        icon: 'mdi-check-circle',
+      },
     };
   },
   mounted() {
     this.cargarDatos();
   },
   methods: {
+    mostrarNotificacion(texto, color = 'success', icon = 'mdi-check-circle') {
+      this.snackbar = {
+        status: true,
+        text: texto,
+        color: color,
+        icon: icon,
+      };
+    },
     async cargarDatos() {
       this.cargando = true;
       try {
@@ -294,22 +326,22 @@ export default {
     },
     async guardarPuntoVenta() {
       if (!this.formPunto.nombre || !this.formPunto.descripcion) {
-        this.$message.warning('Ingrese nombre y descripción del punto de venta');
+        this.mostrarNotificacion('Ingrese nombre y descripción del punto de venta', 'warning', 'mdi-alert');
         return;
       }
       this.guardandoPunto = true;
       try {
         const res = await window.axios.post('/api/facturacion/siat/puntos-venta', this.formPunto);
         if (res.data && res.data.success) {
-          this.$message.success('Punto de venta autorizado exitosamente por el SIN.');
+          this.mostrarNotificacion('Punto de venta autorizado exitosamente por el SIN.', 'success', 'mdi-check-circle');
           this.dialogoNuevoPunto = false;
           this.cargarDatos();
         } else {
-          this.$message.error(res.data.message || 'No se pudo autorizar el punto de venta');
+          this.mostrarNotificacion(res.data.message || 'No se pudo autorizar el punto de venta', 'error', 'mdi-alert-circle');
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message.error(msg);
+        this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
       } finally {
         this.guardandoPunto = false;
       }
@@ -318,31 +350,28 @@ export default {
       try {
         const res = await window.axios.post(`/api/facturacion/siat/puntos-venta/${pv.id}/cuis`);
         if (res.data && res.data.success) {
-          this.$message.success(`CUIS obtenido con éxito: ${res.data.cuis}`);
+          this.mostrarNotificacion(`CUIS obtenido con éxito: ${res.data.cuis}`, 'success', 'mdi-check-circle');
           this.cargarDatos();
         } else {
-          this.$message.error('No se pudo renovar el CUIS');
+          this.mostrarNotificacion('No se pudo renovar el CUIS', 'error', 'mdi-alert-circle');
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message.error(msg);
+        this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
       }
     },
     async confirmarCierrePunto(pv) {
-      if (!confirm(`¿Está seguro de cerrar formalmente ante el SIN el Punto de Venta N° ${pv.codigo_punto_venta} (${pv.nombre})?`)) {
-        return;
-      }
       try {
         const res = await window.axios.post(`/api/facturacion/siat/puntos-venta/${pv.id}/cierre`);
         if (res.data && res.data.success) {
-          this.$message.success('Punto de venta cerrado formalmente ante el SIN.');
+          this.mostrarNotificacion('Punto de venta cerrado formalmente ante el SIN.', 'success', 'mdi-check-circle');
           this.cargarDatos();
         } else {
-          this.$message.error(res.data.message || 'Error al cerrar punto de venta');
+          this.mostrarNotificacion(res.data.message || 'Error al cerrar punto de venta', 'error', 'mdi-alert-circle');
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message.error(msg);
+        this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
       }
     },
     async cargarCajeros() {
@@ -366,20 +395,12 @@ export default {
         await window.axios.post(`/api/comercial/cajas/${this.puntoSeleccionado.id}/asignar-cajero`, {
           id_cajero: this.cajeroSeleccionadoId,
         });
-        if (this.$message) {
-          this.$message.success('Cajero habitual asignado a la caja correctamente.');
-        } else {
-          alert('Cajero habitual asignado a la caja correctamente.');
-        }
+        this.mostrarNotificacion('Cajero habitual asignado a la caja correctamente.', 'success', 'mdi-check-circle');
         this.dialogoAsignarCajero = false;
         this.cargarDatos();
       } catch (e) {
         const msg = e.response?.data?.message || 'Error al asignar cajero a la caja.';
-        if (this.$message) {
-          this.$message.error(msg);
-        } else {
-          alert(msg);
-        }
+        this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
       } finally {
         this.guardandoAsignacion = false;
       }

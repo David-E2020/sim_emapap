@@ -2,16 +2,16 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Factura Ticket - EMAPAP Patacamaya</title>
+    <title>Factura Ticket SIAT - EMAPA</title>
     <style>
         @page {
             margin: 3mm 4mm;
         }
         body {
             font-family: 'Helvetica', Arial, sans-serif;
-            font-size: 9px;
+            font-size: 8.5px;
             color: #000;
-            line-height: 1.2;
+            line-height: 1.25;
             margin: 0;
             padding: 0;
             width: 72mm;
@@ -32,150 +32,194 @@
         }
         .divider {
             border-top: 1px dashed #000;
-            margin: 4px 0;
-        }
-        .divider-solid {
-            border-top: 1px solid #000;
-            margin: 4px 0;
-        }
-        .table-data {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 8.5px;
-        }
-        .table-data th {
-            border-bottom: 1px dashed #000;
-            padding: 2px 0;
-            text-align: left;
-        }
-        .table-data td {
-            padding: 2px 0;
-            vertical-align: top;
+            margin: 5px 0;
         }
         .cuf-code {
             font-size: 7.5px;
             word-break: break-all;
-            font-family: monospace;
+            font-family: "Courier New", Courier, monospace;
             text-align: center;
-            margin: 3px 0;
+            margin: 2px 0;
+            line-height: 1.15;
+        }
+        .info-row {
+            margin-bottom: 2px;
+            font-size: 8px;
+        }
+        .table-data {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+        }
+        .table-data td {
+            padding: 1.5px 0;
+            vertical-align: top;
         }
         .qr-box {
             text-align: center;
-            margin: 6px 0;
+            margin: 8px 0;
         }
         .qr-box img {
-            width: 100px;
-            height: 100px;
+            width: 110px;
+            height: 110px;
         }
         .leyenda {
-            font-size: 7px;
+            font-size: 7.5px;
             text-align: center;
-            line-height: 1.15;
+            line-height: 1.2;
             margin-top: 3px;
         }
     </style>
 </head>
 <body>
+
+    <!-- ENCABEZADO OFICIAL ROLLO SECTOR 13 -->
     <div class="text-center">
-        <div class="header-title">EMAPAP - PATACAMAYA</div>
-        <div class="header-sub font-bold">EMPRESA MUNICIPAL DE AGUA POTABLE Y ALCANTARILLADO SANITARIO</div>
-        <div class="header-sub">Oficina: {{ $factura->sucursal->nombre ?? 'Oficina Central Patacamaya' }}</div>
-        <div class="header-sub">Punto de Cobro: {{ $factura->puntoVenta->nombre ?? 'Caja Central Recaudaciones' }}</div>
-        <div class="header-sub">Dir: Av. Panamericana s/n, Plaza 15 de Agosto</div>
-        <div class="header-sub">Tel: 2-8147000 | Patacamaya - La Paz</div>
+        <div class="font-bold" style="font-size: 11px;">FACTURA</div>
+        <div style="font-size: 8px; text-transform: uppercase;">CON DERECHO A CRÉDITO FISCAL</div>
+        <div class="header-title" style="margin-top: 3px;">{{ !empty($empresa->nombre_comercial) ? $empresa->nombre_comercial : 'EMAPA' }}</div>
+        <div class="header-sub font-bold">Casa Matriz</div>
+        <div class="header-sub">No. Punto de Venta: {{ $factura->puntoVenta->codigo_punto_venta ?? 0 }}</div>
+        <div class="header-sub">{{ !empty($empresa->direccion) ? $empresa->direccion : 'PLAZA BOLIVAR NRO S/N ZONA ESTACION' }}</div>
+        <div class="header-sub">Tel: {{ !empty($empresa->telefono) ? $empresa->telefono : '76750201' }}</div>
+        <div class="header-sub font-bold">{{ strtoupper(!empty($empresa->municipio) ? $empresa->municipio : 'PATACAMAYA') }}</div>
     </div>
 
     <div class="divider"></div>
 
     <div class="text-center">
-        <div class="font-bold" style="font-size: 10px;">FACTURA</div>
-        <div style="font-size: 8px;">(Con Derecho a Crédito Fiscal)</div>
-        <div class="header-sub font-bold mt-1">NIT: {{ config('siat.nit_emisor', '123456789') }}</div>
-        <div class="header-sub font-bold">FACTURA N°: {{ $factura->numero_factura }}</div>
-        <div class="header-sub">CÓD. AUTORIZACIÓN:</div>
+        <div class="font-bold">NIT</div>
+        <div>{{ !empty($empresa->nit) ? $empresa->nit : '1002393029' }}</div>
+        <div class="font-bold" style="margin-top: 2px;">FACTURA N°</div>
+        <div>{{ $factura->numero_factura }}</div>
+        <div class="font-bold" style="margin-top: 2px;">CÓD. AUTORIZACIÓN</div>
         <div class="cuf-code">{{ $factura->cuf }}</div>
     </div>
 
     <div class="divider"></div>
 
+    <!-- DATOS DEL CLIENTE / ABONADO -->
     <div>
-        <div><span class="font-bold">FECHA:</span> {{ \Carbon\Carbon::parse($factura->fecha_emision)->format('d/m/Y H:i:s') }}</div>
-        <div><span class="font-bold">SEÑOR(ES):</span> {{ $factura->nombre_razon_social }}</div>
-        <div><span class="font-bold">NIT/CI:</span> {{ $factura->numero_documento }} {{ $factura->complemento }}</div>
-        <div><span class="font-bold">PAGO:</span> {{ $factura->codigo_metodo_pago == 1 ? 'EFECTIVO' : 'TRANSFERENCIA / QR' }}</div>
+        <div class="info-row"><span class="font-bold">NOMBRE/RAZÓN SOCIAL:</span> {{ $factura->nombre_razon_social }}</div>
+        <div class="info-row"><span class="font-bold">NIT/CI/CEX:</span> {{ $factura->numero_documento }} {{ $factura->complemento ? '- ' . $factura->complemento : '' }}</div>
+        <div class="info-row"><span class="font-bold">NRO. CLIENTE:</span> {{ $codCliente }}</div>
+        <div class="info-row"><span class="font-bold">PERIODO FACTURADO:</span> {{ $periodoFacturado }}</div>
+        <div class="info-row"><span class="font-bold">NRO. MEDIDOR:</span> {{ $nroMedidor }}</div>
+        <div class="info-row"><span class="font-bold">CONSUMO PERIODO:</span> {{ number_format((float)$consumoPeriodo, 1) }}</div>
+        <div class="info-row"><span class="font-bold">BENEFICIARIO LEY 1886:</span> {{ $beneficiarioLeyTexto }}</div>
+        <div class="info-row"><span class="font-bold">DIRECCIÓN:</span> {{ $direccion }}</div>
+        <div class="info-row"><span class="font-bold">FECHA DE EMISIÓN:</span> {{ $factura->fecha_emision ? \Carbon\Carbon::parse($factura->fecha_emision)->format('d/m/Y h:i A') : date('d/m/Y h:i A') }}</div>
     </div>
 
     <div class="divider"></div>
 
-    <table class="table-data">
-        <thead>
+    <!-- DETALLE DEL SERVICIO Y TASAS -->
+    <div>
+        <div class="font-bold" style="margin-bottom: 3px;">DETALLE</div>
+        @foreach($detalles as $det)
+        <div style="font-size: 8px;">
+            <span class="font-bold">{{ $det->codigo_producto_empresa ?? '52DW30267' }} - {{ $det->descripcion }}</span><br>
+            UNIDAD DE MEDIDA: {{ strtoupper($det->unidad_medida ?? 'UNIDAD (SERVICIOS)') }}
+        </div>
+        <table class="table-data" style="margin-top: 1px; margin-bottom: 2px;">
             <tr>
-                <th style="width: 15%;">CANT</th>
-                <th style="width: 55%;">DETALLE</th>
-                <th style="width: 30%;" class="text-right">SUBTOTAL</th>
+                <td style="width: 70%;">{{ number_format((float)$det->cantidad, 2) }} X {{ number_format((float)$det->precio_unitario, 2) }} - {{ number_format((float)($det->monto_descuento ?? 0), 2) }}</td>
+                <td style="width: 30%;" class="text-right font-bold">{{ number_format((float)$det->subtotal, 2) }}</td>
             </tr>
-        </thead>
-        <tbody>
-            @foreach($factura->detalles as $det)
+        </table>
+        @endforeach
+
+        <table class="table-data" style="margin-top: 2px;">
             <tr>
-                <td>{{ number_format((float)$det->cantidad, 0) }}</td>
-                <td>{{ $det->descripcion }}</td>
-                <td class="text-right">{{ number_format((float)$det->subtotal, 2) }}</td>
+                <td style="width: 75%;">Ajustes sujetos a IVA</td>
+                <td style="width: 25%;" class="text-right">{{ number_format((float)($factura->ajuste_sujeto_iva ?? 0), 2) }}</td>
             </tr>
-            @endforeach
-        </tbody>
-    </table>
+            <tr>
+                <td>Tasa aseo Urbano</td>
+                <td class="text-right">{{ number_format((float)($factura->tasa_aseo ?? 0), 2) }}</td>
+            </tr>
+            <tr>
+                <td>Tasa Alumbrado</td>
+                <td class="text-right">{{ number_format((float)($factura->tasa_alumbrado ?? 0), 2) }}</td>
+            </tr>
+            <tr>
+                <td>Otras Tasas</td>
+                <td class="text-right">{{ number_format((float)($factura->otras_tasas ?? 0), 2) }}</td>
+            </tr>
+            <tr>
+                <td>Otros pagos (pago de cuotas)</td>
+                <td class="text-right">{{ number_format((float)($factura->otros_pagos_no_sujeto_iva ?? 0), 2) }}</td>
+            </tr>
+        </table>
+    </div>
 
-    <div class="divider-solid"></div>
+    <div class="divider"></div>
 
-    <table style="width: 100%; font-size: 9px;">
-        @if((float)$factura->monto_descuento > 0)
+    <!-- TOTALES Y LIQUIDACIÓN -->
+    <table class="table-data font-bold">
         <tr>
-            <td class="text-right font-bold">SUBTOTAL BS:</td>
-            <td class="text-right" style="width: 30%;">{{ number_format((float)$factura->monto_total + (float)$factura->monto_descuento, 2) }}</td>
+            <td style="width: 70%;" class="text-right">TOTAL Bs:</td>
+            <td style="width: 30%;" class="text-right">{{ number_format((float)$factura->monto_total, 2) }}</td>
         </tr>
         <tr>
-            <td class="text-right font-bold">DESCUENTO BS:</td>
-            <td class="text-right">-{{ number_format((float)$factura->monto_descuento, 2) }}</td>
-        </tr>
-        @endif
-        <tr>
-            <td class="text-right font-bold" style="font-size: 10px;">TOTAL A PAGAR BS:</td>
-            <td class="text-right font-bold" style="font-size: 10px;">{{ number_format((float)$factura->monto_total, 2) }}</td>
+            <td class="text-right">(-) DESCUENTO Bs:</td>
+            <td class="text-right">{{ number_format((float)($factura->monto_descuento ?? 0), 2) }}</td>
         </tr>
         <tr>
-            <td class="text-right font-bold">IMPORTE BASE CRÉDITO FISCAL:</td>
-            <td class="text-right font-bold">{{ number_format((float)$factura->monto_total_sujeto_iva, 2) }}</td>
+            <td class="text-right">SUBTOTAL A PAGAR Bs:</td>
+            <td class="text-right">{{ number_format((float)$factura->monto_total, 2) }}</td>
+        </tr>
+        <tr>
+            <td class="text-right">(-) AJUSTES NO SUJETOS A IVA Bs:</td>
+            <td class="text-right">{{ number_format((float)($factura->ajuste_no_sujeto_iva ?? 0), 2) }}</td>
+        </tr>
+        <tr>
+            <td class="text-right">MONTO TOTAL A PAGAR Bs:</td>
+            <td class="text-right">{{ number_format((float)$factura->monto_total, 2) }}</td>
+        </tr>
+        <tr>
+            <td class="text-right">(-) TASAS Bs:</td>
+            <td class="text-right">{{ number_format((float)(($factura->tasa_aseo ?? 0) + ($factura->tasa_alumbrado ?? 0) + ($factura->otras_tasas ?? 0)), 2) }}</td>
+        </tr>
+        <tr>
+            <td class="text-right">(-) OTROS PAGOS NO SUJETO A IVA Bs:</td>
+            <td class="text-right">{{ number_format((float)($factura->otros_pagos_no_sujeto_iva ?? 0), 2) }}</td>
+        </tr>
+        <tr>
+            <td class="text-right">(+) AJUSTES NO SUJETOS A IVA Bs:</td>
+            <td class="text-right">0.00</td>
+        </tr>
+        <tr>
+            <td class="text-right">IMPORTE BASE CRÉDITO FISCAL:</td>
+            <td class="text-right">{{ number_format((float)$factura->monto_total_sujeto_iva, 2) }}</td>
         </tr>
     </table>
 
     <div class="divider"></div>
 
     <div style="font-size: 8px;">
-        <span class="font-bold">SON:</span> {{ $literal }}
+        <span class="font-bold">Son:</span> {{ $literal }}
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="leyenda font-bold">
+        ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAIS, EL USO ILICITO SERA SANCIONADO PENALMENTE DE ACUERDO A LEY
+    </div>
+
+    <div class="leyenda">
+        Ley N° 453: La interrupción del servicio debe comunicarse con anterioridad a las Autoridades que correspondan y a los usuarios afectados.
+    </div>
+
+    <div class="leyenda" style="margin-top: 3px; font-style: italic; color: #333;">
+        "Este documento es la Representación Gráfica de un Documento Fiscal Digital emitido en una modalidad de facturación en línea"
     </div>
 
     <div class="qr-box">
         @if(!empty($qrBase64))
-            <img src="data:image/svg+xml;base64,{{ $qrBase64 }}" alt="QR Fiscal SIAT">
+            <img src="data:image/svg+xml;base64,{{ $qrBase64 }}" alt="QR SIAT Oficial">
         @endif
     </div>
 
-    <div class="leyenda font-bold">
-        "ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS, EL USO ILÍCITO SERÁ SANCIONADO PENALMENTE DE ACUERDO A LEY"
-    </div>
-
-    <div class="leyenda">
-        {{ $factura->leyenda }}
-    </div>
-
-    <div class="leyenda" style="margin-top: 4px;">
-        {{ $factura->tipo_emision == 1 ? 'EMISIÓN EN LÍNEA' : 'EMISIÓN FUERA DE LÍNEA' }}
-    </div>
-
-    <div class="divider"></div>
-    <div class="text-center" style="font-size: 7px; color: #333;">
-        ¡Cuide el agua, es vida para Patacamaya!
-    </div>
 </body>
 </html>

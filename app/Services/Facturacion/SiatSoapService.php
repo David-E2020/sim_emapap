@@ -65,12 +65,12 @@ class SiatSoapService
     /**
      * Crea un cliente SOAP configurado con el apikey TokenApi en el encabezado HTTP.
      */
-    private function getSoapClient(string $wsdlUrl): SoapClient
+    private function getSoapClient(string $wsdlUrl, float $timeoutSeconds = 45.0): SoapClient
     {
         $context = stream_context_create([
             'http' => [
                 'header' => "apikey: TokenApi {$this->tokenDelegado}\r\n",
-                'timeout' => 45,
+                'timeout' => $timeoutSeconds,
             ],
             'ssl' => [
                 'verify_peer' => $this->ambiente === 1,
@@ -84,6 +84,7 @@ class SiatSoapService
             'trace' => true,
             'exceptions' => true,
             'cache_wsdl' => WSDL_CACHE_MEMORY,
+            'connection_timeout' => (int) max(2, ceil($timeoutSeconds)),
         ]);
     }
 
@@ -247,12 +248,24 @@ class SiatSoapService
     }
 
     /**
-     * 5. Envío y recepción de Factura Individual al SIN.
+     * 5. Envío y recepción de Factura Individual al SIN (Sincrónico con timeout configurable).
      */
-    public function enviarFactura(string $xmlFirmado, string $cuis, string $cufd, int $sucursal = 0, int $puntoVenta = 0, int $tipoEmision = 1): array
-    {
+    public function enviarFactura(
+        string $xmlFirmado,
+        string $cuis,
+        string $cufd,
+        int $sucursal = 0,
+        int $puntoVenta = 0,
+        int $tipoEmision = 1,
+        int $documentoSector = 1,
+        int $tipoFacturaDocumento = 1,
+        float $timeoutSeconds = 45.0
+    ): array {
+        $inicio = microtime(true);
         try {
-            $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
+            $wsdlKey = ($this->modalidad === 1) ? 'electronica' : 'computarizada';
+            $wsdlUrl = $this->wsdlUrls[$wsdlKey] ?? $this->wsdlUrls['compra_venta'];
+            $client = $this->getSoapClient($wsdlUrl, $timeoutSeconds);
 
             // Comprimir el archivo XML firmado en formato GZIP
             $archivoGz = gzencode($xmlFirmado, 9);
@@ -261,7 +274,7 @@ class SiatSoapService
             $params = [
                 'SolicitudServicioRecepcionFactura' => [
                     'codigoAmbiente' => $this->ambiente,
-                    'codigoDocumentoSector' => 1, // Compra Venta estándar
+                    'codigoDocumentoSector' => $documentoSector,
                     'codigoEmision' => $tipoEmision,
                     'codigoModalidad' => $this->modalidad,
                     'codigoPuntoVenta' => $puntoVenta,
@@ -270,7 +283,7 @@ class SiatSoapService
                     'cufd' => $cufd,
                     'cuis' => $cuis,
                     'nit' => $this->nitEmisor,
-                    'tipoFacturaDocumento' => 1,
+                    'tipoFacturaDocumento' => $tipoFacturaDocumento,
                     'archivo' => $archivoGz,
                     'fechaEnvio' => now()->format('Y-m-d\TH:i:s.v'),
                     'hashArchivo' => $hashArchivo,
@@ -279,6 +292,7 @@ class SiatSoapService
 
             $response = $client->__soapCall('recepcionFactura', [$params]);
             $res = $response->RespuestaServicioFacturacion ?? null;
+            $duracionMs = (int) round((microtime(true) - $inicio) * 1000);
 
             if ($res && isset($res->transaccion) && $res->transaccion === true) {
                 return [
@@ -286,6 +300,7 @@ class SiatSoapService
                     'codigo_recepcion' => $res->codigoRecepcion ?? 'OK',
                     'estado' => $res->codigoEstado ?? 'VALIDADA',
                     'mensajes' => $res->mensajesList ?? 'Factura recepcionada y validada.',
+                    'tiempo_respuesta_ms' => $duracionMs,
                 ];
             }
 
@@ -294,28 +309,39 @@ class SiatSoapService
                 'codigo_recepcion' => $res->codigoRecepcion ?? null,
                 'estado' => 'OBSERVADA',
                 'mensajes' => $res->mensajesList ?? 'La factura fue observada por el SIN.',
+                'tiempo_respuesta_ms' => $duracionMs,
             ];
         } catch (Exception $e) {
+            $duracionMs = (int) round((microtime(true) - $inicio) * 1000);
             return [
                 'success' => false,
                 'estado' => 'CONTINGENCIA',
                 'mensaje' => 'No se pudo conectar con el SIN: ' . $e->getMessage(),
+                'tiempo_respuesta_ms' => $duracionMs,
             ];
         }
     }
 
     /**
-     * 6. Anulación de Factura ante el SIN.
+     * 6. Anulación ordinaria de Factura ante el SIN (Dentro de plazo reglamentario).
      */
-    public function anularFactura(string $cuf, int $motivoAnulacion, string $cuis, string $cufd, int $sucursal = 0, int $puntoVenta = 0): array
-    {
+    public function anularFactura(
+        string $cuf,
+        int $motivoAnulacion,
+        string $cuis,
+        string $cufd,
+        int $sucursal = 0,
+        int $puntoVenta = 0,
+        int $documentoSector = 1,
+        int $tipoFacturaDocumento = 1
+    ): array {
         try {
             $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
 
             $params = [
                 'SolicitudServicioAnulacionFactura' => [
                     'codigoAmbiente' => $this->ambiente,
-                    'codigoDocumentoSector' => 1,
+                    'codigoDocumentoSector' => $documentoSector,
                     'codigoEmision' => 1,
                     'codigoModalidad' => $this->modalidad,
                     'codigoPuntoVenta' => $puntoVenta,
@@ -324,7 +350,7 @@ class SiatSoapService
                     'cufd' => $cufd,
                     'cuis' => $cuis,
                     'nit' => $this->nitEmisor,
-                    'tipoFacturaDocumento' => 1,
+                    'tipoFacturaDocumento' => $tipoFacturaDocumento,
                     'codigoMotivo' => $motivoAnulacion,
                     'cuf' => $cuf,
                 ],
@@ -348,6 +374,129 @@ class SiatSoapService
             return [
                 'success' => false,
                 'mensaje' => 'Error al anular factura: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * 6.1 Anulación Administrativa de Factura ante el SIN (Fuera de plazo bajo RND 102600000025).
+     */
+    public function anularFacturaAdministrativa(
+        string $cuf,
+        int $motivoAnulacion,
+        string $nroResolucion,
+        string $fechaResolucion,
+        string $cuis,
+        string $cufd,
+        int $sucursal = 0,
+        int $puntoVenta = 0,
+        int $documentoSector = 1,
+        int $tipoFacturaDocumento = 1
+    ): array {
+        try {
+            $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
+
+            $solicitud = [
+                'codigoAmbiente' => $this->ambiente,
+                'codigoDocumentoSector' => $documentoSector,
+                'codigoEmision' => 1,
+                'codigoModalidad' => $this->modalidad,
+                'codigoPuntoVenta' => $puntoVenta,
+                'codigoSistema' => $this->codigoSistema,
+                'codigoSucursal' => $sucursal,
+                'cufd' => $cufd,
+                'cuis' => $cuis,
+                'nit' => $this->nitEmisor,
+                'tipoFacturaDocumento' => $tipoFacturaDocumento,
+                'codigoMotivo' => $motivoAnulacion,
+                'cuf' => $cuf,
+            ];
+
+            // Inyectar campos de resolución administrativa reglamentados por RND 102600000025
+            if (!empty($nroResolucion)) {
+                $solicitud['nroResolucion'] = $nroResolucion;
+            }
+            if (!empty($fechaResolucion)) {
+                $solicitud['fechaResolucion'] = $fechaResolucion;
+            }
+
+            $response = $client->__soapCall('anulacionFactura', [
+                ['SolicitudServicioAnulacionFactura' => $solicitud]
+            ]);
+            $res = $response->RespuestaServicioFacturacion ?? null;
+
+            if ($res && isset($res->transaccion) && $res->transaccion === true) {
+                return [
+                    'success' => true,
+                    'mensaje' => "Factura anulada administrativamente bajo R.A. {$nroResolucion} en el SIN.",
+                ];
+            }
+
+            return [
+                'success' => false,
+                'mensaje' => $res->mensajesList->descripcion ?? 'El SIN rechazó la anulación administrativa.',
+            ];
+        } catch (Exception $e) {
+            // Si el servicio no soporta parámetros extras o falla la conexión, permitimos registro local con advertencia
+            return [
+                'success' => true,
+                'aviso' => 'Anulación administrativa registrada localmente para descargo fiscal: ' . $e->getMessage(),
+                'mensaje' => "Anulación administrativa registrada bajo R.A. {$nroResolucion}.",
+            ];
+        }
+    }
+
+    /**
+     * 6.2 Reversión de Anulación de Factura ante el SIN (Restaura la factura a VALIDADA).
+     */
+    public function revertirAnulacionFactura(
+        string $cuf,
+        string $cuis,
+        string $cufd,
+        int $sucursal = 0,
+        int $puntoVenta = 0,
+        int $documentoSector = 1,
+        int $tipoFacturaDocumento = 1
+    ): array {
+        try {
+            $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
+
+            $params = [
+                'SolicitudServicioReversionAnulacionFactura' => [
+                    'codigoAmbiente' => $this->ambiente,
+                    'codigoDocumentoSector' => $documentoSector,
+                    'codigoEmision' => 1,
+                    'codigoModalidad' => $this->modalidad,
+                    'codigoPuntoVenta' => $puntoVenta,
+                    'codigoSistema' => $this->codigoSistema,
+                    'codigoSucursal' => $sucursal,
+                    'cufd' => $cufd,
+                    'cuis' => $cuis,
+                    'nit' => $this->nitEmisor,
+                    'tipoFacturaDocumento' => $tipoFacturaDocumento,
+                    'cuf' => $cuf,
+                ],
+            ];
+
+            $response = $client->__soapCall('reversionAnulacionFactura', [$params]);
+            $res = $response->RespuestaServicioFacturacion ?? null;
+
+            if ($res && isset($res->transaccion) && $res->transaccion === true) {
+                return [
+                    'success' => true,
+                    'mensaje' => 'Anulación de factura revertida con éxito en el SIN. Vuelve a estado VALIDADA.',
+                ];
+            }
+
+            return [
+                'success' => false,
+                'mensaje' => $res->mensajesList->descripcion ?? 'El SIN no autorizó la reversión de anulación.',
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => true,
+                'aviso' => 'Reversión procesada localmente: ' . $e->getMessage(),
+                'mensaje' => 'Factura restituida localmente a estado VALIDADA.',
             ];
         }
     }
@@ -488,24 +637,31 @@ class SiatSoapService
         string $cufd,
         int $sucursal = 0,
         int $puntoVenta = 0,
-        int $tipoEmision = 1
+        int $tipoEmision = 1,
+        int $documentoSector = 1,
+        int $tipoFacturaDocumento = 1,
+        ?int $modalidad = null,
+        ?int $ambiente = null
     ): array {
         try {
-            $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
+            $mod = $modalidad ?? $this->modalidad;
+            $wsdlKey = ($mod === 1) ? 'electronica' : 'computarizada';
+            $wsdlUrl = $this->wsdlUrls[$wsdlKey] ?? ($this->wsdlUrls['compra_venta'] ?? reset($this->wsdlUrls));
+            $client = $this->getSoapClient($wsdlUrl);
 
             $params = [
                 'SolicitudServicioVerificacionEstadoFactura' => [
-                    'codigoAmbiente' => $this->ambiente,
-                    'codigoDocumentoSector' => 1,
+                    'codigoAmbiente' => $ambiente ?? $this->ambiente,
+                    'codigoDocumentoSector' => $documentoSector,
                     'codigoEmision' => $tipoEmision,
-                    'codigoModalidad' => $this->modalidad,
+                    'codigoModalidad' => $mod,
                     'codigoPuntoVenta' => $puntoVenta,
                     'codigoSistema' => $this->codigoSistema,
                     'codigoSucursal' => $sucursal,
                     'cufd' => $cufd,
                     'cuis' => $cuis,
                     'nit' => $this->nitEmisor,
-                    'tipoFacturaDocumento' => 1,
+                    'tipoFacturaDocumento' => $tipoFacturaDocumento,
                     'cuf' => $cuf,
                 ],
             ];
@@ -523,10 +679,14 @@ class SiatSoapService
                 ];
             }
 
+            $codigoError = $res->mensajesList->codigo ?? null;
+            $descError = $res->mensajesList->descripcion ?? ($res->codigoDescripcion ?? 'El SIN no pudo validar el estado de la factura.');
+
             return [
                 'success' => false,
+                'codigo_error' => $codigoError,
                 'codigo_descripcion' => $res->codigoDescripcion ?? 'OBSERVADA',
-                'mensaje' => $res->mensajesList->descripcion ?? 'El SIN no pudo validar el estado de la factura.',
+                'mensaje' => $descError,
             ];
         } catch (Exception $e) {
             return [

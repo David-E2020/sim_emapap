@@ -36,6 +36,7 @@ use App\Http\Controllers\Rrhh\ReporteRrhhController;
 use App\Http\Controllers\Facturacion\ClienteFacturaController;
 use App\Http\Controllers\Facturacion\EventoSignificativoController;
 use App\Http\Controllers\Facturacion\FacturaController;
+use App\Http\Controllers\Facturacion\FacturacionCucuGatewayController;
 use App\Http\Controllers\Facturacion\ReporteFacturacionController;
 use App\Http\Controllers\Facturacion\SiatCodigoController;
 use App\Http\Controllers\Comercial\AbonadoController;
@@ -311,11 +312,20 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::post('facturacion/facturas', [FacturaController::class, 'store']);
     Route::post('facturacion/facturas/emision-masiva', [FacturaController::class, 'emisionMasiva']);
     Route::post('facturacion/facturas/{id}/anular', [FacturaController::class, 'anular']);
+    Route::post('facturacion/facturas/{id}/anular-administrativa', [FacturacionCucuGatewayController::class, 'anularAdministrativa']);
+    Route::post('facturacion/facturas/{id}/revertir-anulacion', [FacturacionCucuGatewayController::class, 'revertirAnulacion']);
     Route::post('facturacion/facturas/{id}/enviar-correo', [FacturaController::class, 'enviarPorCorreo']);
     Route::get('facturacion/facturas/{id}/verificar-estado-sin', [FacturaController::class, 'verificarEstadoSin']);
+    Route::post('facturacion/facturas/{id}/enviar-siat', [FacturaController::class, 'enviarSiat']);
     Route::get('facturacion/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
     Route::get('facturacion/facturas/{id}/preview', [FacturaController::class, 'previsualizarHtml']);
     Route::get('facturacion/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);
+
+    // Pasarela de Cobros QR Simple (BCB / ASOBAN Interoperable)
+    Route::post('facturacion/cobros-qr/generar', [FacturacionCucuGatewayController::class, 'generarQr']);
+    Route::get('facturacion/cobros-qr/{uuid}/estado', [FacturacionCucuGatewayController::class, 'consultarEstadoQr']);
+    Route::post('facturacion/cobros-qr/{uuid}/confirmar', [FacturacionCucuGatewayController::class, 'confirmarPagoQr']);
+    Route::get('facturacion/dashboard/metricas', [FacturacionCucuGatewayController::class, 'metricasDashboard']);
 
     Route::get('facturacion/clientes', [ClienteFacturaController::class, 'index']);
     Route::post('facturacion/clientes', [ClienteFacturaController::class, 'store']);
@@ -486,4 +496,5 @@ Route::group(['middleware' => ['throttle:60,1']], function () {
     Route::get('facturacion/publico/facturas/{id}/pdf', [FacturaController::class, 'descargarPdf']);
     Route::get('facturacion/publico/facturas/{id}/preview', [FacturaController::class, 'previsualizarHtml']);
     Route::get('facturacion/publico/facturas/{id}/xml', [FacturaController::class, 'descargarXml']);
+    Route::post('facturacion/publico/cobros-qr/webhook', [FacturacionCucuGatewayController::class, 'webhookBancoQr']);
 });

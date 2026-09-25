@@ -7,6 +7,10 @@
       </v-card-title>
 
       <v-card-text class="pt-4">
+        <v-alert v-if="errorMensaje" type="error" dense dismissible class="mb-3">
+          {{ errorMensaje }}
+        </v-alert>
+
         <v-radio-group v-model="formulario.tipo" row mandatory class="mt-0 mb-3">
           <v-radio label="Egreso / Salida de Efectivo" value="EGRESO" color="error"></v-radio>
           <v-radio label="Ingreso Extraordinario" value="INGRESO" color="success"></v-radio>
@@ -96,6 +100,7 @@ export default {
   data() {
     return {
       guardando: false,
+      errorMensaje: '',
       formulario: {
         tipo: 'EGRESO',
         monto: null,
@@ -108,20 +113,20 @@ export default {
   methods: {
     async guardarMovimiento() {
       if (!this.sesionId) {
-        alert('No hay una sesión activa de caja.');
+        this.errorMensaje = 'No hay una sesión activa de caja.';
         return;
       }
       this.guardando = true;
+      this.errorMensaje = '';
       try {
         const payload = {
           id_sesion: this.sesionId,
           ...this.formulario,
         };
         const res = await axios.post('/api/comercial/caja-sesiones/movimiento', payload);
-        alert(res.data?.message || 'Movimiento registrado.');
-        this.$emit('movimiento-registrado');
+        this.$emit('movimiento-registrado', res.data?.message || 'Movimiento de caja registrado.');
       } catch (e) {
-        alert(e.response?.data?.message || 'Error al registrar el movimiento.');
+        this.errorMensaje = e.response?.data?.message || 'Error al registrar el movimiento.';
       } finally {
         this.guardando = false;
       }

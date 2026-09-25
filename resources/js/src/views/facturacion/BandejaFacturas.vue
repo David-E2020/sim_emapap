@@ -168,13 +168,13 @@
                 </v-tooltip>
               </template>
               <v-list dense>
-                <v-list-item @click="imprimirPdf(item.id, 'carta')">
+                <v-list-item @click="imprimirPdf(item, 'carta')">
                   <v-list-item-icon class="mr-2">
                     <v-icon small color="primary">mdi-file-document-outline</v-icon>
                   </v-list-item-icon>
                   <v-list-item-title>Imprimir Formato Carta (Oficial)</v-list-item-title>
                 </v-list-item>
-                <v-list-item @click="imprimirPdf(item.id, 'rollo')">
+                <v-list-item @click="imprimirPdf(item, 'rollo')">
                   <v-list-item-icon class="mr-2">
                     <v-icon small color="orange darken-2">mdi-receipt-text-outline</v-icon>
                   </v-list-item-icon>
@@ -191,6 +191,24 @@
                 </v-btn>
               </template>
               <span>Descargar XML Firmado</span>
+            </v-tooltip>
+
+            <!-- Reenviar Factura a SIAT (Regularizar Contingencia) -->
+            <v-tooltip bottom v-if="item.estado_factura === 'CONTINGENCIA'">
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  color="amber darken-3"
+                  v-bind="attrs"
+                  v-on="on"
+                  :loading="reenviandoId === item.id"
+                  @click="reenviarFacturaAlSiat(item)"
+                >
+                  <v-icon small>mdi-cloud-upload-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Reenviar a SIAT (Regularizar Contingencia)</span>
             </v-tooltip>
 
             <!-- Verificar Estado en Línea con SIAT -->
@@ -211,6 +229,23 @@
               <span>Verificar Estado en Línea (SIAT)</span>
             </v-tooltip>
 
+            <!-- Consultar Directamente en Portal SIAT Oficial (Impuestos) -->
+            <v-tooltip bottom>
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  color="teal darken-1"
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="abrirPortalSiatOficial(item)"
+                >
+                  <v-icon small>mdi-qrcode-scan</v-icon>
+                </v-btn>
+              </template>
+              <span>Verificar en Portal SIAT Oficial (Impuestos)</span>
+            </v-tooltip>
+
             <!-- Reenviar por Correo -->
             <v-tooltip bottom>
               <template v-slot:activator="{ on, attrs }">
@@ -221,14 +256,32 @@
               <span>Enviar Factura por Correo</span>
             </v-tooltip>
 
-            <!-- Anular Factura -->
-            <v-tooltip bottom v-if="item.estado_factura !== 'ANULADA'">
+            <!-- Anular Factura Ordinaria o Administrativa -->
+            <v-tooltip bottom v-if="item.estado_factura !== 'ANULADA' && item.estado_factura !== 'CANCELLED'">
               <template v-slot:activator="{ on, attrs }">
                 <v-btn icon small color="error" v-bind="attrs" v-on="on" @click="abrirDialogoAnulacion(item)">
                   <v-icon small>mdi-cancel</v-icon>
                 </v-btn>
               </template>
               <span>Anular Factura ante el SIN</span>
+            </v-tooltip>
+
+            <!-- Revertir Anulación (Restaurar a VALIDADA) -->
+            <v-tooltip bottom v-if="item.estado_factura === 'ANULADA' || item.estado_factura === 'CANCELLED'">
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  color="teal"
+                  v-bind="attrs"
+                  v-on="on"
+                  :loading="revertiendoId === item.id"
+                  @click="confirmarReversionAnulacion(item)"
+                >
+                  <v-icon small>mdi-restore-alert</v-icon>
+                </v-btn>
+              </template>
+              <span>Revertir Anulación (Restaurar en SIAT)</span>
             </v-tooltip>
           </div>
         </template>
@@ -257,13 +310,48 @@
           label="Motivo de Anulación Oficial del SIN *"
           dense
           outlined
-          class="mb-3"
+          class="mb-2"
         ></v-select>
+
+        <!-- Conmutador para Anulación Administrativa Fuera de Plazo (RND 102600000025) -->
+        <v-switch
+          v-model="esAnulacionAdministrativa"
+          label="Anulación Administrativa Fuera de Plazo (RND 102600000025)"
+          color="warning"
+          dense
+          class="mt-1 mb-2"
+        ></v-switch>
+
+        <div v-if="esAnulacionAdministrativa" class="pa-3 mb-3 amber lighten-5 rounded-lg border-amber">
+          <div class="text-caption font-weight-bold amber--text text--darken-4 mb-2">
+            <v-icon x-small color="amber darken-4">mdi-gavel</v-icon> Respaldo RND 102600000025 del SIN:
+          </div>
+          <v-text-field
+            v-model="nroResolucion"
+            label="N° Resolución Administrativa *"
+            placeholder="Ej. RA-GDLPZ-2026-0045"
+            dense
+            outlined
+            class="mb-2"
+          ></v-text-field>
+          <v-text-field
+            v-model="fechaResolucion"
+            type="date"
+            label="Fecha de Resolución Administrativa *"
+            dense
+            outlined
+          ></v-text-field>
+        </div>
 
         <div class="d-flex justify-end gap-2">
           <v-btn text @click="dialogoAnular = false">Cancelar</v-btn>
-          <v-btn color="error" :loading="anulando" :disabled="!motivoAnulacionSeleccionado" @click="confirmarAnulacion">
-            Confirmar Anulación
+          <v-btn
+            color="error"
+            :loading="anulando"
+            :disabled="!motivoAnulacionSeleccionado || (esAnulacionAdministrativa && (!nroResolucion || !fechaResolucion))"
+            @click="confirmarAnulacion"
+          >
+            {{ esAnulacionAdministrativa ? 'Confirmar Anulación R.A.' : 'Confirmar Anulación' }}
           </v-btn>
         </div>
       </v-card>
@@ -312,6 +400,25 @@
       :formato-inicial="formatoVisor"
       @cambio-formato="alCambiarFormatoPdf"
     ></modal-visor-pdf>
+
+    <!-- NOTIFICACIÓN NATIVA DEL SISTEMA (SNACKBAR) -->
+    <v-snackbar
+      v-model="snackbar.status"
+      :color="snackbar.color"
+      :timeout="4500"
+      top
+      right
+      rounded="pill"
+      elevation="6"
+    >
+      <div class="d-flex align-center">
+        <v-icon dark left class="mr-2">{{ snackbar.icon || 'mdi-information' }}</v-icon>
+        <span class="font-weight-medium">{{ snackbar.text }}</span>
+      </div>
+      <template v-slot:action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
@@ -333,6 +440,7 @@ export default {
       formatoVisor: 'carta',
       cargando: false,
       verificandoId: null,
+      reenviandoId: null,
       sincronizandoReloj: false,
       dialogoAnular: false,
       dialogoCorreo: false,
@@ -355,10 +463,15 @@ export default {
       facturas: [],
       facturaSeleccionada: {},
       motivoAnulacionSeleccionado: 1,
+      esAnulacionAdministrativa: false,
+      nroResolucion: '',
+      fechaResolucion: '',
+      revertiendoId: null,
       motivosAnulacion: [
         { codigo: 1, descripcion: 'FACTURA MAL EMITIDA' },
         { codigo: 2, descripcion: 'DATOS DE EMISIÓN INCORRECTOS' },
         { codigo: 3, descripcion: 'FACTURA O NOTA FISCAL DEVUELTA' },
+        { codigo: 5, descripcion: 'AUTORIZACIÓN ADMINISTRATIVA / R.A.' },
       ],
       headers: [
         { text: 'N° Factura', value: 'numero_factura', width: '120px' },
@@ -368,6 +481,12 @@ export default {
         { text: 'Estado SIN', value: 'estado_factura', align: 'center', width: '130px' },
         { text: 'Acciones', value: 'acciones', align: 'right', sortable: false, width: '130px' },
       ],
+      snackbar: {
+        status: false,
+        text: '',
+        color: 'success',
+        icon: 'mdi-check-circle',
+      },
     };
   },
   computed: {
@@ -432,18 +551,42 @@ export default {
     },
     colorEstado(estado) {
       switch (estado) {
-        case 'VALIDADA': return 'success';
-        case 'ANULADA': return 'error';
-        case 'CONTINGENCIA': return 'warning';
-        case 'OBSERVADA': return 'deep-orange';
-        default: return 'grey';
+        case 'VALIDADA':
+        case 'VALIDATED':
+          return 'success';
+        case 'ANULADA':
+        case 'CANCELLED':
+          return 'error';
+        case 'CONTINGENCIA':
+        case 'CONTINGENCY':
+        case 'OFFLINE':
+          return 'warning';
+        case 'PENDIENTE':
+        case 'PENDING':
+          return 'info';
+        case 'RECHAZADA':
+        case 'REJECTED':
+        case 'OBSERVADA':
+          return 'deep-orange';
+        default:
+          return 'grey';
       }
     },
-    imprimirPdf(id, formato = 'carta') {
+    mostrarNotificacion(texto, color = 'success', icon = 'mdi-check-circle') {
+      this.snackbar = {
+        status: true,
+        text: texto,
+        color: color,
+        icon: icon,
+      };
+    },
+    imprimirPdf(item, formato = 'carta') {
+      const id = typeof item === 'object' ? item.id : item;
+      const numFactura = (typeof item === 'object' && item.numero_factura) ? item.numero_factura : id;
       this.facturaVisorId = id;
       this.formatoVisor = formato;
       this.urlVisorPdf = `/api/facturacion/facturas/${id}/pdf?formato=${formato}`;
-      this.tituloVisorPdf = `Factura Electrónica SIAT #${id}`;
+      this.tituloVisorPdf = `Factura Electrónica SIAT N° ${numFactura}`;
       this.subtituloVisorPdf = 'Visualización e Impresión de Documento Fiscal Autorizado';
       this.mostrarVisorPdf = true;
     },
@@ -458,19 +601,49 @@ export default {
         const res = await window.axios.get(`/api/facturacion/facturas/${factura.id}/verificar-estado-sin`);
         if (res.data && res.data.success) {
           const sinDesc = (res.data.siat && res.data.siat.codigoDescripcion) || res.data.estado_local;
-          const msg = `Respuesta SIN: ${sinDesc} (Estado: ${res.data.estado_local})`;
-          this.$message && this.$message.success ? this.$message.success(msg) : alert(msg);
+          this.mostrarNotificacion(`SIAT en Línea: Factura N° ${factura.numero_factura} ${sinDesc}`, 'success', 'mdi-check-decagram');
           this.cargarFacturas();
         } else {
-          const msg = (res.data && res.data.message) || 'No se pudo verificar el estado con el SIN';
-          this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
+          const msg = (res.data && res.data.message) || 'El SIN no pudo validar el estado de la factura.';
+          this.mostrarNotificacion(`SIAT: ${msg}`, 'warning', 'mdi-alert');
+          this.cargarFacturas();
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
+        this.mostrarNotificacion(`Error de comunicación con SIAT: ${msg}`, 'error', 'mdi-alert-circle');
       } finally {
         this.verificandoId = null;
       }
+    },
+    async reenviarFacturaAlSiat(factura) {
+      this.reenviandoId = factura.id;
+      try {
+        const res = await window.axios.post(`/api/facturacion/facturas/${factura.id}/enviar-siat`);
+        if (res.data && res.data.success) {
+          this.mostrarNotificacion(
+            `SIAT: Factura N° ${factura.numero_factura} enviada y VALIDADA exitosamente ante el SIN.`,
+            'success',
+            'mdi-check-decagram'
+          );
+          this.cargarFacturas();
+        } else {
+          const msg = (res.data && res.data.message) || 'No se pudo regularizar la factura ante el SIN.';
+          this.mostrarNotificacion(`SIAT: ${msg}`, 'warning', 'mdi-alert');
+          this.cargarFacturas();
+        }
+      } catch (e) {
+        const msg = e.response && e.response.data ? e.response.data.message : e.message;
+        this.mostrarNotificacion(`Error al reenviar a SIAT: ${msg}`, 'error', 'mdi-alert-circle');
+      } finally {
+        this.reenviandoId = null;
+      }
+    },
+    abrirPortalSiatOficial(item) {
+      const nit = '1002393029';
+      const cuf = item.cuf;
+      const numero = item.numero_factura;
+      const url = `https://siat.impuestos.gob.bo/consulta/QR?nit=${nit}&cuf=${cuf}&numero=${numero}&t=2`;
+      window.open(url, '_blank');
     },
     async sincronizarRelojSiat() {
       this.sincronizandoReloj = true;
@@ -478,15 +651,14 @@ export default {
         const res = await window.axios.get('/api/facturacion/siat/sincronizar-hora');
         if (res.data && res.data.success) {
           const dif = res.data.diferencia_segundos !== undefined ? ` (Desfase: ${res.data.diferencia_segundos}s)` : '';
-          const msg = `Hora oficial SIN: ${res.data.fecha_hora_sin || res.data.fecha_hora}${dif}`;
-          this.$message && this.$message.success ? this.$message.success(msg) : alert(msg);
+          this.mostrarNotificacion(`Hora oficial SIN: ${res.data.fecha_hora_sin || res.data.fecha_hora}${dif}`, 'success', 'mdi-clock-check');
         } else {
           const msg = (res.data && res.data.message) || 'Error al sincronizar reloj con SIAT';
-          this.$message && this.$message.warning ? this.$message.warning(msg) : alert(msg);
+          this.mostrarNotificacion(msg, 'warning', 'mdi-clock-alert');
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
+        this.mostrarNotificacion(`Error al sincronizar: ${msg}`, 'error', 'mdi-alert-circle');
       } finally {
         this.sincronizandoReloj = false;
       }
@@ -502,29 +674,58 @@ export default {
     abrirDialogoAnulacion(factura) {
       this.facturaSeleccionada = factura;
       this.motivoAnulacionSeleccionado = 1;
+      this.esAnulacionAdministrativa = false;
+      this.nroResolucion = '';
+      this.fechaResolucion = '';
       this.dialogoAnular = true;
     },
     async confirmarAnulacion() {
       this.anulando = true;
       try {
-        const res = await window.axios.post(`/api/facturacion/facturas/${this.facturaSeleccionada.id}/anular`, {
-          codigo_motivo: this.motivoAnulacionSeleccionado,
-        });
+        let res;
+        if (this.esAnulacionAdministrativa) {
+          res = await window.axios.post(`/api/facturacion/facturas/${this.facturaSeleccionada.id}/anular-administrativa`, {
+            codigo_motivo: this.motivoAnulacionSeleccionado,
+            nro_resolucion: this.nroResolucion,
+            fecha_resolucion: this.fechaResolucion,
+          });
+        } else {
+          res = await window.axios.post(`/api/facturacion/facturas/${this.facturaSeleccionada.id}/anular`, {
+            codigo_motivo: this.motivoAnulacionSeleccionado,
+          });
+        }
 
         if (res.data.success) {
-          const msg = 'Factura anulada satisfactoriamente.';
-          this.$message && this.$message.success ? this.$message.success(msg) : alert(msg);
+          const msg = res.data.message || 'Factura anulada satisfactoriamente.';
+          this.mostrarNotificacion(msg, 'success', 'mdi-check-circle');
           this.dialogoAnular = false;
           this.cargarFacturas();
         } else {
-          const msg = res.data.message || 'Error al anular';
-          this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
+          const msg = res.data.message || 'Error al anular la factura';
+          this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
+        this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
       } finally {
         this.anulando = false;
+      }
+    },
+    async confirmarReversionAnulacion(factura) {
+      this.revertiendoId = factura.id;
+      try {
+        const res = await window.axios.post(`/api/facturacion/facturas/${factura.id}/revertir-anulacion`);
+        if (res.data.success) {
+          const msg = res.data.message || 'Factura restituida a estado VALIDADA.';
+          this.mostrarNotificacion(msg, 'success', 'mdi-check-circle');
+          this.cargarFacturas();
+        } else {
+          this.mostrarNotificacion(res.data.message || 'Error al revertir anulación.', 'error', 'mdi-alert-circle');
+        }
+      } catch (e) {
+        this.mostrarNotificacion(e.response?.data?.message || 'Error al procesar la reversión.', 'error', 'mdi-alert-circle');
+      } finally {
+        this.revertiendoId = null;
       }
     },
     abrirDialogoCorreo(factura) {
@@ -534,7 +735,7 @@ export default {
     },
     async confirmarEnvioCorreo() {
       if (!this.correoDestino) {
-        this.$message && this.$message.warning ? this.$message.warning('Ingrese un correo válido') : alert('Ingrese un correo válido');
+        this.mostrarNotificacion('Ingrese un correo electrónico válido', 'warning', 'mdi-alert');
         return;
       }
       this.enviandoCorreo = true;
@@ -543,14 +744,14 @@ export default {
           correo_electronico: this.correoDestino,
         });
         if (res.data && res.data.success) {
-          this.$message && this.$message.success ? this.$message.success('Factura enviada exitosamente') : alert('Factura enviada exitosamente');
+          this.mostrarNotificacion('Factura fiscal enviada exitosamente por correo.', 'success', 'mdi-email-check');
           this.dialogoCorreo = false;
         } else {
-          this.$message && this.$message.error ? this.$message.error(res.data.message || 'Error') : alert(res.data.message || 'Error');
+          this.mostrarNotificacion(res.data.message || 'Error al enviar correo', 'error', 'mdi-alert-circle');
         }
       } catch (e) {
         const msg = e.response && e.response.data ? e.response.data.message : e.message;
-        this.$message && this.$message.error ? this.$message.error(msg) : alert(msg);
+        this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
       } finally {
         this.enviandoCorreo = false;
       }

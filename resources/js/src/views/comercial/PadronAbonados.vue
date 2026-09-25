@@ -939,6 +939,25 @@
       :titulo="tituloVisorPdf"
       :subtitulo="subtituloVisorPdf"
     ></modal-visor-pdf>
+
+    <!-- NOTIFICACIÓN NATIVA DEL SISTEMA (SNACKBAR) -->
+    <v-snackbar
+      v-model="snackbar.status"
+      :color="snackbar.color"
+      :timeout="4000"
+      top
+      right
+      rounded="pill"
+      elevation="6"
+    >
+      <div class="d-flex align-center">
+        <v-icon dark left class="mr-2">{{ snackbar.icon || 'mdi-information' }}</v-icon>
+        <span class="font-weight-medium">{{ snackbar.text }}</span>
+      </div>
+      <template v-slot:action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="snackbar.status = false">Cerrar</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
@@ -1045,6 +1064,12 @@ export default {
         es_tercera_edad: false,
         observaciones: '',
       },
+      snackbar: {
+        status: false,
+        text: '',
+        color: 'success',
+        icon: 'mdi-check-circle',
+      },
     };
   },
   computed: {
@@ -1088,6 +1113,14 @@ export default {
     onClearBusqueda() {
       this.busqueda = '';
       this.cargarAbonados();
+    },
+    mostrarNotificacion(texto, color = 'success', icon = 'mdi-check-circle') {
+      this.snackbar = {
+        status: true,
+        text: texto,
+        color: color,
+        icon: icon,
+      };
     },
     colorEstado(estado) {
       switch (estado) {
@@ -1268,12 +1301,12 @@ export default {
         this.modalForm = true;
       } catch (e) {
         console.error('Error al cargar abonado para editar:', e);
-        alert('No se pudo cargar la información del abonado.');
+        this.mostrarNotificacion('No se pudo cargar la información del abonado.', 'error', 'mdi-alert-circle');
       }
     },
     async guardarAbonado() {
       if (!this.formAbonado.nombre_completo || !this.formAbonado.id_zona || !this.formAbonado.id_categoria) {
-        alert('Por favor complete los campos obligatorios (*).');
+        this.mostrarNotificacion('Por favor complete los campos obligatorios (*).', 'warning', 'mdi-alert');
         return;
       }
 
@@ -1286,11 +1319,12 @@ export default {
         }
         this.modalForm = false;
         this.cargarAbonados();
+        this.mostrarNotificacion(this.esEdicion ? 'Abonado actualizado exitosamente.' : 'Abonado registrado exitosamente.', 'success', 'mdi-account-check');
         if (this.abonadoSeleccionado && this.abonadoSeleccionado.id === this.formAbonado.id) {
           this.verFicha(this.formAbonado);
         }
       } catch (e) {
-        alert(e.response?.data?.message || 'Error al guardar abonado.');
+        this.mostrarNotificacion(e.response?.data?.message || 'Error al guardar abonado.', 'error', 'mdi-alert-circle');
       } finally {
         this.guardando = false;
       }
@@ -1343,7 +1377,7 @@ export default {
     },
     async confirmarCambioMedidor() {
       if (!this.formCambio.numero_serie_nuevo || !this.formCambio.motivo) {
-        alert('Ingrese el nuevo número de serie y el motivo.');
+        this.mostrarNotificacion('Ingrese el nuevo número de serie y el motivo.', 'warning', 'mdi-alert');
         return;
       }
       this.guardandoCambio = true;
@@ -1352,9 +1386,9 @@ export default {
         this.modalCambioMedidor = false;
         await this.verFicha(this.abonadoSeleccionado);
         this.cargarAbonados();
-        alert('Medidor reemplazado exitosamente.');
+        this.mostrarNotificacion('Medidor reemplazado exitosamente.', 'success', 'mdi-check-circle');
       } catch (e) {
-        alert(e.response?.data?.message || 'Error al reemplazar medidor.');
+        this.mostrarNotificacion(e.response?.data?.message || 'Error al reemplazar medidor.', 'error', 'mdi-alert-circle');
       } finally {
         this.guardandoCambio = false;
       }
@@ -1368,7 +1402,7 @@ export default {
     },
     async confirmarDarBaja() {
       if (!this.formBaja.motivo) {
-        alert('Debe ingresar un motivo para la baja definitiva.');
+        this.mostrarNotificacion('Debe ingresar un motivo para la baja definitiva.', 'warning', 'mdi-alert');
         return;
       }
       this.guardandoBaja = true;
@@ -1377,9 +1411,9 @@ export default {
         this.modalDarBaja = false;
         await this.verFicha(this.abonadoSeleccionado);
         this.cargarAbonados();
-        alert('Servicio dado de baja.');
+        this.mostrarNotificacion('Servicio dado de baja.', 'info', 'mdi-cancel');
       } catch (e) {
-        alert(e.response?.data?.message || 'Error al dar de baja servicio.');
+        this.mostrarNotificacion(e.response?.data?.message || 'Error al dar de baja servicio.', 'error', 'mdi-alert-circle');
       } finally {
         this.guardandoBaja = false;
       }

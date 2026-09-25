@@ -69,6 +69,12 @@ class Factura extends Model
         'codigo_recepcion',
         'codigo_motivo_anulacion',
         'fecha_anulacion',
+        'es_anulacion_administrativa',
+        'nro_resolucion_administrativa',
+        'fecha_resolucion_administrativa',
+        'tiempo_respuesta_ms',
+        'reversion_anulacion_fecha',
+        'reversion_anulacion_usuario',
         'xml_firmado_path',
         'pdf_path',
         'representacion_grafica_qr',
@@ -80,9 +86,20 @@ class Factura extends Model
         '_fecha_modificacion',
     ];
 
+    // Constantes de la máquina de 5 estados (homologados con CUCU y SIAT)
+    public const ESTADO_PENDING = 'PENDIENTE';
+    public const ESTADO_VALIDATED = 'VALIDADA';
+    public const ESTADO_CONTINGENCY = 'CONTINGENCIA';
+    public const ESTADO_REJECTED = 'RECHAZADA';
+    public const ESTADO_CANCELLED = 'ANULADA';
+
     protected $casts = [
         'fecha_emision' => 'datetime',
         'fecha_anulacion' => 'datetime',
+        'fecha_resolucion_administrativa' => 'date',
+        'reversion_anulacion_fecha' => 'datetime',
+        'es_anulacion_administrativa' => 'boolean',
+        'tiempo_respuesta_ms' => 'integer',
         'monto_total' => 'decimal:2',
         'monto_total_sujeto_iva' => 'decimal:2',
         'monto_descuento' => 'decimal:2',
@@ -99,6 +116,16 @@ class Factura extends Model
         'otros_pagos_no_sujeto_iva' => 'decimal:2',
         'otras_tasas' => 'decimal:2',
     ];
+
+    public function transaccionesQr(): HasMany
+    {
+        return $this->hasMany(TransaccionQr::class, 'id_factura');
+    }
+
+    public function esEstadoFinal(): bool
+    {
+        return in_array($this->estado_factura, [self::ESTADO_VALIDATED, self::ESTADO_CANCELLED, self::ESTADO_REJECTED, 'VALIDADA', 'ANULADA', 'RECHAZADA'], true);
+    }
 
     public function sucursal(): BelongsTo
     {

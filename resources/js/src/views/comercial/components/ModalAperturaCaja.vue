@@ -7,6 +7,10 @@
       </v-card-title>
 
       <v-card-text class="pt-4">
+        <v-alert v-if="errorMensaje" type="error" dense dismissible class="mb-3">
+          {{ errorMensaje }}
+        </v-alert>
+
         <v-alert dense text color="primary" class="mb-4 text-caption">
           <v-icon small color="primary" class="mr-1">mdi-shield-check</v-icon>
           Al abrir la caja, se verificará la vigencia de su <strong>CUFD diario ante el SIAT</strong> y quedará vinculada a su usuario para toda la recaudación de la jornada.
@@ -143,6 +147,7 @@ export default {
     return {
       cargandoCajas: false,
       guardando: false,
+      errorMensaje: '',
       cajas: [],
       formulario: {
         id_punto_venta: null,
@@ -191,16 +196,17 @@ export default {
     },
     async abrirCaja() {
       if (!this.formulario.id_punto_venta) {
-        alert('Seleccione una caja física.');
+        this.errorMensaje = 'Seleccione una caja física / ventanilla.';
         return;
       }
 
       this.guardando = true;
+      this.errorMensaje = '';
       try {
         const res = await axios.post('/api/comercial/caja-sesiones/abrir', this.formulario);
         this.$emit('sesion-abierta', res.data.data);
       } catch (e) {
-        alert(e.response?.data?.message || 'Error al realizar la apertura de caja.');
+        this.errorMensaje = e.response?.data?.message || 'Error al realizar la apertura de caja.';
       } finally {
         this.guardando = false;
       }

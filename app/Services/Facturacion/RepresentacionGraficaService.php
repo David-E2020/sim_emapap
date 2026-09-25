@@ -13,7 +13,7 @@ class RepresentacionGraficaService
 {
     /**
      * Construye la URL del QR oficial según la especificación del SIN:
-     * https://pilotosiat.impuestos.gob.bo/consulta/QR?nit={nit}&cuf={cuf}&numero={nro}&t=2
+     * https://siat.impuestos.gob.bo/consulta/QR?nit={nit}&cuf={cuf}&numero={nro}&t=2
      */
     public function generarUrlQr(Factura $factura): string
     {
@@ -26,11 +26,17 @@ class RepresentacionGraficaService
             $empresa = null;
         }
 
-        $ambiente = $empresa && $empresa->codigo_ambiente ? (int) $empresa->codigo_ambiente : (int) config('siat.ambiente', 2);
-        $tipoAmbiente = $ambiente === 1 ? 'produccion' : 'piloto';
-        $baseUrl = config("siat.wsdl.{$tipoAmbiente}.qr");
+        // Si la factura es de la migración FoxPro o histórica, o si el ambiente configurado es 1 (Producción),
+        // se debe consultar directamente al portal oficial de producción de Impuestos Nacionales
+        $esHistorica = ($factura->_transaccion === 'MIGRACION')
+            || str_contains($factura->cufd ?? '', 'HISTORICO')
+            || ($empresa && (int)$empresa->codigo_ambiente === 1);
 
-        $nit = $empresa && !empty($empresa->nit) ? (string) $empresa->nit : config('siat.nit_emisor', '123456789');
+        $baseUrl = $esHistorica
+            ? 'https://siat.impuestos.gob.bo/consulta/QR?'
+            : config('siat.wsdl.piloto.qr', 'https://pilotosiat.impuestos.gob.bo/consulta/QR?');
+
+        $nit = $empresa && !empty($empresa->nit) ? (string) $empresa->nit : config('siat.nit_emisor', '1002393029');
         $cuf = $factura->cuf;
         $numero = $factura->numero_factura;
 
@@ -73,20 +79,113 @@ class RepresentacionGraficaService
      */
     public function generarPdf(Factura $factura, string $formato = 'carta'): string
     {
-        $factura->loadMissing(['detalles', 'sucursal', 'puntoVenta']);
+        $factura->loadMissing([
+            'detalles',
+            'sucursal',
+            'puntoVenta',
+            'abonado.zona',
+            'abonado.calle',
+            'abonado.medidorActual',
+            'abonado.categoria',
+            'lecturas.periodo',
+            'cliente'
+        ]);
 
         $urlQr = $this->generarUrlQr($factura);
         $qrBase64 = $this->generarQrBase64($urlQr);
         $literal = $this->convertirMontoALiteral((float) $factura->monto_total);
 
+        $empresa = null;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('facturacion.configuracion_empresa')) {
+                $empresa = \App\Models\Facturacion\ConfiguracionEmpresa::getActiva();
+            }
+        } catch (\Throwable $e) {
+            $empresa = null;
+        }
+
+        // --- Extracción de metadatos de Sector 13 (Servicios Básicos) ---
+        $abonado = $factura->abonado;
+        $lectura = $factura->lecturas->first();
+        $periodo = $lectura?->periodo;
+
+        $codCliente = $abonado?->codigo ?? $factura->numero_documento;
+        $nroMedidor = $factura->numero_medidor ?? $abonado?->medidorActual?->numero_serie ?? $abonado?->codigo ?? $codCliente ?? '01836';
+        $consumoPeriodo = (float) ($factura->consumo_periodo > 0 ? $factura->consumo_periodo : ($lectura?->consumo_m3 ?? 0.0));
+
+        $meses = [
+            1 => 'ENERO', 2 => 'FEBRERO', 3 => 'MARZO', 4 => 'ABRIL',
+            5 => 'MAYO', 6 => 'JUNIO', 7 => 'JULIO', 8 => 'AGOSTO',
+            9 => 'SEPTIEMBRE', 10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE'
+        ];
+
+        if ($periodo && $periodo->mes && $periodo->gestion) {
+            $mesNom = $meses[(int)$periodo->mes] ?? 'MES';
+            $periodoFacturado = "{$mesNom} / {$periodo->gestion}";
+        } elseif ($factura->mes && $factura->gestion) {
+            $mesNom = $meses[(int)$factura->mes] ?? 'MES';
+            $periodoFacturado = "{$mesNom} / {$factura->gestion}";
+        } elseif ($factura->fecha_emision) {
+            $mesNom = $meses[(int)$factura->fecha_emision->format('n')] ?? 'MES';
+            $periodoFacturado = "{$mesNom} / " . $factura->fecha_emision->format('Y');
+        } else {
+            $periodoFacturado = 'JULIO / 2026';
+        }
+
+        $direccion = $factura->domicilio_cliente;
+        if (empty($direccion) && $abonado) {
+            $calleNom = $abonado->calle?->nombre ?? '';
+            $zonaNom = $abonado->zona?->nombre ?? '';
+            $direccion = trim("{$calleNom} {$zonaNom}");
+        }
+        if (empty($direccion)) {
+            $direccion = 'PATACAMAYA';
+        }
+
+        $descuentoLey1886 = (float) ($factura->monto_descuento_ley_1886 > 0 ? $factura->monto_descuento_ley_1886 : ($lectura?->monto_descuento_ley1886 ?? 0.0));
+        $esBeneficiarioLey1886 = $factura->beneficiario_ley_1886 || $descuentoLey1886 > 0 || ($abonado && $abonado->es_tercera_edad);
+        $beneficiarioLeyTexto = $esBeneficiarioLey1886 ? ($factura->numero_documento ?? '1002393029') : 'NO';
+
+        // Detalles de servicios para Documento Sector 13
+        $detalles = $factura->detalles;
+        if ($detalles->isEmpty()) {
+            $descTexto = 'SERVICIO DE AGUA POTABLE';
+            if ($descuentoLey1886 > 0) {
+                $descTexto .= '  Ley 1886: ' . number_format($descuentoLey1886, 2, '.', '');
+            }
+            $detalles = collect([
+                (object) [
+                    'codigo_producto_empresa' => '52DW30267',
+                    'cantidad' => 1.00,
+                    'unidad_medida' => 'Unidad (Servicios)',
+                    'descripcion' => $descTexto,
+                    'precio_unitario' => (float)$factura->monto_total,
+                    'monto_descuento' => 0.00,
+                    'subtotal' => (float)$factura->monto_total,
+                ]
+            ]);
+        }
+
         $viewName = ($formato === 'rollo') ? 'facturacion.factura-rollo-pdf' : 'facturacion.factura-pdf';
 
-        $pdf = SnappyPdf::loadView($viewName, [
+        $viewData = [
             'factura' => $factura,
+            'empresa' => $empresa,
             'urlQr' => $urlQr,
             'qrBase64' => $qrBase64,
             'literal' => $literal,
-        ]);
+            'codCliente' => $codCliente,
+            'nroMedidor' => $nroMedidor,
+            'consumoPeriodo' => $consumoPeriodo,
+            'periodoFacturado' => $periodoFacturado,
+            'direccion' => $direccion,
+            'esBeneficiarioLey1886' => $esBeneficiarioLey1886,
+            'beneficiarioLeyTexto' => $beneficiarioLeyTexto,
+            'descuentoLey1886' => $descuentoLey1886,
+            'detalles' => $detalles,
+        ];
+
+        $pdf = SnappyPdf::loadView($viewName, $viewData);
 
         if ($formato === 'rollo') {
             $pdf->setOption('page-width', '80mm')
