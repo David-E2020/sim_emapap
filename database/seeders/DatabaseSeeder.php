@@ -19,10 +19,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Usuarios y Roles Base
+        // 1. Usuarios, Menús Base y Paramétricas
         $this->call([
             UserSeeder::class,
-            RolSeeder::class,
             MenuSeeder::class,
             ParametricaSeeder::class,
         ]);
@@ -65,24 +64,9 @@ class DatabaseSeeder extends Seeder
             \Database\Seeders\Contabilidad\ContabilidadMenuSeeder::class,
         ]);
 
-        // 8. Sincronización Final de Permisos Spatie
-        // Asegurar que el rol Administrador General y el usuario 'admin' tengan el 100% de los permisos creados
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
-
-        $allPermissions = Permission::all();
-        $adminRole = Role::where('name', 'Administrador General')->where('guard_name', 'api')->first()
-            ?: Role::where('name', 'Administrador General')->first();
-
-        if ($adminRole) {
-            $adminRole->syncPermissions($allPermissions);
-        }
-
-        $adminUser = User::where('usr_usuario', 'admin')->first();
-        if ($adminUser && $adminRole) {
-            if (!$adminUser->hasRole($adminRole->name)) {
-                $adminUser->assignRole($adminRole);
-            }
-            $adminUser->syncPermissions($allPermissions);
-        }
+        // 8. Roles de EMAPAP, Matriz de Navegación, Permisos Granulares y Asignación de Usuarios
+        $this->call([
+            RolSeeder::class,
+        ]);
     }
 }

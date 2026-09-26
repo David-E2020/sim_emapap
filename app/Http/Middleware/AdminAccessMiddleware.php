@@ -30,7 +30,6 @@ class AdminAccessMiddleware
         // 1. Verificación de rol y permisos Spatie
         $hasSpatieAdmin = $user->hasAnyRole(['Administrador General', 'Administrador', 'Super Admin']) ||
                           $user->hasAnyPermission([
-                              'SIGP',
                               'admin.usuarios.ver',
                               'admin.menus.ver',
                               'admin.control_acceso.ver',

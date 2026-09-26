@@ -17,7 +17,7 @@ class Persona extends Model
 
     protected $primaryKey = 'id';
 
-    protected $appends = ['nombre_completo'];
+    protected $appends = ['nombre_completo', 'puesto_actual'];
 
     protected $fillable = [
         'nombres',
@@ -54,6 +54,13 @@ class Persona extends Model
         return $this->hasMany(AsignacionPuesto::class, 'id_persona', 'id');
     }
 
+    public function asignacionActiva(): HasOne
+    {
+        return $this->hasOne(AsignacionPuesto::class, 'id_persona', 'id')
+            ->where('_estado', 'ACTIVO')
+            ->whereNull('fecha_fin');
+    }
+
     public function asistencias(): HasMany
     {
         return $this->hasMany(Asistencia::class, 'id_persona', 'id');
@@ -62,5 +69,25 @@ class Persona extends Model
     public function getNombreCompletoAttribute(): string
     {
         return trim("{$this->nombres} {$this->primer_apellido} {$this->segundo_apellido}");
+    }
+
+    public function getPuestoActualAttribute(): ?array
+    {
+        $asig = $this->asignacionesPuestos->first(function ($a) {
+            return $a->_estado === 'ACTIVO' && is_null($a->fecha_fin);
+        });
+
+        if (! $asig) {
+            return null;
+        }
+
+        return [
+            'id_asignacion' => $asig->id,
+            'id_puesto' => $asig->id_puesto,
+            'cargo' => $asig->puesto ? $asig->puesto->nombre : 'Asignado',
+            'unidad' => $asig->puesto && $asig->puesto->unidadOrganizacional ? $asig->puesto->unidadOrganizacional->nombre : null,
+            'nro_item' => $asig->nro_item,
+            'fecha_inicio' => $asig->fecha_inicio,
+        ];
     }
 }

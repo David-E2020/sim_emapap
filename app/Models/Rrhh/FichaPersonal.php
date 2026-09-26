@@ -33,7 +33,7 @@ class FichaPersonal extends Model
 
     public function datosLaborales(): HasMany
     {
-        return $this->hasMany(DatoLaboral::class, 'id_ficha_personal', 'id');
+        return $this->hasMany(DatoLaboral::class, 'id_ficha_personal', 'id')->orderBy('id', 'desc');
     }
 
     public function estudiosAcademicos(): HasMany

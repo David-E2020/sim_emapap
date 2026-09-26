@@ -16,13 +16,19 @@ class DatoLaboral extends Model
     protected $primaryKey = 'id';
 
     protected $fillable = [
+        'id_ficha_personal',
         'cargo',
         'unidad_organizacional',
         'tipo_funcionario',
+        'nro_programa',
+        'nro_contrato',
+        'nro_item',
         'fecha_ingreso',
-        'fecha_salida',
-        'motivo_salida',
-        'id_ficha_personal',
+        'fecha_desvinculacion',
+        'tipo_movimiento',
+        'fecha_documento',
+        'nro_documento',
+        'es_puesto_anterior',
         '_estado',
         '_transaccion',
         '_usuario_creacion',

@@ -139,10 +139,29 @@
 
         <!-- CUENTA ERP -->
         <template v-slot:item.user="{ item }">
-          <v-chip x-small :color="item.user ? 'success lighten-5 success--text' : 'grey lighten-3'" class="font-weight-bold">
-            <v-icon x-small left :color="item.user ? 'success' : 'grey'">{{ item.user ? 'mdi-check-circle' : 'mdi-close-circle' }}</v-icon>
-            {{ item.user ? item.user.usr_usuario : 'Sin Cuenta' }}
-          </v-chip>
+          <div class="d-flex align-center justify-center">
+            <v-chip x-small :color="item.user ? 'success lighten-5 success--text' : 'grey lighten-3 grey--text text--darken-2'" class="font-weight-bold mr-1">
+              <v-icon x-small left :color="item.user ? 'success' : 'grey'">{{ item.user ? 'mdi-check-circle' : 'mdi-close-circle' }}</v-icon>
+              {{ item.user ? item.user.usr_usuario : 'Sin Cuenta' }}
+            </v-chip>
+
+            <!-- Botón para crear cuenta si no tiene -->
+            <v-tooltip bottom v-if="!item.user">
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  x-small
+                  color="primary"
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="crearCuentaErpFuncionario(item)"
+                >
+                  <v-icon x-small>mdi-account-plus</v-icon>
+                </v-btn>
+              </template>
+              <span>Crear cuenta ERP institucional</span>
+            </v-tooltip>
+          </div>
         </template>
 
         <!-- ACCIONES -->
@@ -270,6 +289,32 @@
                   hide-details
                   color="primary"
                 ></v-checkbox>
+
+                <!-- Vista previa de credenciales institucionales en tiempo real -->
+                <v-alert
+                  v-if="form.crear_usuario"
+                  dense
+                  text
+                  color="primary"
+                  icon="mdi-shield-key-outline"
+                  class="mt-3 mb-1 text-caption"
+                  border="left"
+                >
+                  <div class="font-weight-bold mb-1">Patrón de Credenciales Institucionales:</div>
+                  <div class="d-flex flex-wrap align-center">
+                    <span class="mr-3">
+                      <strong>Usuario:</strong> 
+                      <code class="font-weight-bold primary--text">{{ credencialesPreview.usuario || 'PQJ4589201' }}</code>
+                    </span>
+                    <span>
+                      <strong>Contraseña inicial:</strong> 
+                      <code class="font-weight-bold success--text">{{ credencialesPreview.password || 'Pqj4589201!!' }}</code>
+                    </span>
+                  </div>
+                  <div class="text-caption grey--text text--darken-2 mt-1">
+                    * Formato: Iniciales (Primer Ap. + Segundo Ap. + 1er Nombre) + CI. Contraseña con inicial mayúscula + CI + "!!".
+                  </div>
+                </v-alert>
               </v-col>
             </v-row>
           </v-card-text>
@@ -292,6 +337,132 @@
           </v-card-actions>
         </v-card>
       </v-form>
+    </v-dialog>
+
+    <!-- MODAL: CREDENCIALES INSTITUCIONALES GENERADAS -->
+    <v-dialog v-model="dialogCredenciales" max-width="480" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-shield-account-outline</v-icon>
+          <span>Credenciales ERP Generadas</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogCredenciales = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-5">
+          <div class="text-center mb-4">
+            <v-avatar color="primary lighten-5" size="56" class="mb-2">
+              <v-icon size="32" color="primary">mdi-account-key</v-icon>
+            </v-avatar>
+            <h3 class="text-subtitle-1 font-weight-bold">{{ credencialesGeneradas.nombre }}</h3>
+            <span class="text-caption text-secondary">Acceso al Sistema ERP EMAPAP</span>
+          </div>
+
+          <v-sheet color="grey lighten-4" rounded="lg" class="pa-4 mb-3 border">
+            <!-- USUARIO -->
+            <div class="mb-3">
+              <div class="text-caption grey--text text--darken-2 font-weight-bold mb-1">USUARIO INSTITUCIONAL:</div>
+              <div class="d-flex align-center justify-space-between white pa-2 rounded border">
+                <span class="text-h6 font-weight-bold primary--text font-monospace">{{ credencialesGeneradas.usuario }}</span>
+                <v-btn icon small color="primary" @click="copiarTexto(credencialesGeneradas.usuario, 'Usuario copiado al portapapeles')">
+                  <v-icon small>mdi-content-copy</v-icon>
+                </v-btn>
+              </div>
+            </div>
+
+            <!-- CONTRASEÑA -->
+            <div>
+              <div class="text-caption grey--text text--darken-2 font-weight-bold mb-1">CONTRASEÑA TEMPORAL:</div>
+              <div class="d-flex align-center justify-space-between white pa-2 rounded border">
+                <span class="text-subtitle-1 font-weight-bold font-monospace">
+                  {{ mostrarPassword ? credencialesGeneradas.password : '••••••••••••' }}
+                </span>
+                <div>
+                  <v-btn icon small @click="mostrarPassword = !mostrarPassword" class="mr-1">
+                    <v-icon small>{{ mostrarPassword ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
+                  </v-btn>
+                  <v-btn icon small color="success" @click="copiarTexto(credencialesGeneradas.password, 'Contraseña copiada al portapapeles')">
+                    <v-icon small>mdi-content-copy</v-icon>
+                  </v-btn>
+                </div>
+              </div>
+            </div>
+          </v-sheet>
+
+          <v-alert dense outlined type="info" class="text-caption mb-0">
+            <strong>Instrucciones:</strong> Entregue estas credenciales iniciales al funcionario. El usuario deberá cambiar su contraseña en su primer inicio de sesión.
+          </v-alert>
+        </v-card-text>
+
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn color="primary" class="px-5 rounded-pill" @click="dialogCredenciales = false">
+            Entendido
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIÁLOGO NATIVO: CONFIRMAR CREACIÓN DE CUENTA ERP -->
+    <v-dialog v-model="dialogConfirmarCrearCuenta" max-width="480" persistent>
+      <v-card rounded="lg" v-if="personaParaCuenta">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-account-plus</v-icon>
+          <span class="text-subtitle-1 font-weight-bold">Crear Cuenta ERP Institucional</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogConfirmarCrearCuenta = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-5">
+          <div class="d-flex align-center mb-4">
+            <v-avatar color="primary lighten-5" size="48" class="mr-3">
+              <v-icon color="primary">mdi-account-outline</v-icon>
+            </v-avatar>
+            <div>
+              <div class="font-weight-bold text-subtitle-1">{{ personaParaCuenta.nombre_completo }}</div>
+              <div class="text-caption text-secondary">
+                Documento: <strong>{{ personaParaCuenta.nro_documento }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <v-alert
+            dense
+            outlined
+            type="info"
+            class="text-body-2 mb-3"
+          >
+            Se generará automáticamente la cuenta de acceso al ERP EMAPAP bajo el <strong>estándar institucional</strong> (Iniciales + C.I.).
+          </v-alert>
+
+          <p class="text-caption grey--text text--darken-2 mb-0">
+            Al confirmar, se mostrarán las credenciales generadas para que pueda copiarlas y entregarlas al funcionario.
+          </p>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" class="text-capitalize" @click="dialogConfirmarCrearCuenta = false">
+            Cancelar
+          </v-btn>
+          <v-btn
+            color="primary"
+            elevation="1"
+            class="text-capitalize px-4"
+            :loading="creandoCuenta"
+            @click="confirmarCrearCuentaErp"
+          >
+            <v-icon left small>mdi-account-plus</v-icon>
+            Generar Cuenta
+          </v-btn>
+        </v-card-actions>
+      </v-card>
     </v-dialog>
 
     <!-- DIÁLOGO: FICHA Y LEGAJO DIGITAL -->
@@ -323,17 +494,40 @@
                 <v-col cols="6" class="mt-2"><div class="text-caption text-secondary">C.I.:</div><div class="font-weight-bold">{{ personaSeleccionada.nro_documento }}</div></v-col>
                 <v-col cols="6" class="mt-2"><div class="text-caption text-secondary">Celular:</div><div class="font-weight-bold">{{ personaSeleccionada.telefono_celular || 'No registrado' }}</div></v-col>
                 <v-col cols="6" class="mt-2"><div class="text-caption text-secondary">Correo:</div><div class="font-weight-bold">{{ personaSeleccionada.correo_electronico_personal || 'No registrado' }}</div></v-col>
-                <v-col cols="6" class="mt-2"><div class="text-caption text-secondary">Género:</div><div class="font-weight-bold">{{ personaSeleccionada.genero || 'No especificado' }}</div></v-col>
+                <v-col cols="6" class="mt-2">
+                  <div class="text-caption text-secondary">Género:</div>
+                  <div class="font-weight-bold">
+                    {{ personaSeleccionada.genero === 'FEMENINO' || personaSeleccionada.genero === 'F' ? 'Femenino' : (personaSeleccionada.genero === 'MASCULINO' || personaSeleccionada.genero === 'M' ? 'Masculino' : (personaSeleccionada.genero || 'No especificado')) }}
+                  </div>
+                </v-col>
               </v-row>
             </v-tab-item>
 
-            <!-- TAB 2: DATOS LABORALES -->
+            <!-- TAB 2: DATOS LABORALES (HISTORIAL DE CARGOS Y DESVINCULACIONES) -->
             <v-tab-item>
               <div v-if="personaSeleccionada.ficha_personal && personaSeleccionada.ficha_personal.datos_laborales && personaSeleccionada.ficha_personal.datos_laborales.length > 0">
-                <v-card v-for="d in personaSeleccionada.ficha_personal.datos_laborales" :key="d.id" outlined class="pa-3 mb-2 rounded-lg">
-                  <div class="font-weight-bold text-body-2">{{ d.cargo }}</div>
-                  <div class="text-caption text-secondary">Unidad: {{ d.unidad_organizacional }} • Tipo: {{ d.tipo_funcionario }}</div>
-                  <div class="text-caption text-secondary">Fecha Ingreso: {{ d.fecha_ingreso }}</div>
+                <v-card v-for="d in personaSeleccionada.ficha_personal.datos_laborales" :key="d.id" outlined class="pa-3 mb-3 rounded-lg" :class="!d.es_puesto_anterior ? 'lighten-5' : ''">
+                  <div class="d-flex align-center justify-space-between mb-1">
+                    <div class="font-weight-bold text-subtitle-2 primary--text">{{ d.cargo }}</div>
+                    <div>
+                      <v-chip x-small label :color="!d.es_puesto_anterior ? 'success lighten-5 success--text' : 'grey lighten-3 grey--text text--darken-2'" class="font-weight-bold mr-1">
+                        {{ !d.es_puesto_anterior ? 'ACTUAL / VIGENTE' : 'CONCLUIDO / ANTERIOR' }}
+                      </v-chip>
+                      <v-chip x-small label :color="getChipColorMovimiento(d.tipo_movimiento)" class="font-weight-bold">
+                        {{ d.tipo_movimiento || 'DESIGNACIÓN' }}
+                      </v-chip>
+                    </div>
+                  </div>
+                  <div class="text-caption text-secondary">
+                    <strong>Unidad:</strong> {{ d.unidad_organizacional || 'No especificada' }} • <strong>Tipo:</strong> {{ d.tipo_funcionario || 'PLANTA' }} • <strong>Ítem:</strong> #{{ d.nro_item || '-' }}
+                  </div>
+                  <div class="text-caption mt-1">
+                    <v-icon x-small color="grey">mdi-calendar-range</v-icon>
+                    <strong>Periodo:</strong> {{ d.fecha_ingreso || 'Sin fecha' }} al {{ d.fecha_desvinculacion || 'Presente (En funciones)' }}
+                    <span v-if="d.nro_documento" class="ml-2 font-weight-medium">
+                      • <strong>Doc. Respaldo:</strong> {{ d.nro_documento }}
+                    </span>
+                  </div>
                 </v-card>
               </div>
               <div v-else class="text-center py-6 text-caption text-secondary font-italic">
@@ -419,8 +613,8 @@ export default {
       tabFicha: 0,
 
       generosList: [
-        { codigo: 'M', nombre: 'Masculino' },
-        { codigo: 'F', nombre: 'Femenino' },
+        { codigo: 'MASCULINO', nombre: 'Masculino' },
+        { codigo: 'FEMENINO', nombre: 'Femenino' },
       ],
       expedidosList: ['LP', 'CB', 'SC', 'OR', 'PT', 'TJ', 'CH', 'BE', 'PD', 'EX'],
       nivelesInstruccionList: ['PRIMARIA', 'SECUNDARIA', 'TECNICO_MEDIO', 'TECNICO_SUPERIOR', 'LICENCIATURA', 'DIPLOMADO', 'MAESTRIA', 'DOCTORADO'],
@@ -435,6 +629,17 @@ export default {
         { text: 'Acciones', value: 'acciones', sortable: false, width: '90px', align: 'center' },
       ],
 
+      dialogCredenciales: false,
+      dialogConfirmarCrearCuenta: false,
+      personaParaCuenta: null,
+      creandoCuenta: false,
+      mostrarPassword: true,
+      credencialesGeneradas: {
+        nombre: '',
+        usuario: '',
+        password: '',
+      },
+
       snackbar: { status: false, text: '', color: 'success' },
     };
   },
@@ -444,6 +649,20 @@ export default {
     },
     personalConUsuario() {
       return this.items.filter(i => i.user).length;
+    },
+    credencialesPreview() {
+      const p1 = (this.form.primer_apellido || '').trim().charAt(0);
+      const p2 = (this.form.segundo_apellido || '').trim().charAt(0);
+      const nombres = (this.form.nombres || '').trim();
+      const primerNombre = nombres ? nombres.split(/\s+/)[0] : '';
+      const p3 = primerNombre ? primerNombre.charAt(0) : '';
+      const iniciales = (p1 + p2 + p3).toUpperCase();
+      const ci = (this.form.nro_documento || '').replace(/[^A-Za-z0-9]/g, '');
+      if (!iniciales && !ci) return { usuario: '', password: '' };
+      const user = (iniciales || 'USR') + (ci || '');
+      const title = iniciales ? iniciales.charAt(0).toUpperCase() + iniciales.slice(1).toLowerCase() : 'Usr';
+      const pass = title + (ci || '') + '!!';
+      return { usuario: user, password: pass };
     },
   },
   watch: {
@@ -462,7 +681,12 @@ export default {
     cargarParametricas() {
       axios.get('/api/parametrica-api/TABLA_RRHH_GENERO').then(res => {
         if (Array.isArray(res.data) && res.data.length > 0) {
-          this.generosList = res.data.map(c => ({ codigo: c.param_codigo, nombre: c.param_nombre }));
+          this.generosList = res.data.map(c => {
+            let code = c.param_codigo;
+            if (code === 'M') code = 'MASCULINO';
+            if (code === 'F') code = 'FEMENINO';
+            return { codigo: code, nombre: c.param_nombre };
+          });
         }
       });
       axios.get('/api/parametrica-api/TABLA_RRHH_EXPEDIDO_DOC').then(res => {
@@ -539,6 +763,16 @@ export default {
           this.dialogNuevo = false;
           this.showSnackbar(res.data.message || 'Funcionario registrado', 'success');
           this.cargarPersonal();
+
+          if (res.data && res.data.credenciales) {
+            this.credencialesGeneradas = {
+              nombre: (res.data.data ? res.data.data.nombre_completo : '') || 'Funcionario',
+              usuario: res.data.credenciales.usuario,
+              password: res.data.credenciales.password,
+            };
+            this.mostrarPassword = true;
+            this.dialogCredenciales = true;
+          }
         })
         .catch(err => {
           this.guardando = false;
@@ -547,6 +781,59 @@ export default {
             : 'Error al registrar funcionario';
           this.showSnackbar(msg, 'error');
         });
+    },
+
+    crearCuentaErpFuncionario(item) {
+      this.personaParaCuenta = item;
+      this.dialogConfirmarCrearCuenta = true;
+    },
+
+    confirmarCrearCuentaErp() {
+      if (!this.personaParaCuenta) return;
+      this.creandoCuenta = true;
+      axios
+        .post(`/api/rrhh/personal/${this.personaParaCuenta.id}/crear-usuario`)
+        .then(res => {
+          this.creandoCuenta = false;
+          this.dialogConfirmarCrearCuenta = false;
+          if (res.data && res.data.success) {
+            this.showSnackbar(res.data.message, 'success');
+            this.cargarPersonal();
+            if (res.data.credenciales) {
+              this.credencialesGeneradas = {
+                nombre: res.data.credenciales.nombre || this.personaParaCuenta.nombre_completo,
+                usuario: res.data.credenciales.usuario,
+                password: res.data.credenciales.password,
+              };
+              this.mostrarPassword = true;
+              this.dialogCredenciales = true;
+            }
+          }
+        })
+        .catch(err => {
+          this.creandoCuenta = false;
+          this.dialogConfirmarCrearCuenta = false;
+          const msg = (err.response && err.response.data && err.response.data.message) || 'Error al crear usuario ERP';
+          this.showSnackbar(msg, 'error');
+        });
+    },
+
+    copiarTexto(texto, mensaje) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(texto).then(() => {
+          this.showSnackbar(mensaje, 'success');
+        }).catch(() => {
+          this.showSnackbar('No se pudo copiar automáticamente', 'warning');
+        });
+      } else {
+        const input = document.createElement('textarea');
+        input.value = texto;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        this.showSnackbar(mensaje, 'success');
+      }
     },
 
     abrirFichaLegajo(item) {
@@ -566,6 +853,20 @@ export default {
 
     showSnackbar(text, color = 'success') {
       this.snackbar = { status: true, text, color };
+    },
+
+    getChipColorMovimiento(mov) {
+      const map = {
+        DESIGNACION: 'primary lighten-5 primary--text',
+        TRANSFERENCIA: 'info lighten-5 info--text',
+        PROMOCION: 'purple lighten-5 purple--text',
+        RENUNCIA: 'amber lighten-4 amber--text text--darken-4',
+        DESTITUCION: 'red lighten-5 red--text',
+        DESPIDO: 'red lighten-5 red--text',
+        CONCLUSION_CONTRATO: 'orange lighten-5 orange--text',
+        JUBILACION: 'teal lighten-5 teal--text',
+      };
+      return map[mov] || 'grey lighten-3 grey--text';
     },
   },
 };

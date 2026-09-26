@@ -43,6 +43,7 @@ export const autentication = {
                 localStorage.setItem('roles',JSON.stringify(roles))
                 localStorage.setItem('rol',resp.data.rol);
                 localStorage.setItem('rute_home',resp.data.rute_home);
+                localStorage.setItem('allowed_routes', JSON.stringify(resp.data.allowed_routes || []));
                 localStorage.setItem('employee',JSON.stringify(employee))
                 axios.defaults.headers.common['Authorization'] = 'Bearer '+token
                 commit('auth_success', {token, user,permissions,roles});

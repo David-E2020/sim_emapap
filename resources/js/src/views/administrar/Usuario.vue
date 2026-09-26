@@ -84,7 +84,7 @@
         </template>
 
         <!-- COLUMNA NOMBRE -->
-        <template v-slot:item.nombre="{ item }">
+        <template v-slot:item.name="{ item }">
           <span class="font-weight-medium">{{ item.name || '-' }}</span>
         </template>
 
@@ -94,10 +94,10 @@
             small
             label
             :color="hasAccess(item) ? 'success' : 'grey lighten-2'"
-            :class="{ 'white--text': hasAccess(item) }"
+            :class="{ 'white--text': hasAccess(item), 'grey--text text--darken-3': !hasAccess(item) }"
             class="font-weight-bold"
           >
-            <v-icon x-small left>
+            <v-icon x-small left :color="hasAccess(item) ? 'white' : 'grey darken-3'">
               {{ hasAccess(item) ? 'mdi-check-circle-outline' : 'mdi-close-circle-outline' }}
             </v-icon>
             {{ hasAccess(item) ? 'Acceso Habilitado' : 'Sin Acceso' }}
@@ -143,6 +143,24 @@
               <span>Editar Datos</span>
             </v-tooltip>
 
+            <!-- RESTABLECER CONTRASEÑA INSTITUCIONAL -->
+            <v-tooltip bottom>
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="abrirDialogResetPassword(item)"
+                  icon
+                  small
+                  color="amber darken-3"
+                  class="mr-1"
+                >
+                  <v-icon small>mdi-lock-reset</v-icon>
+                </v-btn>
+              </template>
+              <span>Restablecer Contraseña Institucional</span>
+            </v-tooltip>
+
             <!-- ASIGNAR ROL DE ACCESO -->
             <div v-if="hasAccess(item)" class="d-inline-flex align-center">
               <v-tooltip bottom>
@@ -167,7 +185,7 @@
                   <v-btn
                     v-bind="attrs"
                     v-on="on"
-                    @click="btnQuitarAcceso(item)"
+                    @click="abrirDialogRevocar(item)"
                     icon
                     small
                     color="error"
@@ -519,6 +537,196 @@
       </v-card>
     </v-dialog>
 
+    <!-- DIÁLOGO NATIVO: CONFIRMAR RESTABLECIMIENTO DE CONTRASEÑA -->
+    <v-dialog v-model="dialogConfirmarReset" max-width="480" persistent>
+      <v-card rounded="lg" v-if="usuarioAResetear">
+        <v-card-title class="amber darken-3 white--text py-3">
+          <v-icon left color="white">mdi-lock-reset</v-icon>
+          <span class="text-subtitle-1 font-weight-bold">Restablecer Contraseña</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogConfirmarReset = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-5">
+          <div class="d-flex align-center mb-4">
+            <v-avatar color="amber lighten-5" size="48" class="mr-3">
+              <v-icon color="amber darken-3">mdi-shield-key-outline</v-icon>
+            </v-avatar>
+            <div>
+              <div class="font-weight-bold text-subtitle-1">{{ usuarioAResetear.name || usuarioAResetear.usr_usuario }}</div>
+              <div class="text-caption text-secondary">
+                Cuenta de Acceso: <strong>@{{ usuarioAResetear.usr_usuario }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <v-alert
+            dense
+            outlined
+            color="amber darken-3"
+            icon="mdi-alert-circle-outline"
+            class="text-body-2 mb-3"
+          >
+            Se generará una nueva contraseña temporal bajo el <strong>estándar institucional</strong> del sistema EMAPAP.
+          </v-alert>
+
+          <p class="text-caption grey--text text--darken-2 mb-0">
+            La clave anterior quedará invalidada inmediatamente y este evento se registrará en la bitácora de auditoría.
+          </p>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" class="text-capitalize" @click="dialogConfirmarReset = false">
+            Cancelar
+          </v-btn>
+          <v-btn
+            color="amber darken-3"
+            elevation="1"
+            dark
+            class="text-capitalize px-4"
+            :loading="ejecutandoReset"
+            @click="confirmarResetPasswordInstitucional"
+          >
+            <v-icon left small>mdi-lock-reset</v-icon>
+            Restablecer Clave
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIÁLOGO NATIVO: CONFIRMAR REVOCAR ACCESO -->
+    <v-dialog v-model="dialogConfirmarRevocar" max-width="480" persistent>
+      <v-card rounded="lg" v-if="usuarioARevocar">
+        <v-card-title class="error darken-1 white--text py-3">
+          <v-icon left color="white">mdi-account-remove-outline</v-icon>
+          <span class="text-subtitle-1 font-weight-bold">Revocar Acceso al Sistema</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogConfirmarRevocar = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-5">
+          <div class="d-flex align-center mb-4">
+            <v-avatar color="red lighten-5" size="48" class="mr-3">
+              <v-icon color="error">mdi-shield-lock-outline</v-icon>
+            </v-avatar>
+            <div>
+              <div class="font-weight-bold text-subtitle-1">{{ usuarioARevocar.name || usuarioARevocar.usr_usuario }}</div>
+              <div class="text-caption text-secondary">
+                Usuario: <strong>@{{ usuarioARevocar.usr_usuario }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <v-alert
+            dense
+            outlined
+            color="error"
+            icon="mdi-alert-circle-outline"
+            class="text-body-2 mb-3"
+          >
+            Se deshabilitará la cuenta y se revocarán todos los roles y permisos de acceso al sistema.
+          </v-alert>
+
+          <p class="text-caption grey--text text--darken-2 mb-0">
+            El registro del usuario <strong>permanecerá en esta lista</strong> con el estado <strong>"Sin Acceso"</strong>, y podrá concederle acceso nuevamente cuando lo desee.
+          </p>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" class="text-capitalize" @click="dialogConfirmarRevocar = false">
+            Cancelar
+          </v-btn>
+          <v-btn
+            color="error"
+            elevation="1"
+            dark
+            class="text-capitalize px-4"
+            :loading="ejecutandoRevocar"
+            @click="confirmarRevocarAcceso"
+          >
+            <v-icon left small>mdi-account-remove</v-icon>
+            Sí, Revocar Acceso
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIÁLOGO NATIVO: CREDENCIALES RESTABLECIDAS EXITOSAMENTE -->
+    <v-dialog v-model="dialogCredenciales" max-width="480" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-account-check</v-icon>
+          <span class="text-subtitle-1 font-weight-bold">Contraseña Restablecida</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogCredenciales = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-5">
+          <div class="text-center mb-4">
+            <v-avatar color="primary lighten-5" size="56" class="mb-2">
+              <v-icon size="32" color="primary">mdi-key-check</v-icon>
+            </v-avatar>
+            <h3 class="text-subtitle-1 font-weight-bold">{{ credencialesGeneradas.nombre }}</h3>
+            <span class="text-caption text-secondary">Acceso al Sistema ERP EMAPAP</span>
+          </div>
+
+          <v-sheet color="grey lighten-4" rounded="lg" class="pa-4 mb-3 border">
+            <!-- USUARIO -->
+            <div class="mb-3">
+              <div class="text-caption grey--text text--darken-2 font-weight-bold mb-1">USUARIO INSTITUCIONAL:</div>
+              <div class="d-flex align-center justify-space-between white pa-2 rounded border">
+                <span class="text-h6 font-weight-bold primary--text font-monospace">{{ credencialesGeneradas.usuario }}</span>
+                <v-btn icon small color="primary" @click="copiarTexto(credencialesGeneradas.usuario, 'Usuario copiado al portapapeles')">
+                  <v-icon small>mdi-content-copy</v-icon>
+                </v-btn>
+              </div>
+            </div>
+
+            <!-- CONTRASEÑA -->
+            <div>
+              <div class="text-caption grey--text text--darken-2 font-weight-bold mb-1">NUEVA CONTRASEÑA TEMPORAL:</div>
+              <div class="d-flex align-center justify-space-between white pa-2 rounded border">
+                <span class="text-subtitle-1 font-weight-bold font-monospace">
+                  {{ mostrarPassword ? credencialesGeneradas.password : '••••••••••••' }}
+                </span>
+                <div>
+                  <v-btn icon small @click="mostrarPassword = !mostrarPassword" class="mr-1">
+                    <v-icon small>{{ mostrarPassword ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
+                  </v-btn>
+                  <v-btn icon small color="success" @click="copiarTexto(credencialesGeneradas.password, 'Contraseña copiada al portapapeles')">
+                    <v-icon small>mdi-content-copy</v-icon>
+                  </v-btn>
+                </div>
+              </div>
+            </div>
+          </v-sheet>
+
+          <v-alert dense outlined type="info" class="text-caption mb-0">
+            <strong>Instrucciones:</strong> Entregue estas credenciales al funcionario. Se le solicitará cambio de clave en su próximo inicio de sesión.
+          </v-alert>
+        </v-card-text>
+
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn color="primary" class="px-5 rounded-pill" @click="dialogCredenciales = false">
+            Entendido
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- SNACKBAR DE NOTIFICACIÓN -->
     <v-snackbar v-model="snackbar.status" :color="snackbar.color" timeout="3000" top right>
       {{ snackbar.text }}
@@ -537,7 +745,7 @@ export default {
       usuarios: null,
       headers: [
         { text: 'Usuario', value: 'usr_usuario', sortable: true },
-        { text: 'Nombre Completo', value: 'nombre', sortable: true },
+        { text: 'Nombre Completo', value: 'name', sortable: true },
         { text: 'Estado Acceso', value: 'estado', sortable: false, align: 'center' },
         { text: 'Acciones', value: 'acciones', sortable: false, align: 'center' },
       ],
@@ -570,6 +778,23 @@ export default {
       selectedItemRol: null,
       roles: null,
 
+      // Restablecer contraseña institucional
+      dialogConfirmarReset: false,
+      dialogCredenciales: false,
+      usuarioAResetear: null,
+      ejecutandoReset: false,
+      mostrarPassword: true,
+      credencialesGeneradas: {
+        nombre: '',
+        usuario: '',
+        password: '',
+      },
+
+      // Revocar acceso
+      dialogConfirmarRevocar: false,
+      usuarioARevocar: null,
+      ejecutandoRevocar: false,
+
       snackbar: {
         status: false,
         text: '',
@@ -600,10 +825,12 @@ export default {
     },
 
     hasAccess(item) {
+      if (!item) return false;
+      const isActivo = item.usr_estado === 'A';
       const hasRol = item.roles && item.roles.length > 0;
       const hasPerm = item.permissions && item.permissions.length > 0;
-      const hasRolPerm = item.rol_persmisos && item.rol_persmisos.length > 0;
-      return hasRol || hasPerm || hasRolPerm;
+      const hasRolPerm = item.rol_persmisos && (Array.isArray(item.rol_persmisos) ? item.rol_persmisos.length > 0 : !!item.rol_persmisos);
+      return isActivo && (hasRol || hasPerm || hasRolPerm);
     },
 
     abrirModalCrear() {
@@ -700,18 +927,34 @@ export default {
         });
     },
 
-    btnQuitarAcceso(item) {
+    abrirDialogRevocar(item) {
+      this.usuarioARevocar = item;
+      this.dialogConfirmarRevocar = true;
+    },
+
+    confirmarRevocarAcceso() {
+      if (!this.usuarioARevocar) return;
+      this.ejecutandoRevocar = true;
+
       axios
-        .get('api/usuario/quitar-sistema/' + item.id)
+        .get('api/usuario/quitar-sistema/' + this.usuarioARevocar.id)
         .then(response => {
+          this.ejecutandoRevocar = false;
+          this.dialogConfirmarRevocar = false;
           if (response.data) {
-            this.showSnackbar(response.data.message || 'Acceso revocado', 'warning');
+            this.showSnackbar(response.data.message || 'Acceso revocado correctamente', 'warning');
             this.getUsuarios();
           }
         })
         .catch(error => {
+          this.ejecutandoRevocar = false;
+          this.dialogConfirmarRevocar = false;
           this.showSnackbar('Error al revocar acceso', 'error');
         });
+    },
+
+    btnQuitarAcceso(item) {
+      this.abrirDialogRevocar(item);
     },
 
     btnAbrirAsignarRol(item) {
@@ -759,6 +1002,60 @@ export default {
 
     showSnackbar(text, color = 'success') {
       this.snackbar = { status: true, text, color };
+    },
+
+    abrirDialogResetPassword(item) {
+      this.usuarioAResetear = item;
+      this.dialogConfirmarReset = true;
+    },
+
+    confirmarResetPasswordInstitucional() {
+      if (!this.usuarioAResetear) return;
+      this.ejecutandoReset = true;
+      axios
+        .post(`api/usuario/${this.usuarioAResetear.id}/reset-password`)
+        .then(res => {
+          this.ejecutandoReset = false;
+          this.dialogConfirmarReset = false;
+          if (res.data && res.data.success) {
+            this.credencialesGeneradas = res.data.credenciales || {
+              nombre: this.usuarioAResetear.name,
+              usuario: this.usuarioAResetear.usr_usuario,
+              password: '',
+            };
+            this.mostrarPassword = true;
+            this.dialogCredenciales = true;
+            this.getUsuarios();
+          } else {
+            this.showSnackbar(res.data.message || 'Error al restablecer contraseña', 'error');
+          }
+        })
+        .catch(err => {
+          this.ejecutandoReset = false;
+          this.dialogConfirmarReset = false;
+          const msg = (err.response && err.response.data && err.response.data.message)
+            ? err.response.data.message
+            : 'Error al restablecer la contraseña';
+          this.showSnackbar(msg, 'error');
+        });
+    },
+
+    copiarTexto(texto, mensaje) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(texto).then(() => {
+          this.showSnackbar(mensaje, 'success');
+        }).catch(() => {
+          this.showSnackbar(mensaje, 'success');
+        });
+      } else {
+        const input = document.createElement('textarea');
+        input.value = texto;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        this.showSnackbar(mensaje, 'success');
+      }
     }
   }
 }

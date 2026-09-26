@@ -130,7 +130,7 @@
                           {{ (p.asignaciones[0].persona.nombres || 'F').charAt(0) }}
                         </v-avatar>
                         <span class="text-caption font-weight-bold mr-2">{{ p.asignaciones[0].persona.nombres }} {{ p.asignaciones[0].persona.primer_apellido || '' }}</span>
-                        <v-btn icon x-small color="error" title="Desasignar funcionario" @click="confirmarDesasignar(p, p.asignaciones[0])">
+                        <v-btn icon x-small color="error" title="Desvincular / Concluir funciones" @click="abrirModalDesvincular(p, p.asignaciones[0])">
                           <v-icon x-small>mdi-account-minus</v-icon>
                         </v-btn>
                       </div>
@@ -148,6 +148,9 @@
                       <span v-else class="text-caption text-secondary">-</span>
                     </td>
                     <td class="text-center">
+                      <v-btn icon small color="teal" title="Ver historial de ocupantes" @click="abrirHistorialPuesto(p)">
+                        <v-icon small>mdi-history</v-icon>
+                      </v-btn>
                       <v-btn icon small color="primary" title="Editar puesto" @click="editarPuesto(p)">
                         <v-icon small>mdi-pencil</v-icon>
                       </v-btn>
@@ -315,30 +318,127 @@
     </v-dialog>
 
     <!-- DIALOG ASIGNAR FUNCIONARIO A PUESTO -->
-    <v-dialog v-model="dialogAsignar" max-width="500px" persistent>
+    <v-dialog v-model="dialogAsignar" max-width="600px" persistent>
       <v-card rounded="lg">
         <v-card-title class="font-weight-bold text-h6 primary white--text py-3">
           <v-icon left color="white">mdi-account-plus</v-icon>
           Asignar Funcionario a Puesto
         </v-card-title>
         <v-card-text class="pt-4">
-          <div class="mb-3" v-if="puestoSeleccionadoParaAsignar">
-            <span class="text-caption text-secondary">Cargo:</span>
-            <div class="font-weight-bold text-primary">{{ puestoSeleccionadoParaAsignar.nombre }}</div>
+          <div class="mb-3 d-flex align-center justify-space-between" v-if="puestoSeleccionadoParaAsignar">
+            <div>
+              <span class="text-caption text-secondary">Cargo a Asignar:</span>
+              <div class="font-weight-bold text-primary text-subtitle-1">{{ puestoSeleccionadoParaAsignar.nombre }}</div>
+              <div class="text-caption text-secondary" v-if="unidadSeleccionada">
+                Unidad: {{ unidadSeleccionada.nombre }} • Modalidad: {{ puestoSeleccionadoParaAsignar.tipo_puesto }}
+              </div>
+            </div>
+            <v-chip small color="blue lighten-5" text-color="primary" class="font-weight-bold">
+              {{ puestoSeleccionadoParaAsignar.tipo_puesto || 'PLANTA' }}
+            </v-chip>
           </div>
+
+          <v-divider class="mb-3"></v-divider>
+
+          <!-- FILTRO DISPONIBILIDAD -->
+          <div class="d-flex align-center justify-space-between mb-2">
+            <span class="text-caption font-weight-bold grey--text text--darken-2">Búsqueda de Personal:</span>
+            <v-switch
+              v-model="filtroSoloDisponibles"
+              label="Mostrar sólo personal disponible (sin cargo activo)"
+              dense
+              hide-details
+              class="mt-0 pt-0 text-caption"
+            ></v-switch>
+          </div>
+
           <v-autocomplete
             v-model="formAsignar.id_persona"
-            :items="listaPersonal"
-            :item-text="item => item.nombre_completo || (item.nombres + ' ' + (item.primer_apellido || ''))"
+            :items="listaPersonalFiltrada"
+            item-text="nombre_completo"
             item-value="id"
             label="Seleccionar Funcionario *"
             dense
             outlined
             class="mb-2"
-            no-data-text="No hay personal registrado o disponible"
-          ></v-autocomplete>
-          <v-text-field v-model="formAsignar.nro_item" label="Número de Ítem *" type="number" dense outlined class="mb-2"></v-text-field>
-          <v-text-field v-model="formAsignar.fecha_inicio" label="Fecha de Inicio *" type="date" dense outlined></v-text-field>
+            no-data-text="No hay personal disponible bajo este criterio"
+            prepend-inner-icon="mdi-account-search"
+          >
+            <template v-slot:item="{ item }">
+              <v-list-item-content>
+                <v-list-item-title class="font-weight-bold">
+                  {{ item.nombre_completo }}
+                </v-list-item-title>
+                <v-list-item-subtitle class="text-caption">
+                  C.I.: {{ item.nro_documento }}
+                </v-list-item-subtitle>
+              </v-list-item-content>
+              <v-list-item-action>
+                <v-chip x-small v-if="item.puesto_actual" color="amber lighten-4" text-color="amber darken-4" class="font-weight-bold">
+                  Ocupa: {{ item.puesto_actual.cargo }}
+                </v-chip>
+                <v-chip x-small v-else color="green lighten-5" text-color="green darken-2" class="font-weight-bold">
+                  Disponible
+                </v-chip>
+              </v-list-item-action>
+            </template>
+          </v-autocomplete>
+
+          <!-- ALERTA SI SE SELECCIONA UN FUNCIONARIO QUE YA TIENE CARGO -->
+          <v-alert
+            v-if="funcionarioSeleccionadoParaAsignar && funcionarioSeleccionadoParaAsignar.puesto_actual"
+            dense
+            outlined
+            type="info"
+            class="mb-3 text-caption"
+          >
+            <strong>TRANSFERENCIA / PROMOCIÓN:</strong> El funcionario actualmente ocupa el cargo de
+            <strong>{{ funcionarioSeleccionadoParaAsignar.puesto_actual.cargo }}</strong> (Ítem #{{ funcionarioSeleccionadoParaAsignar.puesto_actual.nro_item }}) en {{ funcionarioSeleccionadoParaAsignar.puesto_actual.unidad }}.
+            Al confirmar esta designación, su asignación anterior se dará por concluida automáticamente y se registrará la transferencia en su legajo e historial laboral.
+          </v-alert>
+
+          <v-row dense>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="formAsignar.nro_item"
+                label="Número de Ítem *"
+                type="number"
+                dense
+                outlined
+                prepend-inner-icon="mdi-pound"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="formAsignar.fecha_inicio"
+                label="Fecha de Inicio / Posesión *"
+                type="date"
+                dense
+                outlined
+                prepend-inner-icon="mdi-calendar"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-select
+                v-model="formAsignar.tipo_movimiento"
+                :items="['DESIGNACION', 'TRANSFERENCIA', 'PROMOCION']"
+                label="Tipo de Movimiento *"
+                dense
+                outlined
+                prepend-inner-icon="mdi-swap-horizontal-bold"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="formAsignar.nro_documento"
+                label="Memorándum / Resolución N°"
+                placeholder="Ej: MEMO CITE-045/2026"
+                dense
+                outlined
+                prepend-inner-icon="mdi-file-document-outline"
+              ></v-text-field>
+            </v-col>
+          </v-row>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer></v-spacer>
@@ -346,6 +446,152 @@
           <v-btn color="primary" class="font-weight-bold" :loading="guardandoAsignacion" @click="guardarAsignacion()">
             Confirmar Asignación
           </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIALOG DESVINCULAR / CONCLUIR FUNCIONES -->
+    <v-dialog v-model="dialogDesvincular" max-width="580px" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="error white--text py-3 font-weight-bold text-h6">
+          <v-icon left color="white">mdi-account-remove</v-icon>
+          Desvincular / Conclusión de Funciones
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <v-alert dense color="red lighten-5" class="red--text text--darken-3 mb-3 text-caption">
+            <strong>Atención:</strong> Esta acción dará por finalizada la asignación del funcionario en el cargo. El puesto pasará automáticamente a estado <strong>VACANTE</strong> y se registrará el cese en el historial laboral de su Legajo Digital.
+          </v-alert>
+
+          <v-card outlined class="pa-3 mb-3 grey lighten-5 rounded-lg">
+            <div class="text-caption text-secondary">Funcionario:</div>
+            <div class="font-weight-bold text-subtitle-2">{{ desvinculacionActual.persona_nombre }}</div>
+            <div class="text-caption text-secondary mt-1">Cargo a Desasignar:</div>
+            <div class="font-weight-medium">{{ desvinculacionActual.puesto_nombre }} (Ítem #{{ desvinculacionActual.nro_item }})</div>
+            <div class="text-caption text-secondary">Unidad: {{ desvinculacionActual.unidad_nombre }} • En funciones desde: {{ desvinculacionActual.fecha_inicio || 'No registrada' }}</div>
+          </v-card>
+
+          <v-row dense>
+            <v-col cols="12" sm="6">
+              <v-select
+                v-model="formDesvincular.motivo"
+                :items="motivosDesvinculacion"
+                item-text="texto"
+                item-value="valor"
+                label="Motivo / Tipo de Cese *"
+                dense
+                outlined
+                prepend-inner-icon="mdi-tag-outline"
+                @change="alCambiarMotivoDesvinculacion"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="formDesvincular.fecha_desvinculacion"
+                label="Fecha Efectiva de Cese *"
+                type="date"
+                dense
+                outlined
+                prepend-inner-icon="mdi-calendar-remove"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
+                v-model="formDesvincular.nro_documento"
+                label="Documento de Respaldo / Resolución *"
+                placeholder="Ej: Res. Adm. N° 089/2026, Memo Cese N° 12, Nota de Renuncia"
+                dense
+                outlined
+                prepend-inner-icon="mdi-file-certificate-outline"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12">
+              <v-textarea
+                v-model="formDesvincular.observacion"
+                label="Observación / Justificación del Cese"
+                rows="2"
+                dense
+                outlined
+                placeholder="Detalle o causa institucional del movimiento..."
+              ></v-textarea>
+            </v-col>
+            <v-col cols="12">
+              <v-checkbox
+                v-model="formDesvincular.desactivar_acceso_erp"
+                label="Desactivar inmediatamente la cuenta de acceso al ERP para este funcionario"
+                dense
+                color="error"
+                hide-details
+                class="mt-0"
+              ></v-checkbox>
+              <div class="text-caption grey--text pl-8">Bloquea el inicio de sesión del usuario en el sistema por motivos de seguridad.</div>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn text @click="dialogDesvincular = false">Cancelar</v-btn>
+          <v-btn color="error" class="font-weight-bold" :loading="guardandoDesvinculacion" @click="confirmarGuardarDesvinculacion()">
+            Confirmar Desvinculación
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIALOG HISTORIAL DE OCUPANTES DEL PUESTO -->
+    <v-dialog v-model="dialogHistorialPuesto" max-width="700px" persistent scrollable>
+      <v-card rounded="lg">
+        <v-card-title class="teal white--text py-3 font-weight-bold text-h6">
+          <v-icon left color="white">mdi-history</v-icon>
+          Historial de Ocupantes del Puesto
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogHistorialPuesto = false"><v-icon>mdi-close</v-icon></v-btn>
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <div class="mb-3" v-if="historialPuestoSeleccionado">
+            <div class="font-weight-bold text-subtitle-1 primary--text">{{ historialPuestoSeleccionado.nombre }}</div>
+            <div class="text-caption text-secondary">
+              Tipo: {{ historialPuestoSeleccionado.tipo_puesto }} • Unidad: {{ unidadSeleccionada ? unidadSeleccionada.nombre : '' }}
+            </div>
+          </div>
+
+          <v-progress-linear v-if="cargandoHistorialPuesto" indeterminate color="teal" class="mb-3"></v-progress-linear>
+
+          <v-simple-table v-if="itemsHistorialPuesto.length > 0" dense class="border rounded-lg">
+            <thead>
+              <tr class="grey lighten-4">
+                <th>Funcionario</th>
+                <th>Ítem</th>
+                <th>Periodo</th>
+                <th>Motivo Salida / Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="h in itemsHistorialPuesto" :key="h.id">
+                <td class="font-weight-bold">
+                  {{ h.persona ? (h.persona.nombre_completo || h.persona.nombres) : 'Sin datos' }}
+                  <div class="text-caption text-secondary font-weight-regular" v-if="h.persona">
+                    C.I.: {{ h.persona.nro_documento }}
+                  </div>
+                </td>
+                <td>#{{ h.nro_item }}</td>
+                <td class="text-caption">
+                  {{ h.fecha_inicio }} al {{ h.fecha_fin || 'Actualmente' }}
+                </td>
+                <td>
+                  <v-chip x-small label :color="h._estado === 'ACTIVO' && !h.fecha_fin ? 'green lighten-5 green--text text--darken-2' : 'grey lighten-3 grey--text text--darken-2'" class="font-weight-bold">
+                    {{ h._estado === 'ACTIVO' && !h.fecha_fin ? 'ACTUAL' : (h.asignacion || 'FINALIZADO') }}
+                  </v-chip>
+                </td>
+              </tr>
+            </tbody>
+          </v-simple-table>
+          <div v-else-if="!cargandoHistorialPuesto" class="text-center py-6 text-caption text-secondary font-italic">
+            No existen registros históricos de asignaciones para este puesto.
+          </div>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn color="primary" text @click="dialogHistorialPuesto = false">Cerrar</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -465,12 +711,49 @@ export default {
       puestoSeleccionadoParaAsignar: null,
       guardandoAsignacion: false,
       listaPersonal: [],
+      filtroSoloDisponibles: true,
       formAsignar: {
         id_puesto: null,
         id_persona: null,
         nro_item: 1,
         fecha_inicio: new Date().toISOString().substring(0, 10),
+        tipo_movimiento: 'DESIGNACION',
+        nro_documento: '',
       },
+
+      // Modal Desvincular / Cese de Funciones
+      dialogDesvincular: false,
+      guardandoDesvinculacion: false,
+      desvinculacionActual: {
+        id_asignacion: null,
+        persona_nombre: '',
+        puesto_nombre: '',
+        unidad_nombre: '',
+        nro_item: null,
+        fecha_inicio: '',
+      },
+      formDesvincular: {
+        motivo: 'RENUNCIA',
+        fecha_desvinculacion: new Date().toISOString().substring(0, 10),
+        nro_documento: '',
+        observacion: '',
+        desactivar_acceso_erp: true,
+      },
+      motivosDesvinculacion: [
+        { valor: 'RENUNCIA', texto: 'Renuncia Voluntaria' },
+        { valor: 'DESTITUCION', texto: 'Destitución' },
+        { valor: 'DESPIDO', texto: 'Agradecimiento de Servicios / Despido' },
+        { valor: 'CONCLUSION_CONTRATO', texto: 'Conclusión de Contrato / Cese de Periodo' },
+        { valor: 'JUBILACION', texto: 'Jubilación / Retiro' },
+        { valor: 'TRANSFERENCIA', texto: 'Transferencia Externa' },
+        { valor: 'DESASIGNACION', texto: 'Desasignación Administrativa' },
+      ],
+
+      // Modal Historial Puesto
+      dialogHistorialPuesto: false,
+      historialPuestoSeleccionado: null,
+      cargandoHistorialPuesto: false,
+      itemsHistorialPuesto: [],
 
       // Modal Confirmar
       dialogConfirmar: false,
@@ -497,6 +780,16 @@ export default {
         return this.unidadesPlanas;
       }
       return this.unidadesPlanas.filter(u => u.id !== this.idUnidadEditar);
+    },
+    listaPersonalFiltrada() {
+      if (this.filtroSoloDisponibles) {
+        return this.listaPersonal.filter(p => !p.puesto_actual);
+      }
+      return this.listaPersonal;
+    },
+    funcionarioSeleccionadoParaAsignar() {
+      if (!this.formAsignar.id_persona) return null;
+      return this.listaPersonal.find(p => p.id === this.formAsignar.id_persona) || null;
     },
   },
   mounted() {
@@ -716,15 +1009,16 @@ export default {
     // ================= ASIGNACIÓN DE FUNCIONARIOS =================
     abrirModalAsignar(puesto) {
       this.puestoSeleccionadoParaAsignar = puesto;
+      this.filtroSoloDisponibles = true;
       this.formAsignar = {
         id_puesto: puesto.id,
         id_persona: null,
         nro_item: (puesto.asignaciones && puesto.asignaciones.length > 0) ? puesto.asignaciones[0].nro_item : 1,
         fecha_inicio: new Date().toISOString().substring(0, 10),
+        tipo_movimiento: 'DESIGNACION',
+        nro_documento: '',
       };
-      if (this.listaPersonal.length === 0) {
-        this.cargarPersonal();
-      }
+      this.cargarPersonal();
       this.dialogAsignar = true;
     },
 
@@ -733,11 +1027,17 @@ export default {
         this.showSnackbar('Debe seleccionar un funcionario.', 'error');
         return;
       }
+
+      if (this.funcionarioSeleccionadoParaAsignar?.puesto_actual && this.formAsignar.tipo_movimiento === 'DESIGNACION') {
+        this.formAsignar.tipo_movimiento = 'TRANSFERENCIA';
+      }
+
       this.guardandoAsignacion = true;
       axios.post('/api/rrhh/asignar-puesto', this.formAsignar).then(res => {
         this.dialogAsignar = false;
         this.showSnackbar(res.data.message || 'Funcionario asignado exitosamente.', 'success');
         this.cargarOrganigrama();
+        this.cargarPersonal();
       }).catch(err => {
         this.showSnackbar(err.response?.data?.message || 'Error al asignar funcionario', 'error');
       }).finally(() => {
@@ -745,16 +1045,63 @@ export default {
       });
     },
 
-    confirmarDesasignar(puesto, asignacion) {
-      this.confirmarTitulo = 'Desasignar Funcionario';
-      this.confirmarMensaje = `¿Desea desasignar al funcionario del puesto "${puesto.nombre}"? El cargo pasará a estado VACANTE.`;
-      this.accionConfirmadaCallback = () => {
-        return axios.delete(`/api/rrhh/asignaciones-puestos/${asignacion.id}`).then(res => {
-          this.showSnackbar(res.data.message || 'Funcionario desasignado.', 'success');
-          this.cargarOrganigrama();
-        });
+    // ================= DESVINCULACIÓN / CESE DE FUNCIONES =================
+    abrirModalDesvincular(puesto, asignacion) {
+      this.desvinculacionActual = {
+        id_asignacion: asignacion.id,
+        persona_nombre: asignacion.persona ? (asignacion.persona.nombre_completo || (asignacion.persona.nombres + ' ' + (asignacion.persona.primer_apellido || ''))) : 'Funcionario',
+        puesto_nombre: puesto.nombre,
+        unidad_nombre: this.unidadSeleccionada?.nombre || '',
+        nro_item: asignacion.nro_item,
+        fecha_inicio: asignacion.fecha_inicio,
       };
-      this.dialogConfirmar = true;
+      this.formDesvincular = {
+        motivo: 'RENUNCIA',
+        fecha_desvinculacion: new Date().toISOString().substring(0, 10),
+        nro_documento: '',
+        observacion: '',
+        desactivar_acceso_erp: true,
+      };
+      this.dialogDesvincular = true;
+    },
+
+    alCambiarMotivoDesvinculacion(val) {
+      if (['RENUNCIA', 'DESTITUCION', 'DESPIDO', 'CONCLUSION_CONTRATO', 'JUBILACION'].includes(val)) {
+        this.formDesvincular.desactivar_acceso_erp = true;
+      } else {
+        this.formDesvincular.desactivar_acceso_erp = false;
+      }
+    },
+
+    confirmarGuardarDesvinculacion() {
+      this.guardandoDesvinculacion = true;
+      axios.post(`/api/rrhh/asignaciones-puestos/${this.desvinculacionActual.id_asignacion}/desvincular`, this.formDesvincular).then(res => {
+        this.dialogDesvincular = false;
+        this.showSnackbar(res.data.message || 'Desvinculación procesada exitosamente.', 'success');
+        this.cargarOrganigrama();
+        this.cargarPersonal();
+      }).catch(err => {
+        this.showSnackbar(err.response?.data?.message || 'Error al procesar la desvinculación', 'error');
+      }).finally(() => {
+        this.guardandoDesvinculacion = false;
+      });
+    },
+
+    // ================= HISTORIAL DEL PUESTO =================
+    abrirHistorialPuesto(puesto) {
+      this.historialPuestoSeleccionado = puesto;
+      this.cargandoHistorialPuesto = true;
+      this.itemsHistorialPuesto = [];
+      this.dialogHistorialPuesto = true;
+      axios.get(`/api/rrhh/puestos/${puesto.id}/historial`).then(res => {
+        if (res.data && res.data.success) {
+          this.itemsHistorialPuesto = res.data.data || [];
+        }
+      }).catch(() => {
+        this.showSnackbar('Error al cargar historial del puesto', 'error');
+      }).finally(() => {
+        this.cargandoHistorialPuesto = false;
+      });
     },
 
     // ================= EJECUTAR ACCIÓN CONFIRMADA =================

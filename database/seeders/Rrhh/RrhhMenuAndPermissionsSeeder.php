@@ -151,10 +151,10 @@ class RrhhMenuAndPermissionsSeeder extends Seeder
             ['name' => 'rrhh.feriados.crear', 'module' => 'Feriados y Cortes', 'description' => 'Registrar feriados nacionales y fechas de corte mensual'],
 
             // Reportes
-            ['name' => 'rrhh.reportes.asistencia', 'module' => 'Reportes de Personal', 'description' => 'Generar consolidado mensual de asistencia y atrasos'],
-            ['name' => 'rrhh.reportes.refrigerio', 'module' => 'Reportes de Personal', 'description' => 'Generar planilla mensual de refrigerios para pago'],
-            ['name' => 'rrhh.reportes.vacaciones', 'module' => 'Reportes de Personal', 'description' => 'Consultar kardex y saldo de vacaciones por ley'],
-            ['name' => 'rrhh.reportes.boleta_imprimir', 'module' => 'Reportes de Personal', 'description' => 'Imprimir boleta de salida con membrete oficial EMAPA'],
+            ['name' => 'rrhh.reportes.asistencia', 'module' => 'Reportes y Planillas', 'description' => 'Generar consolidado mensual de asistencia y atrasos'],
+            ['name' => 'rrhh.reportes.refrigerio', 'module' => 'Reportes y Planillas', 'description' => 'Generar planilla mensual de refrigerios para pago'],
+            ['name' => 'rrhh.reportes.vacaciones', 'module' => 'Reportes y Planillas', 'description' => 'Consultar kardex y saldo de vacaciones por ley'],
+            ['name' => 'rrhh.reportes.boleta_imprimir', 'module' => 'Reportes y Planillas', 'description' => 'Imprimir boleta de salida con membrete oficial EMAPA'],
         ];
 
         foreach ($permisosData as $p) {

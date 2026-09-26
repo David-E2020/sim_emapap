@@ -6,14 +6,19 @@ namespace App\Http\Controllers\Rrhh;
 
 use App\Http\Controllers\Controller;
 use App\Models\Rrhh\AsignacionPuesto;
+use App\Models\Rrhh\DatoLaboral;
 use App\Models\Rrhh\EscalaSalarial;
+use App\Models\Rrhh\FichaPersonal;
 use App\Models\Rrhh\Gestion;
+use App\Models\Rrhh\Persona;
 use App\Models\Rrhh\Puesto;
 use App\Models\Rrhh\Regional;
 use App\Models\Rrhh\UnidadOrganizacional;
+use App\Models\User;
 use App\Services\Audit\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response;
@@ -315,6 +320,10 @@ class EstructuraOrganizacionalController extends Controller
             'id_persona' => 'required|integer|exists:pgsql.rrhh.personas,id',
             'nro_item' => 'required|integer',
             'fecha_inicio' => 'required|date',
+            'nro_documento' => 'nullable|string|max:100',
+            'fecha_documento' => 'nullable|date',
+            'tipo_movimiento' => 'nullable|string|max:50',
+            'permitir_transferencia' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -325,59 +334,265 @@ class EstructuraOrganizacionalController extends Controller
         }
 
         try {
-            // Desasignar cualquier asignación activa previa para este puesto
-            AsignacionPuesto::where('id_puesto', (int) $request->input('id_puesto'))
-                ->where('_estado', 'ACTIVO')
-                ->whereNull('fecha_fin')
-                ->update([
-                    'fecha_fin' => now()->toDateString(),
-                    '_estado' => 'INACTIVO',
-                    '_usuario_modificacion' => auth()->id() ?? 1,
-                    '_fecha_modificacion' => now(),
+            $asignacion = DB::transaction(function () use ($request) {
+                $idPuesto = (int) $request->input('id_puesto');
+                $idPersona = (int) $request->input('id_persona');
+                $nroItem = (int) $request->input('nro_item');
+                $fechaInicio = $request->input('fecha_inicio');
+                $puesto = Puesto::with('unidadOrganizacional')->findOrFail($idPuesto);
+                $persona = Persona::findOrFail($idPersona);
+
+                // 1. Verificar si este mismo funcionario ya ocupa este mismo puesto
+                $asignacionMismoPuesto = AsignacionPuesto::where('id_puesto', $idPuesto)
+                    ->where('id_persona', $idPersona)
+                    ->where('_estado', 'ACTIVO')
+                    ->whereNull('fecha_fin')
+                    ->first();
+
+                if ($asignacionMismoPuesto) {
+                    throw new \RuntimeException('El funcionario ya se encuentra asignado a este puesto.');
+                }
+
+                // 2. Verificar si el puesto ya tenía otro funcionario asignado (cerrar la asignación anterior del puesto)
+                $asignacionAnteriorPuesto = AsignacionPuesto::where('id_puesto', $idPuesto)
+                    ->where('_estado', 'ACTIVO')
+                    ->whereNull('fecha_fin')
+                    ->first();
+
+                if ($asignacionAnteriorPuesto) {
+                    $asignacionAnteriorPuesto->update([
+                        'fecha_fin' => $fechaInicio,
+                        '_estado' => 'FINALIZADO',
+                        'asignacion' => 'REEMPLAZADO',
+                        '_usuario_modificacion' => auth()->id() ?? 1,
+                        '_fecha_modificacion' => now(),
+                    ]);
+
+                    // Cerrar dato laboral del funcionario que ocupaba el puesto
+                    $fichaAnt = FichaPersonal::where('id_persona', $asignacionAnteriorPuesto->id_persona)->first();
+                    if ($fichaAnt) {
+                        DatoLaboral::where('id_ficha_personal', $fichaAnt->id)
+                            ->where('cargo', $puesto->nombre)
+                            ->where('es_puesto_anterior', false)
+                            ->update([
+                                'fecha_desvinculacion' => $fechaInicio,
+                                'es_puesto_anterior' => true,
+                                'tipo_movimiento' => 'DESASIGNACION',
+                                '_estado' => 'FINALIZADO',
+                                '_usuario_modificacion' => auth()->id() ?? 1,
+                                '_fecha_modificacion' => now(),
+                            ]);
+                    }
+                }
+
+                // 3. Verificar si el funcionario seleccionado ya tenía OTRO cargo activo (Transferencia / Promoción)
+                $asignacionPreviaPersona = AsignacionPuesto::with('puesto.unidadOrganizacional')
+                    ->where('id_persona', $idPersona)
+                    ->where('_estado', 'ACTIVO')
+                    ->whereNull('fecha_fin')
+                    ->first();
+
+                $tipoMovimiento = 'DESIGNACION';
+
+                if ($asignacionPreviaPersona) {
+                    $tipoMovimiento = $request->input('tipo_movimiento') ?: 'TRANSFERENCIA';
+
+                    // Finalizar su asignación anterior
+                    $asignacionPreviaPersona->update([
+                        'fecha_fin' => $fechaInicio,
+                        '_estado' => 'FINALIZADO',
+                        'asignacion' => $tipoMovimiento,
+                        '_usuario_modificacion' => auth()->id() ?? 1,
+                        '_fecha_modificacion' => now(),
+                    ]);
+
+                    // Actualizar el historial laboral previo en su ficha personal
+                    $ficha = FichaPersonal::firstOrCreate(['id_persona' => $idPersona]);
+                    DatoLaboral::where('id_ficha_personal', $ficha->id)
+                        ->where('es_puesto_anterior', false)
+                        ->update([
+                            'fecha_desvinculacion' => $fechaInicio,
+                            'es_puesto_anterior' => true,
+                            'tipo_movimiento' => $tipoMovimiento,
+                            '_estado' => 'FINALIZADO',
+                            '_usuario_modificacion' => auth()->id() ?? 1,
+                            '_fecha_modificacion' => now(),
+                        ]);
+                }
+
+                // 4. Crear la nueva asignación activa en el puesto
+                $nuevaAsignacion = AsignacionPuesto::create([
+                    'id_puesto' => $idPuesto,
+                    'id_persona' => $idPersona,
+                    'nro_item' => $nroItem,
+                    'fecha_inicio' => $fechaInicio,
+                    'tipo_asignacion' => 'ITEM',
+                    'asignacion' => $tipoMovimiento,
+                    '_estado' => 'ACTIVO',
+                    '_usuario_creacion' => auth()->id() ?? 1,
+                    '_fecha_creacion' => now(),
                 ]);
 
-            $asignacion = AsignacionPuesto::create([
-                'id_puesto' => (int) $request->input('id_puesto'),
-                'id_persona' => (int) $request->input('id_persona'),
-                'nro_item' => (int) $request->input('nro_item'),
-                'fecha_inicio' => $request->input('fecha_inicio'),
-                'tipo_asignacion' => 'ITEM',
-                '_usuario_creacion' => auth()->id() ?? 1,
-                '_fecha_creacion' => now(),
-            ]);
+                // 5. Registrar en el Legajo / Historial Laboral (rrhh.datos_laborales)
+                $ficha = FichaPersonal::firstOrCreate(['id_persona' => $idPersona]);
+                DatoLaboral::create([
+                    'id_ficha_personal' => $ficha->id,
+                    'cargo' => $puesto->nombre,
+                    'unidad_organizacional' => $puesto->unidadOrganizacional?->nombre ?? '',
+                    'tipo_funcionario' => $puesto->tipo_puesto ?? 'PLANTA',
+                    'nro_item' => $nroItem,
+                    'fecha_ingreso' => $fechaInicio,
+                    'tipo_movimiento' => $tipoMovimiento,
+                    'nro_documento' => $request->input('nro_documento'),
+                    'fecha_documento' => $request->input('fecha_documento') ?: $fechaInicio,
+                    'es_puesto_anterior' => false,
+                    '_estado' => 'ACTIVO',
+                    '_usuario_creacion' => auth()->id() ?? 1,
+                    '_fecha_creacion' => now(),
+                ]);
+
+                // 6. Si el usuario del ERP estaba inactivo, reactivarlo
+                User::where('usr_externo_id', $idPersona)->where('usr_estado', '!=', 'A')->update(['usr_estado' => 'A']);
+
+                $this->auditService->log(
+                    event: 'puesto_asignado',
+                    model: $nuevaAsignacion,
+                    newValues: [
+                        'funcionario' => $persona->nombre_completo,
+                        'puesto' => $puesto->nombre,
+                        'item' => $nroItem,
+                        'tipo_movimiento' => $tipoMovimiento,
+                    ]
+                );
+
+                return $nuevaAsignacion;
+            });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Puesto asignado exitosamente al funcionario.',
+                'message' => 'Puesto asignado exitosamente al funcionario y registrado en su historial laboral.',
                 'data' => $asignacion,
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al asignar puesto', ['exception' => $ex->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Error al asignar puesto.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return response()->json(['success' => false, 'message' => $ex->getMessage() ?: 'Error al asignar puesto.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    public function desasignarPuesto(int $id): JsonResponse
+    public function desasignarPuesto(Request $request, int $id): JsonResponse
     {
+        $validator = Validator::make($request->all(), [
+            'motivo' => 'nullable|string|in:RENUNCIA,DESTITUCION,DESPIDO,CONCLUSION_CONTRATO,JUBILACION,TRANSFERENCIA,DESASIGNACION',
+            'fecha_desvinculacion' => 'nullable|date',
+            'nro_documento' => 'nullable|string|max:100',
+            'observacion' => 'nullable|string|max:255',
+            'desactivar_acceso_erp' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         try {
-            $asignacion = AsignacionPuesto::findOrFail($id);
-            $asignacion->update([
-                'fecha_fin' => now()->toDateString(),
-                '_estado' => 'INACTIVO',
-                '_usuario_modificacion' => auth()->id() ?? 1,
-                '_fecha_modificacion' => now(),
-            ]);
+            DB::transaction(function () use ($request, $id) {
+                $asignacion = AsignacionPuesto::with(['puesto.unidadOrganizacional', 'persona'])->findOrFail($id);
+                $motivo = $request->input('motivo') ?: 'DESASIGNACION';
+                $fechaDesvinculacion = $request->input('fecha_desvinculacion') ?: now()->toDateString();
+                $nroDocumento = $request->input('nro_documento');
+
+                // 1. Cerrar asignación en el puesto (el puesto pasa a estado VACANTE)
+                $asignacion->update([
+                    'fecha_fin' => $fechaDesvinculacion,
+                    'asignacion' => $motivo,
+                    '_estado' => 'FINALIZADO',
+                    '_usuario_modificacion' => auth()->id() ?? 1,
+                    '_fecha_modificacion' => now(),
+                ]);
+
+                // 2. Cerrar y actualizar el registro en el historial laboral (rrhh.datos_laborales)
+                $ficha = FichaPersonal::firstOrCreate(['id_persona' => $asignacion->id_persona]);
+                $datoLaboral = DatoLaboral::where('id_ficha_personal', $ficha->id)
+                    ->where('es_puesto_anterior', false)
+                    ->whereNull('fecha_desvinculacion')
+                    ->latest('id')
+                    ->first();
+
+                if ($datoLaboral) {
+                    $datoLaboral->update([
+                        'fecha_desvinculacion' => $fechaDesvinculacion,
+                        'tipo_movimiento' => $motivo,
+                        'nro_documento' => $nroDocumento ?: $datoLaboral->nro_documento,
+                        'es_puesto_anterior' => true,
+                        '_estado' => 'FINALIZADO',
+                        '_usuario_modificacion' => auth()->id() ?? 1,
+                        '_fecha_modificacion' => now(),
+                    ]);
+                } else {
+                    // Si no había registro previo, se crea el dato histórico completo
+                    DatoLaboral::create([
+                        'id_ficha_personal' => $ficha->id,
+                        'cargo' => $asignacion->puesto?->nombre ?? 'Cargo Asignado',
+                        'unidad_organizacional' => $asignacion->puesto?->unidadOrganizacional?->nombre ?? '',
+                        'tipo_funcionario' => $asignacion->puesto?->tipo_puesto ?? 'PLANTA',
+                        'nro_item' => $asignacion->nro_item,
+                        'fecha_ingreso' => $asignacion->fecha_inicio,
+                        'fecha_desvinculacion' => $fechaDesvinculacion,
+                        'tipo_movimiento' => $motivo,
+                        'nro_documento' => $nroDocumento,
+                        'es_puesto_anterior' => true,
+                        '_estado' => 'FINALIZADO',
+                        '_usuario_creacion' => auth()->id() ?? 1,
+                        '_fecha_creacion' => now(),
+                    ]);
+                }
+
+                // 3. Control de acceso al ERP: si renuncia, destitución, despido o cese, desactivar usuario si se solicitó
+                $debeDesactivar = $request->has('desactivar_acceso_erp')
+                    ? $request->boolean('desactivar_acceso_erp')
+                    : in_array($motivo, ['RENUNCIA', 'DESTITUCION', 'DESPIDO', 'CONCLUSION_CONTRATO', 'JUBILACION']);
+
+                if ($debeDesactivar) {
+                    User::where('usr_externo_id', $asignacion->id_persona)->update(['usr_estado' => 'I']);
+                }
+
+                // 4. Registro de auditoría
+                $this->auditService->log(
+                    event: 'funcionario_desvinculado',
+                    model: $asignacion,
+                    newValues: [
+                        'funcionario' => $asignacion->persona?->nombre_completo,
+                        'puesto' => $asignacion->puesto?->nombre,
+                        'motivo' => $motivo,
+                        'fecha_desvinculacion' => $fechaDesvinculacion,
+                        'nro_documento' => $nroDocumento,
+                        'usuario_erp_desactivado' => $debeDesactivar,
+                    ]
+                );
+            });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Funcionario desasignado del puesto exitosamente.',
+                'message' => 'Desvinculación procesada exitosamente. El puesto ahora está vacante y el legajo laboral fue actualizado.',
             ], Response::HTTP_OK);
         } catch (\Throwable $ex) {
-            Log::error('Error al desasignar puesto', ['exception' => $ex->getMessage()]);
+            Log::error('Error al desvincular puesto', ['exception' => $ex->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Error al desasignar puesto.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return response()->json(['success' => false, 'message' => 'Error al procesar la desvinculación: ' . $ex->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    public function historialPuesto(int $idPuesto): JsonResponse
+    {
+        $historial = AsignacionPuesto::with('persona')
+            ->where('id_puesto', $idPuesto)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $historial,
+        ], Response::HTTP_OK);
     }
 
     public function listarEscalasSalariales(): JsonResponse

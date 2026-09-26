@@ -103,14 +103,14 @@ class MenuSeeder extends Seeder
 
         // ASIGNACIONES DE ROLES PARA TODOS LOS MENUS HIJOS
         $subMenus = [$subUsuarios->id, $subRolesPermisos->id, $subParametrica->id, $subEmpresa->id, $subMigrador->id];
-        $roles = Rol::pluck('id');
+        $adminRole = Rol::where('guard_name', 'api')->first() ?: Rol::find(1);
 
-        foreach ($subMenus as $menuId) {
-            foreach ($roles as $rolId) {
+        if ($adminRole) {
+            foreach ($subMenus as $menuId) {
                 MenuRol::updateOrCreate(
                     [
                         'menu_id' => $menuId,
-                        'rol_id' => $rolId,
+                        'rol_id' => $adminRole->id,
                     ],
                     [
                         'check' => true,

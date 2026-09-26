@@ -24,23 +24,75 @@ class RolesPermisosController extends Controller
     ) {}
 
     /**
-     * Mapeo de rutas de submenú a módulos de permisos Spatie.
+     * Mapeo completo de rutas de submenú a nombres de módulo de permisos Spatie.
      */
     public const MODULE_MAP = [
+        // 1. Administrar
         'usuarios' => 'Usuarios',
         'roles_permisos' => 'Roles y Permisos',
         'control_acceso' => 'Roles y Permisos',
-        'admin_menu' => 'Diseñador de Menús',
-        'parametrica' => 'Tablas Paramétricas',
+        'admin_menu' => 'Roles y Permisos',
         'auditoria' => 'Auditoría y Seguridad',
+
+        // 2. Datos
+        'parametrica' => 'Parametrica',
+        'datos_empresa' => 'Configuración Empresa y SIAT',
+        'datos_migrador_respaldos' => 'Migrador de Respaldos (FoxPro)',
+
+        // 3. Recursos Humanos
         'rrhh_personal' => 'Personal y Legajos',
         'rrhh_organigrama' => 'Estructura Organizacional',
         'rrhh_asistencias' => 'Control de Asistencia',
-        'rrhh_solicitudes' => 'Boletas y Permisos',
         'rrhh_horarios' => 'Gestión de Horarios',
+        'rrhh_solicitudes' => 'Boletas y Permisos',
         'rrhh_comisiones_omisiones' => 'Comisiones y Omisiones',
         'rrhh_feriados_cortes' => 'Feriados y Cortes',
-        'rrhh_reportes' => 'Reportes de Personal',
+        'rrhh_reportes' => 'Reportes y Planillas',
+
+        // 4. Correspondencia y Trámites
+        'correspondencia_dashboard' => 'Dashboard y Métricas',
+        'correspondencia_hojas_ruta' => 'Bandeja de Hojas de Ruta',
+        'correspondencia_documentos' => 'Redacción de Documentos',
+        'correspondencia_firmas' => 'Firmas y Aprobaciones',
+        'correspondencia_seguimiento' => 'Seguimiento y Trazabilidad',
+        'correspondencia_visor_expediente' => 'Visor de Expediente 360°',
+        'correspondencia_ventanilla' => 'Ventanilla Única',
+        'correspondencia_despacho_salida' => 'Despacho y Salida Externa',
+        'correspondencia_solicitudes_ciudadanas' => 'Solicitudes Ciudadanas',
+        'correspondencia_etiquetas' => 'Etiquetas y Carpetas',
+        'correspondencia_permisos' => 'Matriz de Derivaciones',
+        'correspondencia_plantillas' => 'Plantillas y Diseñador PDF',
+        'correspondencia_transferencias' => 'Transferencias de Bandeja',
+
+        // 5. Facturación SIAT
+        'facturacion_caja' => 'Caja y Facturación en Ventanilla',
+        'facturacion_crear' => 'Facturación Libre / Especial',
+        'facturacion_bandeja' => 'Bandeja de Facturas',
+        'facturacion_contingencias' => 'Facturas de Contingencia',
+        'facturacion_eventos' => 'Eventos Significativos',
+        'facturacion_puntos_venta' => 'Sucursales y Puntos de Venta',
+        'facturacion_clientes' => 'Clientes Facturación Libre',
+        'facturacion_productos' => 'Productos y Servicios SIN',
+        'facturacion_libro_ventas' => 'Libro de Ventas IVA',
+
+        // 6. Gestión Comercial
+        'comercial_abonados' => 'Padrón de Abonados',
+        'comercial_periodos' => 'Ciclo de Períodos',
+        'comercial_lecturas' => 'Toma de Lecturas',
+        'comercial_sesiones_caja' => 'Cierres y Arqueos de Caja',
+        'comercial_convenios' => 'Convenios de Pago',
+        'comercial_cortes' => 'Cortes y Reconexiones',
+        'comercial_zonas_calles' => 'Zonas y Calles',
+        'comercial_tarifas' => 'Estructura Tarifaria',
+        'comercial_reportes' => 'Reportes Comerciales',
+        'comercial_aportes' => 'Aportes e Instalaciones',
+
+        // 7. Contabilidad y Finanzas
+        'contabilidad_plan_cuentas' => 'Plan de Cuentas',
+        'contabilidad_comprobantes' => 'Comprobantes (CI/CE/CD)',
+        'contabilidad_interfases' => 'Interfaces Automáticas',
+        'contabilidad_libros' => 'Libros Diario y Mayor',
+        'contabilidad_estados_financieros' => 'Estados Financieros SAFCO',
     ];
 
     /**

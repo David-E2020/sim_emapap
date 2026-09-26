@@ -84,12 +84,47 @@ class AuthController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
+        // Validar que el usuario tenga al menos un rol asignado para ingresar al sistema
+        $hasRole = $user->roles()->exists() || RolUser::where('usuario_id', $user->id)->where('estado', true)->exists();
+        if (! $hasRole) {
+            try {
+                JWTAuth::invalidate($token);
+            } catch (\Exception $e) {}
+
+            $this->auditService->log(
+                event: 'auth_login_blocked_no_role',
+                model: $user,
+                userId: $user->id,
+                newValues: ['username_attempted' => $credentials['usr_usuario']]
+            );
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Su cuenta no cuenta con un rol ni permisos asignados para acceder al sistema. Contacte con Administración.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         $usuarioId_ = $user->id;
         $rolUser_ = RolUser::where('usuario_id', $usuarioId_)->first();
         $rol_ = $rolUser_ ? Rol::find($rolUser_->rol_id) : null;
 
         // Permisos Spatie (directos + heredados)
         $spatiePermissions = $user->getAllPermissions()->pluck('name');
+
+        // Obtener submódulos permitidos según la matriz menu_rol del usuario
+        $menuData = app(\App\Http\Controllers\Administracion\UsuarioController::class)->menuUsuario($user->id);
+        $allowedRoutes = [];
+        if (! empty($menuData['menus'])) {
+            foreach ($menuData['menus'] as $parentMenu) {
+                if (! empty($parentMenu->sub_menu)) {
+                    foreach ($parentMenu->sub_menu as $sub) {
+                        if (! empty($sub->route)) {
+                            $allowedRoutes[] = $sub->route;
+                        }
+                    }
+                }
+            }
+        }
 
         // Registrar auditoría de inicio de sesión exitoso
         $this->auditService->log(
@@ -105,6 +140,7 @@ class AuthController extends Controller
             'permissions' => $spatiePermissions,
             'roles' => $user->getRoleNames(),
             'rol' => $rol_ ? $rol_->name : ($user->roles->first() ? $user->roles->first()->name : 'Usuario'),
+            'allowed_routes' => $allowedRoutes,
             'rute_home' => 'dashboard',
         ], Response::HTTP_OK);
     }

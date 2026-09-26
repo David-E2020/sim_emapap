@@ -88,7 +88,7 @@ class ContabilidadMenuSeeder extends Seeder
             ]
         );
 
-        // 3. ASIGNAR A ROLES (TODOS LOS ROLES O PRINCIPALES)
+        // 3. ASIGNAR POR DEFECTO A ADMINISTRADOR GENERAL
         $subMenusIds = [
             $subPlanCuentas->id,
             $subComprobantes->id,
@@ -97,14 +97,18 @@ class ContabilidadMenuSeeder extends Seeder
             $subEstadosFinancieros->id,
         ];
 
-        $roles = Rol::pluck('id');
+        $adminRole = Rol::where('guard_name', 'api')->first() ?: Rol::find(1);
 
-        foreach ($subMenusIds as $menuId) {
-            foreach ($roles as $rolId) {
+        if ($adminRole) {
+            MenuRol::updateOrCreate(
+                ['menu_id' => $menuContabilidad->id, 'rol_id' => $adminRole->id],
+                ['check' => true]
+            );
+            foreach ($subMenusIds as $menuId) {
                 MenuRol::updateOrCreate(
                     [
                         'menu_id' => $menuId,
-                        'rol_id' => $rolId,
+                        'rol_id' => $adminRole->id,
                     ],
                     [
                         'check' => true,

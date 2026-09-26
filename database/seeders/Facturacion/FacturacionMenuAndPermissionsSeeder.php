@@ -114,13 +114,16 @@ class FacturacionMenuAndPermissionsSeeder extends Seeder
 
         // 4. Permisos Spatie Granulares para Facturación
         $permisosData = [
-            ['name' => 'facturacion.facturas.ver', 'module' => 'Facturación', 'description' => 'Ver listado y detalles de facturas emitidas'],
-            ['name' => 'facturacion.facturas.crear', 'module' => 'Facturación', 'description' => 'Emitir facturas electrónicas en línea'],
-            ['name' => 'facturacion.facturas.anular', 'module' => 'Facturación', 'description' => 'Anular facturas ante el SIN'],
-            ['name' => 'facturacion.contingencias.administrar', 'module' => 'Facturación', 'description' => 'Registrar y empaquetar facturas de contingencia'],
-            ['name' => 'facturacion.eventos.administrar', 'module' => 'Facturación', 'description' => 'Iniciar y cerrar eventos significativos'],
-            ['name' => 'facturacion.puntos_venta.administrar', 'module' => 'Facturación', 'description' => 'Administrar sucursales y puntos de venta'],
-            ['name' => 'facturacion.catalogos.administrar', 'module' => 'Facturación', 'description' => 'Sincronizar catálogos y productos del SIN'],
+            ['name' => 'facturacion.caja.cobrar', 'module' => 'Caja y Facturación en Ventanilla', 'description' => 'Cobro en ventanilla y emisión de factura con código QR SIAT'],
+            ['name' => 'facturacion.facturas.crear', 'module' => 'Facturación Libre / Especial', 'description' => 'Emisión manual de facturas electrónicas por servicios especiales'],
+            ['name' => 'facturacion.facturas.ver', 'module' => 'Bandeja de Facturas', 'description' => 'Ver listado y detalles de facturas emitidas'],
+            ['name' => 'facturacion.facturas.anular', 'module' => 'Bandeja de Facturas', 'description' => 'Anular facturas ante el SIN'],
+            ['name' => 'facturacion.contingencias.administrar', 'module' => 'Facturas de Contingencia', 'description' => 'Registrar y empaquetar facturas de contingencia'],
+            ['name' => 'facturacion.eventos.administrar', 'module' => 'Eventos Significativos', 'description' => 'Iniciar y cerrar eventos significativos'],
+            ['name' => 'facturacion.puntos_venta.administrar', 'module' => 'Sucursales y Puntos de Venta', 'description' => 'Administrar sucursales y puntos de venta'],
+            ['name' => 'facturacion.clientes.administrar', 'module' => 'Clientes Facturación Libre', 'description' => 'Administrar catálogo de clientes para facturación libre'],
+            ['name' => 'facturacion.catalogos.administrar', 'module' => 'Productos y Servicios SIN', 'description' => 'Sincronizar catálogos y productos homologados del SIN'],
+            ['name' => 'facturacion.libro_ventas.ver', 'module' => 'Libro de Ventas IVA', 'description' => 'Consultar y exportar el Registro de Ventas IVA (RCV)'],
         ];
 
         foreach ($permisosData as $p) {

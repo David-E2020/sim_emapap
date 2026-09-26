@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Administracion;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Rrhh\PersonalController;
 use App\Models\AuditLog;
 use App\Models\Menu;
 use App\Models\MenuRol;
@@ -29,12 +30,11 @@ class UsuarioController extends Controller
     ) {}
 
     /**
-     * Listado de usuarios activos con sus roles y permisos.
+     * Listado de usuarios con sus roles y permisos (incluye activos e inactivos para gestión).
      */
     public function index(): JsonResponse
     {
         $users = User::with(['roles', 'permissions', 'rolPersmisos.rol'])
-            ->where('usr_estado', 'A')
             ->orderBy('id', 'asc')
             ->get()
             ->makeHidden(['deleted_at', 'usr_archivo', 'usr_modificado', 'usr_registrado']);
@@ -258,6 +258,65 @@ class UsuarioController extends Controller
             return response()->json([
                 'status' => 'error',
                 'mensaje' => 'No se pudo asignar el acceso. Intente nuevamente.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Restablecer la contraseña de un usuario según el estándar institucional:
+     * Si está vinculado a una persona/funcionario, usa sus iniciales + CI + "!!".
+     * Si no tiene persona vinculada, usa su identificador institucional + "2026!!".
+     */
+    public function resetPasswordInstitucional(Request $request, int|string $id): JsonResponse
+    {
+        try {
+            $user = User::with('persona')->findOrFail((int) $id);
+
+            if ($user->persona) {
+                $creds = PersonalController::generarCredencialesIniciales($user->persona);
+                $passwordPlana = $creds['password'];
+            } else {
+                $usuarioBase = ucfirst(strtolower(preg_replace('/[^A-Za-z0-9]/', '', $user->usr_usuario)));
+                $passwordPlana = $usuarioBase . '2026!!';
+            }
+
+            $user->update([
+                'password' => Hash::make($passwordPlana),
+                'usr_estado' => 'A',
+            ]);
+
+            $this->auditService->log(
+                event: 'user_password_reset_institutional',
+                model: $user,
+                newValues: [
+                    'usr_usuario' => $user->usr_usuario,
+                    'reset_by' => auth()->id() ?? 1,
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Contraseña institucional restablecida exitosamente.',
+                'credenciales' => [
+                    'nombre' => $user->name,
+                    'usuario' => $user->usr_usuario,
+                    'password' => $passwordPlana,
+                ],
+            ], Response::HTTP_OK);
+        } catch (ModelNotFoundException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuario no encontrado.',
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\Throwable $ex) {
+            Log::error('Error al restablecer contraseña institucional', [
+                'user_id' => $id,
+                'exception' => $ex->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo restablecer la contraseña. Intente nuevamente.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

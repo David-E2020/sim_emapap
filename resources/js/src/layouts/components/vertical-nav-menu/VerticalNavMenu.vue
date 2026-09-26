@@ -63,8 +63,10 @@
       <v-progress-circular :size="28" width="3" color="primary" indeterminate></v-progress-circular>
     </div>
     <div class="text-center py-6 px-4" v-else>
-      <span class="text-caption text-secondary d-block mb-2">No se encontraron menús</span>
-      <v-btn small text color="primary" @click="getMenu()">Reintentar</v-btn>
+      <v-icon color="error" size="36" class="mb-2">mdi-shield-lock-outline</v-icon>
+      <div class="text-caption error--text font-weight-bold mb-1">Sin Acceso Asignado</div>
+      <div class="text-caption text-secondary mb-3">No cuenta con permisos habilitados.</div>
+      <v-btn x-small outlined color="error" @click="cerrarSesion()">Cerrar Sesión</v-btn>
     </div>
   </v-navigation-drawer>
 </template>
@@ -118,7 +120,47 @@ export default {
         }
       })
     },
+    cerrarSesion() {
+      if (window.iziToast && typeof window.iziToast.warning === 'function') {
+        window.iziToast.warning({
+          title: 'Acceso Revocado',
+          message: 'Su usuario no cuenta con roles ni permisos habilitados en el sistema.',
+          position: 'topRight',
+          timeout: 5000,
+        });
+      }
+      this.$store.dispatch('auth/logout').then(() => {
+        if (this.$router.currentRoute.name !== 'pages-login') {
+          this.$router.push({ name: 'pages-login' });
+        }
+      });
+    },
     setMenuList(rawMenus) {
+      try {
+        const allowedRoutes = []
+        if (rawMenus && Array.isArray(rawMenus)) {
+          rawMenus.forEach(group => {
+            if (group.sub_menu && Array.isArray(group.sub_menu)) {
+              group.sub_menu.forEach(sub => {
+                if (sub.route) allowedRoutes.push(sub.route)
+              })
+            }
+          })
+        }
+        localStorage.setItem('allowed_routes', JSON.stringify(allowedRoutes))
+
+        // Si el usuario no tiene menús y no es Administrador General, expulsar de la sesión
+        const rolStr = localStorage.getItem('rol')
+        const isAdmin = rolStr === 'Administrador General' || rolStr === 'Administrador' || rolStr === 'Super Admin'
+        if ((!rawMenus || rawMenus.length === 0) && !isAdmin) {
+          this.menus = []
+          this.cerrarSesion()
+          return
+        }
+      } catch (e) {
+        console.warn('Error al guardar allowed_routes:', e)
+      }
+
       this.menus = (rawMenus || []).map(item => ({
         ...item,
         isOpen: this.isGroupActive(item),
@@ -144,6 +186,10 @@ export default {
           this.setMenuList(response.data && response.data.menus)
         })
         .catch(err => {
+          if (err && err.response && err.response.status === 403) {
+            this.cerrarSesion()
+            return
+          }
           console.warn('Fallback a /api/menu_usuario por:', err)
           axios
             .get('/api/menu_usuario')
@@ -151,6 +197,10 @@ export default {
               this.setMenuList(res.data && res.data.menus)
             })
             .catch(err2 => {
+              if (err2 && err2.response && err2.response.status === 403) {
+                this.cerrarSesion()
+                return
+              }
               console.error('Error al cargar menús:', err2)
               this.menus = []
             })

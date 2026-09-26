@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class PersonalController extends Controller
@@ -29,7 +30,13 @@ class PersonalController extends Controller
     public function index(Request $request): JsonResponse
     {
         $search = $request->query('search', '');
-        $query = Persona::with(['user', 'asignacionesPuestos.puesto.unidadOrganizacional', 'fichaPersonal']);
+        $query = Persona::with(['user', 'asignacionesPuestos.puesto.unidadOrganizacional', 'fichaPersonal.datosLaborales']);
+
+        if ($request->boolean('solo_disponibles')) {
+            $query->whereDoesntHave('asignacionesPuestos', function ($q) {
+                $q->where('_estado', 'ACTIVO')->whereNull('fecha_fin');
+            });
+        }
 
         if ($search) {
             $s = strtolower(trim((string) $search));
@@ -59,9 +66,9 @@ class PersonalController extends Controller
             'primer_apellido' => 'nullable|string|max:100',
             'segundo_apellido' => 'nullable|string|max:100',
             'nro_documento' => 'required|string|max:50|unique:pgsql.rrhh.personas,nro_documento',
-            'correo_electronico_personal' => 'nullable|email|max:255',
+            'correo_electronico_personal' => 'nullable|string|email|max:255',
             'telefono_celular' => 'nullable|string|max:50',
-            'genero' => 'nullable|string|in:MASCULINO,FEMENINO',
+            'genero' => 'nullable|string|in:MASCULINO,FEMENINO,M,F,Masculino,Femenino,m,f,OTRO,Otro',
             'crear_usuario' => 'nullable|boolean',
             'usuario_login' => 'nullable|string|max:50',
         ]);
@@ -74,17 +81,26 @@ class PersonalController extends Controller
         }
 
         try {
-            $persona = DB::transaction(function () use ($request) {
+            $credencialesGeneradas = null;
+            $persona = DB::transaction(function () use ($request, &$credencialesGeneradas) {
+                $generoRaw = strtoupper(trim((string) $request->input('genero')));
+                $genero = match ($generoRaw) {
+                    'M', 'MASCULINO' => 'MASCULINO',
+                    'F', 'FEMENINO' => 'FEMENINO',
+                    'OTRO' => 'OTRO',
+                    default => $generoRaw ?: null,
+                };
+
                 $persona = Persona::create([
                     'nombres' => strtoupper(trim((string) $request->input('nombres'))),
                     'primer_apellido' => $request->input('primer_apellido') ? strtoupper(trim((string) $request->input('primer_apellido'))) : null,
                     'segundo_apellido' => $request->input('segundo_apellido') ? strtoupper(trim((string) $request->input('segundo_apellido'))) : null,
                     'tipo_documento' => $request->input('tipo_documento', 'CI'),
                     'nro_documento' => trim((string) $request->input('nro_documento')),
-                    'fecha_nacimiento' => $request->input('fecha_nacimiento'),
-                    'correo_electronico_personal' => $request->input('correo_electronico_personal'),
-                    'telefono_celular' => $request->input('telefono_celular'),
-                    'genero' => $request->input('genero'),
+                    'fecha_nacimiento' => $request->input('fecha_nacimiento') ?: null,
+                    'correo_electronico_personal' => $request->input('correo_electronico_personal') ?: null,
+                    'telefono_celular' => $request->input('telefono_celular') ?: null,
+                    'genero' => $genero,
                     'observacion' => $request->input('observacion'),
                     '_usuario_creacion' => auth()->id() ?? 1,
                     '_fecha_creacion' => now(),
@@ -97,17 +113,33 @@ class PersonalController extends Controller
                     '_fecha_creacion' => now(),
                 ]);
 
-                // Crear usuario ERP si fue solicitado
-                if ($request->input('crear_usuario')) {
-                    $login = $request->input('usuario_login') ?: strtolower(substr((string) $persona->nombres, 0, 1).$persona->primer_apellido);
+                // Crear usuario ERP si fue solicitado (Patrón institucional: Ej. PQJ4589201 y Pqj4589201!!)
+                if ($request->boolean('crear_usuario')) {
+                    $creds = self::generarCredencialesIniciales($persona);
+                    $baseLogin = $request->input('usuario_login') ? Str::slug($request->input('usuario_login'), '') : $creds['usuario'];
+                    $passwordPlana = $creds['password'];
+
+                    $candidate = $baseLogin;
+                    $count = 1;
+                    while (User::where('usr_usuario', $candidate)->exists()) {
+                        $candidate = $baseLogin . $count;
+                        $count++;
+                    }
+                    $login = $candidate;
+
                     User::create([
                         'name' => $persona->nombre_completo,
                         'usr_usuario' => $login,
-                        'password' => Hash::make('123456'),
-                        'email' => $persona->correo_electronico_personal,
+                        'password' => Hash::make($passwordPlana),
+                        'email' => $persona->correo_electronico_personal ?: null,
                         'usr_externo_id' => $persona->id,
                         'usr_estado' => 'A',
                     ]);
+
+                    $credencialesGeneradas = [
+                        'usuario' => $login,
+                        'password' => $passwordPlana,
+                    ];
                 }
 
                 $this->auditService->log(
@@ -123,13 +155,82 @@ class PersonalController extends Controller
                 'success' => true,
                 'message' => 'Funcionario registrado exitosamente.',
                 'data' => $persona,
+                'credenciales' => $credencialesGeneradas,
             ], Response::HTTP_CREATED);
         } catch (\Throwable $ex) {
             Log::error('Error al registrar funcionario', ['exception' => $ex->getMessage()]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error interno al registrar funcionario.',
+                'message' => 'Error interno al registrar funcionario: ' . $ex->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $persona = Persona::findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+            'nombres' => 'required|string|max:100',
+            'primer_apellido' => 'nullable|string|max:100',
+            'segundo_apellido' => 'nullable|string|max:100',
+            'nro_documento' => "required|string|max:50|unique:pgsql.rrhh.personas,nro_documento,{$id}",
+            'correo_electronico_personal' => 'nullable|string|email|max:255',
+            'telefono_celular' => 'nullable|string|max:50',
+            'genero' => 'nullable|string|in:MASCULINO,FEMENINO,M,F,Masculino,Femenino,m,f,OTRO,Otro',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $generoRaw = strtoupper(trim((string) $request->input('genero')));
+            $genero = match ($generoRaw) {
+                'M', 'MASCULINO' => 'MASCULINO',
+                'F', 'FEMENINO' => 'FEMENINO',
+                'OTRO' => 'OTRO',
+                default => $generoRaw ?: null,
+            };
+
+            $oldValues = $persona->toArray();
+
+            $persona->update([
+                'nombres' => strtoupper(trim((string) $request->input('nombres'))),
+                'primer_apellido' => $request->input('primer_apellido') ? strtoupper(trim((string) $request->input('primer_apellido'))) : null,
+                'segundo_apellido' => $request->input('segundo_apellido') ? strtoupper(trim((string) $request->input('segundo_apellido'))) : null,
+                'nro_documento' => trim((string) $request->input('nro_documento')),
+                'fecha_nacimiento' => $request->input('fecha_nacimiento') ?: null,
+                'correo_electronico_personal' => $request->input('correo_electronico_personal') ?: null,
+                'telefono_celular' => $request->input('telefono_celular') ?: null,
+                'genero' => $genero,
+                'observacion' => $request->input('observacion'),
+                '_usuario_modificacion' => auth()->id() ?? 1,
+                '_fecha_modificacion' => now(),
+            ]);
+
+            $this->auditService->log(
+                event: 'persona_updated',
+                model: $persona,
+                oldValues: $oldValues,
+                newValues: $persona->fresh()->toArray()
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Datos del funcionario actualizados correctamente.',
+                'data' => $persona->fresh(),
+            ], Response::HTTP_OK);
+        } catch (\Throwable $ex) {
+            Log::error('Error al actualizar funcionario', ['exception' => $ex->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno al actualizar funcionario: ' . $ex->getMessage(),
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -224,5 +325,135 @@ class PersonalController extends Controller
         ]);
 
         return response()->json(['success' => true, 'message' => 'Certificación CAS añadida al legajo.', 'data' => $cas], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Genera credenciales sugeridas según estándar institucional:
+     * Usuario: Iniciales mayúsculas (P. Apellido + S. Apellido + 1er Nombre) + CI (Ej: Perez Quispe Juan -> PQJ4589201)
+     * Contraseña: Mismo acrónimo en formato título + CI + "!!" (Ej: Pqj4589201!!)
+     */
+    public static function generarCredencialesIniciales(Persona $persona): array
+    {
+        $p1 = !empty($persona->primer_apellido) ? mb_substr(trim($persona->primer_apellido), 0, 1) : '';
+        $p2 = !empty($persona->segundo_apellido) ? mb_substr(trim($persona->segundo_apellido), 0, 1) : '';
+
+        $nombres = trim((string) $persona->nombres);
+        $primerNombre = preg_split('/\s+/', $nombres)[0] ?? 'U';
+        $p3 = !empty($primerNombre) ? mb_substr($primerNombre, 0, 1) : 'U';
+
+        $iniciales = mb_strtoupper($p1 . $p2 . $p3);
+        if (empty($iniciales)) {
+            $iniciales = 'USR';
+        }
+
+        // Limpiar documento (quitar caracteres especiales y espacios)
+        $docLimpio = preg_replace('/[^A-Za-z0-9]/', '', (string) $persona->nro_documento);
+        if (empty($docLimpio)) {
+            $docLimpio = (string) $persona->id;
+        }
+
+        $usuario = $iniciales . $docLimpio;
+
+        // Formato contraseña institucional (Ej: Pqj4589201!!)
+        $initTitle = mb_strtoupper(mb_substr($iniciales, 0, 1)) . mb_strtolower(mb_substr($iniciales, 1));
+        $password = $initTitle . $docLimpio . '!!';
+
+        return [
+            'usuario' => $usuario,
+            'password' => $password,
+        ];
+    }
+
+    /**
+     * Crear cuenta de usuario ERP para un funcionario existente que no tenga cuenta.
+     */
+    public function crearUsuarioErp(Request $request, int $id): JsonResponse
+    {
+        $persona = Persona::findOrFail($id);
+
+        if (User::where('usr_externo_id', $persona->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El funcionario ya cuenta con un usuario ERP vinculado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $creds = self::generarCredencialesIniciales($persona);
+        $login = $request->input('usuario_login') ? Str::slug($request->input('usuario_login'), '') : $creds['usuario'];
+        $passwordPlana = $creds['password'];
+
+        $candidate = $login;
+        $count = 1;
+        while (User::where('usr_usuario', $candidate)->exists()) {
+            $candidate = $login . $count;
+            $count++;
+        }
+        $login = $candidate;
+
+        $user = User::create([
+            'name' => $persona->nombre_completo,
+            'usr_usuario' => $login,
+            'password' => Hash::make($passwordPlana),
+            'email' => $persona->correo_electronico_personal ?: null,
+            'usr_externo_id' => $persona->id,
+            'usr_estado' => 'A',
+        ]);
+
+        $this->auditService->log(
+            event: 'user_created_for_persona',
+            model: $user,
+            newValues: ['usr_usuario' => $login, 'persona_id' => $persona->id]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Usuario ERP creado exitosamente con el estándar institucional.',
+            'credenciales' => [
+                'nombre' => $persona->nombre_completo,
+                'usuario' => $login,
+                'password' => $passwordPlana,
+            ],
+            'user' => $user,
+        ]);
+    }
+
+    /**
+     * Restablecer contraseña de un funcionario según el estándar institucional.
+     */
+    public function resetPasswordErp(Request $request, int $id): JsonResponse
+    {
+        $persona = Persona::findOrFail($id);
+        $user = User::where('usr_externo_id', $persona->id)->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El funcionario no tiene una cuenta de usuario ERP vinculada.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $creds = self::generarCredencialesIniciales($persona);
+        $passwordPlana = $creds['password'];
+
+        $user->update([
+            'password' => Hash::make($passwordPlana),
+            'usr_estado' => 'A',
+        ]);
+
+        $this->auditService->log(
+            event: 'user_password_reset',
+            model: $user,
+            newValues: ['usr_usuario' => $user->usr_usuario]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contraseña restablecida exitosamente al estándar institucional.',
+            'credenciales' => [
+                'nombre' => $persona->nombre_completo,
+                'usuario' => $user->usr_usuario,
+                'password' => $passwordPlana,
+            ],
+        ]);
     }
 }

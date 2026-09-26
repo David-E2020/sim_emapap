@@ -138,22 +138,24 @@ class CorrespondenciaMenuAndPermissionsSeeder extends Seeder
 
         // 4. Permisos Spatie Granulares
         $permisosData = [
-            ['name' => 'correspondencia.dashboard.ver', 'module' => 'Dashboard', 'description' => 'Ver métricas e indicadores de gestión'],
-            ['name' => 'correspondencia.hojas_ruta.ver', 'module' => 'Hojas de Ruta', 'description' => 'Ver bandejas de entrada, salida y archivados'],
-            ['name' => 'correspondencia.hojas_ruta.crear', 'module' => 'Hojas de Ruta', 'description' => 'Generar nuevas hojas de ruta y trámites'],
-            ['name' => 'correspondencia.hojas_ruta.derivar', 'module' => 'Hojas de Ruta', 'description' => 'Derivar expedientes con proveídos oficiales'],
-            ['name' => 'correspondencia.hojas_ruta.recibir', 'module' => 'Hojas de Ruta', 'description' => 'Recepcionar correspondencia en bandeja'],
-            ['name' => 'correspondencia.documentos.ver', 'module' => 'Documentos Oficiales', 'description' => 'Consultar repositorio de documentos'],
-            ['name' => 'correspondencia.documentos.crear', 'module' => 'Documentos Oficiales', 'description' => 'Redactar memorándums, informes y notas internas'],
-            ['name' => 'correspondencia.documentos.firmar', 'module' => 'Documentos Oficiales', 'description' => 'Firmar electrónicamente con PIN oficial'],
-            ['name' => 'correspondencia.seguimiento.ver', 'module' => 'Seguimiento', 'description' => 'Ver timeline y árbol de trazabilidad'],
+            ['name' => 'correspondencia.dashboard.ver', 'module' => 'Dashboard y Métricas', 'description' => 'Ver métricas e indicadores de gestión'],
+            ['name' => 'correspondencia.hojas_ruta.ver', 'module' => 'Bandeja de Hojas de Ruta', 'description' => 'Ver bandejas de entrada, salida y archivados'],
+            ['name' => 'correspondencia.hojas_ruta.crear', 'module' => 'Bandeja de Hojas de Ruta', 'description' => 'Generar nuevas hojas de ruta y trámites'],
+            ['name' => 'correspondencia.hojas_ruta.derivar', 'module' => 'Bandeja de Hojas de Ruta', 'description' => 'Derivar expedientes con proveídos oficiales'],
+            ['name' => 'correspondencia.hojas_ruta.recibir', 'module' => 'Bandeja de Hojas de Ruta', 'description' => 'Recepcionar correspondencia en bandeja'],
+            ['name' => 'correspondencia.documentos.ver', 'module' => 'Redacción de Documentos', 'description' => 'Consultar repositorio de documentos'],
+            ['name' => 'correspondencia.documentos.crear', 'module' => 'Redacción de Documentos', 'description' => 'Redactar memorándums, informes y notas internas'],
+            ['name' => 'correspondencia.documentos.firmar', 'module' => 'Firmas y Aprobaciones', 'description' => 'Firmar electrónicamente con PIN oficial'],
+            ['name' => 'correspondencia.seguimiento.ver', 'module' => 'Seguimiento y Trazabilidad', 'description' => 'Ver timeline y árbol de trazabilidad'],
+            ['name' => 'correspondencia.visor.ver', 'module' => 'Visor de Expediente 360°', 'description' => 'Consultar historial completo, anexos y hojas de ruta 360°'],
             ['name' => 'correspondencia.ventanilla.recibir', 'module' => 'Ventanilla Única', 'description' => 'Registrar cartas externas y emitir comprobantes'],
             ['name' => 'correspondencia.ventanilla.despachar', 'module' => 'Ventanilla Única', 'description' => 'Despachar correspondencia externa'],
-            ['name' => 'correspondencia.despachos.administrar', 'module' => 'Despacho Salida', 'description' => 'Gestionar envíos físicos y acuses de recibo'],
+            ['name' => 'correspondencia.despachos.administrar', 'module' => 'Despacho y Salida Externa', 'description' => 'Gestionar envíos físicos y acuses de recibo'],
             ['name' => 'correspondencia.solicitudes.administrar', 'module' => 'Solicitudes Ciudadanas', 'description' => 'Admitir o rechazar trámites ciudadanos web'],
-            ['name' => 'correspondencia.etiquetas.administrar', 'module' => 'Etiquetas', 'description' => 'Crear y asignar etiquetas personales'],
-            ['name' => 'correspondencia.transferencias.ejecutar', 'module' => 'Transferencias', 'description' => 'Reasignar bandejas y expedientes entre funcionarios'],
-            ['name' => 'correspondencia.configuracion.administrar', 'module' => 'Configuración Correspondencia', 'description' => 'Gestionar plantillas, correlativos y proveídos'],
+            ['name' => 'correspondencia.etiquetas.administrar', 'module' => 'Etiquetas y Carpetas', 'description' => 'Crear y asignar etiquetas personales'],
+            ['name' => 'correspondencia.permisos.administrar', 'module' => 'Matriz de Derivaciones', 'description' => 'Configurar flujos y derivaciones permitidas entre unidades'],
+            ['name' => 'correspondencia.transferencias.ejecutar', 'module' => 'Transferencias de Bandeja', 'description' => 'Reasignar bandejas y expedientes entre funcionarios'],
+            ['name' => 'correspondencia.configuracion.administrar', 'module' => 'Plantillas y Diseñador PDF', 'description' => 'Gestionar plantillas, correlativos y proveídos'],
         ];
 
         foreach ($permisosData as $p) {

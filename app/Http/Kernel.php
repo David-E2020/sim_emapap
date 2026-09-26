@@ -95,5 +95,6 @@ class Kernel extends HttpKernel
         'jwt.auth' => Tymon\JWTAuth\Middleware\Authenticate::class,
         'jwt.refresh' => Tymon\JWTAuth\Middleware\RefreshToken::class,
         'admin.access' => AdminAccessMiddleware::class,
+        'check.permission' => \App\Http\Middleware\CheckPermission::class,
     ];
 }

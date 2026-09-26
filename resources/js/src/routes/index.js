@@ -515,6 +515,14 @@ export const routes = [
     },
   },
   {
+    path: '/error-403',
+    name: 'error-403',
+    component: () => import('@/views/pages/Error403.vue'),
+    meta: {
+      layout: 'blank',
+    },
+  },
+  {
     path: '/error-404',
     name: 'error-404',
     component: () => import('@/views/pages/Error404.vue'),

@@ -193,17 +193,16 @@ class ComercialParametricasSeeder extends Seeder
             );
         }
 
-        // 5. Asignar visibilidad a todos los Roles (incluyendo Administrador)
-        $roles = Rol::all();
+        // 5. Asignar visibilidad por defecto al Rol Administrador General
         $adminRole = Rol::where('guard_name', 'api')->first() ?: Rol::find(1);
-        foreach ($roles as $role) {
+        if ($adminRole) {
             MenuRol::updateOrCreate(
-                ['rol_id' => $role->id, 'menu_id' => $menuComercial->id],
+                ['rol_id' => $adminRole->id, 'menu_id' => $menuComercial->id],
                 ['check' => true]
             );
             foreach ($submenusCreated as $sm) {
                 MenuRol::updateOrCreate(
-                    ['rol_id' => $role->id, 'menu_id' => $sm->id],
+                    ['rol_id' => $adminRole->id, 'menu_id' => $sm->id],
                     ['check' => true]
                 );
             }
@@ -211,14 +210,20 @@ class ComercialParametricasSeeder extends Seeder
 
         // 6. Permisos Spatie Granulares para Comercial
         $permisosData = [
-            ['name' => 'comercial.abonados.ver', 'module' => 'Comercial', 'description' => 'Ver listado y ficha de abonados'],
-            ['name' => 'comercial.abonados.crear', 'module' => 'Comercial', 'description' => 'Registrar y modificar abonados'],
-            ['name' => 'comercial.lecturas.registrar', 'module' => 'Comercial', 'description' => 'Registrar lecturas de medidores y liquidar mes'],
-            ['name' => 'comercial.caja.cobrar', 'module' => 'Comercial', 'description' => 'Cobrar en ventanilla y emitir facturas/recibos'],
-            ['name' => 'comercial.convenios.administrar', 'module' => 'Comercial', 'description' => 'Suscripción y seguimiento de convenios de pago'],
-            ['name' => 'comercial.cortes.administrar', 'module' => 'Comercial', 'description' => 'Gestionar órdenes de corte y reconexión'],
-            ['name' => 'comercial.tarifas.administrar', 'module' => 'Comercial', 'description' => 'Configurar categorías tarifarias y zonas'],
-            ['name' => 'comercial.reportes.ver', 'module' => 'Comercial', 'description' => 'Ver reportes comerciales y recaudaciones'],
+            ['name' => 'comercial.abonados.ver', 'module' => 'Padrón de Abonados', 'description' => 'Ver listado y ficha de abonados'],
+            ['name' => 'comercial.abonados.crear', 'module' => 'Padrón de Abonados', 'description' => 'Registrar y modificar abonados'],
+            ['name' => 'comercial.abonados.georreferenciar', 'module' => 'Padrón de Abonados', 'description' => 'Georreferenciar acometidas y asignar datos catastrales'],
+            ['name' => 'comercial.periodos.administrar', 'module' => 'Ciclo de Períodos', 'description' => 'Aperturar y cerrar períodos mensuales de facturación'],
+            ['name' => 'comercial.lecturas.registrar', 'module' => 'Toma de Lecturas', 'description' => 'Registrar lecturas de medidores y liquidar mes'],
+            ['name' => 'comercial.sesiones_caja.aperturar', 'module' => 'Cierres y Arqueos de Caja', 'description' => 'Aperturar turno de recaudación en caja'],
+            ['name' => 'comercial.sesiones_caja.cerrar', 'module' => 'Cierres y Arqueos de Caja', 'description' => 'Cierre de turno y arqueo ciego de recaudación'],
+            ['name' => 'comercial.sesiones_caja.supervisar', 'module' => 'Cierres y Arqueos de Caja', 'description' => 'Supervisar y auditar cierres de turnos de cajeros'],
+            ['name' => 'comercial.convenios.administrar', 'module' => 'Convenios de Pago', 'description' => 'Suscripción y seguimiento de convenios de pago'],
+            ['name' => 'comercial.cortes.administrar', 'module' => 'Cortes y Reconexiones', 'description' => 'Gestionar órdenes de corte y reconexión'],
+            ['name' => 'comercial.zonas_calles.administrar', 'module' => 'Zonas y Calles', 'description' => 'Gestionar sectores, zonas, rutas de lectura y calles'],
+            ['name' => 'comercial.tarifas.administrar', 'module' => 'Estructura Tarifaria', 'description' => 'Configurar categorías tarifarias y rangos de consumo AAPS'],
+            ['name' => 'comercial.reportes.ver', 'module' => 'Reportes Comerciales', 'description' => 'Ver reportes comerciales, recaudaciones y morosidad'],
+            ['name' => 'comercial.aportes.administrar', 'module' => 'Aportes e Instalaciones', 'description' => 'Gestionar derechos de acometida, inspecciones y materiales'],
         ];
 
         foreach ($permisosData as $p) {

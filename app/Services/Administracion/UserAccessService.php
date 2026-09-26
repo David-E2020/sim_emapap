@@ -39,10 +39,14 @@ class UserAccessService
                 $role = Role::find($roleId);
             }
             if (! $role) {
-                $role = Role::where('guard_name', 'api')->first() ?: Role::first();
+                $role = Role::where('name', 'Operador del Sistema')->first()
+                    ?: Role::where('guard_name', 'api')->where('name', '!=', 'Administrador General')->first()
+                    ?: Role::first();
             }
 
             if ($role) {
+                $user->usr_estado = 'A';
+                $user->save();
                 $user->syncRoles([$role]);
                 RolUser::updateOrCreate(
                     ['usuario_id' => $user->id],
@@ -63,6 +67,7 @@ class UserAccessService
                     'role_id' => $role?->id,
                     'role_name' => $role?->name,
                     'permission' => 'SIGP',
+                    'usr_estado' => 'A',
                 ]
             );
 
@@ -82,20 +87,28 @@ class UserAccessService
             $oldRoles = $user->getRoleNames()->toArray();
             $oldPermissions = $user->getAllPermissions()->pluck('name')->toArray();
 
-            // Revocar roles y permisos Spatie
+            // 1. Revocar roles y permisos Spatie
             $user->syncPermissions([]);
             $user->syncRoles([]);
 
-            // Eliminar relación en tabla pivote interna
+            // 2. Eliminar relación en tabla pivote interna
             RolUser::where('usuario_id', $userId)->delete();
 
-            // Registrar auditoría inmutable
+            // 3. Suspender cuenta en tabla de usuarios ('I' = Inactivo)
+            $user->usr_estado = 'I';
+            $user->save();
+
+            // 4. Registrar auditoría inmutable
             $this->auditService->log(
                 event: 'user_access_revoked',
                 model: $user,
                 oldValues: [
                     'roles' => $oldRoles,
                     'permissions' => $oldPermissions,
+                    'usr_estado' => 'A',
+                ],
+                newValues: [
+                    'usr_estado' => 'I',
                 ]
             );
 
@@ -116,7 +129,10 @@ class UserAccessService
             $oldRolUser = RolUser::where('usuario_id', $userId)->first();
             $oldRoleId = $oldRolUser?->rol_id;
 
-            // 1. Asignar/Sincronizar en Spatie
+            // 1. Asegurar cuenta activa y sincronizar Spatie
+            $user->usr_estado = 'A';
+            $user->save();
+
             $permission = Permission::firstOrCreate(['name' => 'SIGP', 'guard_name' => 'api']);
             $user->givePermissionTo($permission);
             $user->syncRoles([$role]);
@@ -136,7 +152,7 @@ class UserAccessService
                 event: 'user_role_updated',
                 model: $user,
                 oldValues: ['rol_id' => $oldRoleId],
-                newValues: ['rol_id' => $roleId, 'role_name' => $role->name]
+                newValues: ['rol_id' => $roleId, 'role_name' => $role->name, 'usr_estado' => 'A']
             );
 
             return $rolUser;

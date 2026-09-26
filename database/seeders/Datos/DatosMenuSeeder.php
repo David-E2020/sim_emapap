@@ -47,7 +47,7 @@ class DatosMenuSeeder extends Seeder
             [
                 'guard_name' => 'api',
                 'description' => 'Configurar datos de la empresa, credenciales fiscales y parámetros SIAT',
-                'module' => 'DATOS',
+                'module' => 'Configuración Empresa y SIAT',
             ]
         );
 
