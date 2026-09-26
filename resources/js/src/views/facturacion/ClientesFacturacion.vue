@@ -8,8 +8,8 @@
             <v-icon color="white">mdi-account-group-outline</v-icon>
           </v-avatar>
           <div>
-            <h2 class="text-h5 font-weight-bold mb-0">Clientes / Padrón de Facturación</h2>
-            <span class="text-caption text-secondary">Directorio de clientes y validación de estado activo en el padrón del SIN</span>
+            <h2 class="text-h5 font-weight-bold mb-0">Clientes Facturación Libre</h2>
+            <span class="text-caption text-secondary">Directorio de clientes para facturas especiales y validación de estado activo en el padrón del SIN</span>
           </div>
         </div>
 

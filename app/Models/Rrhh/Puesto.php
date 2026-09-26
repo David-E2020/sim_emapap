@@ -36,7 +36,9 @@ class Puesto extends Model
 
     public function asignaciones(): HasMany
     {
-        return $this->hasMany(AsignacionPuesto::class, 'id_puesto', 'id');
+        return $this->hasMany(AsignacionPuesto::class, 'id_puesto', 'id')
+            ->where('_estado', 'ACTIVO')
+            ->whereNull('fecha_fin');
     }
 
     public function asignacionesActivas(): HasMany

@@ -71,28 +71,53 @@
 
           <v-col cols="12" md="7">
             <v-card rounded="lg" class="erp-card-elevated pa-4" v-if="unidadSeleccionada">
-              <div class="d-flex align-center justify-space-between mb-2">
+              <div class="d-flex align-center justify-space-between flex-wrap mb-2">
                 <div>
-                  <h3 class="text-h6 font-weight-bold mb-0 text-primary">{{ unidadSeleccionada.nombre }}</h3>
-                  <span class="text-caption text-secondary">Sigla: {{ unidadSeleccionada.sigla || 'N/A' }} | Nivel: {{ unidadSeleccionada.nivel || 1 }}</span>
+                  <div class="d-flex align-center flex-wrap">
+                    <h3 class="text-h6 font-weight-bold mb-0 text-primary mr-2">{{ unidadSeleccionada.nombre }}</h3>
+                    <v-chip small v-if="unidadSeleccionada.sigla" label color="primary" class="font-weight-bold text-white mr-2">
+                      {{ unidadSeleccionada.sigla }}
+                    </v-chip>
+                    <v-chip x-small color="grey lighten-3" class="text-caption">
+                      {{ (unidadSeleccionada.puestos || []).length }} Puestos
+                    </v-chip>
+                  </div>
+                  <span class="text-caption text-secondary">
+                    Depende de: <strong>{{ obtenerNombrePadre(unidadSeleccionada.padreId) }}</strong>
+                  </span>
                 </div>
-                <v-chip small color="primary" outlined>
-                  {{ (unidadSeleccionada.puestos || []).length }} Puestos Registrados
-                </v-chip>
+
+                <div class="d-flex align-center gap-1 my-1">
+                  <v-btn small outlined color="primary" class="rounded-pill mr-1 text-capitalize" @click="editarUnidad(unidadSeleccionada)">
+                    <v-icon left x-small>mdi-pencil</v-icon> Editar
+                  </v-btn>
+                  <v-btn small outlined color="error" class="rounded-pill mr-1 text-capitalize" @click="confirmarEliminarUnidad(unidadSeleccionada)">
+                    <v-icon left x-small>mdi-delete</v-icon> Eliminar
+                  </v-btn>
+                  <v-btn small color="primary" class="rounded-pill text-capitalize font-weight-bold" @click="crearSubunidad(unidadSeleccionada)">
+                    <v-icon left x-small>mdi-plus</v-icon> + Subunidad
+                  </v-btn>
+                </div>
               </div>
               <v-divider class="my-3"></v-divider>
 
-              <h4 class="text-subtitle-2 font-weight-bold mb-3 d-flex align-center">
-                <v-icon small class="mr-1 text-primary">mdi-account-tie</v-icon> Puestos de Trabajo e Ítems
-              </h4>
+              <div class="d-flex align-center justify-space-between mb-3 flex-wrap">
+                <h4 class="text-subtitle-2 font-weight-bold mb-0 d-flex align-center">
+                  <v-icon small class="mr-1 text-primary">mdi-account-tie</v-icon> Puestos de Trabajo e Ítems
+                </h4>
+                <v-btn small outlined color="primary" class="rounded-pill text-capitalize my-1" @click="abrirModalPuesto(unidadSeleccionada.id)">
+                  <v-icon left x-small>mdi-briefcase-plus</v-icon> + Nuevo Puesto en esta Unidad
+                </v-btn>
+              </div>
 
               <v-simple-table dense class="erp-table">
                 <thead>
                   <tr>
-                    <th>Puesto</th>
+                    <th>Puesto / Cargo</th>
                     <th>Tipo</th>
                     <th>Funcionario Asignado</th>
                     <th>Ítem</th>
+                    <th class="text-center" style="width: 120px;">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -101,12 +126,20 @@
                     <td><v-chip x-small label color="blue lighten-5" text-color="primary">{{ p.tipo_puesto }}</v-chip></td>
                     <td>
                       <div v-if="p.asignaciones && p.asignaciones.length > 0 && p.asignaciones[0].persona" class="d-flex align-center">
-                        <v-avatar size="24" color="primary" class="white--text mr-2 text-caption">
-                          {{ p.asignaciones[0].persona.nombres.charAt(0) }}
+                        <v-avatar size="24" color="primary" class="white--text mr-2 text-caption font-weight-bold">
+                          {{ (p.asignaciones[0].persona.nombres || 'F').charAt(0) }}
                         </v-avatar>
-                        <span class="text-caption font-weight-bold">{{ p.asignaciones[0].persona.nombre_completo }}</span>
+                        <span class="text-caption font-weight-bold mr-2">{{ p.asignaciones[0].persona.nombres }} {{ p.asignaciones[0].persona.primer_apellido || '' }}</span>
+                        <v-btn icon x-small color="error" title="Desasignar funcionario" @click="confirmarDesasignar(p, p.asignaciones[0])">
+                          <v-icon x-small>mdi-account-minus</v-icon>
+                        </v-btn>
                       </div>
-                      <v-chip x-small color="grey lighten-3" text-color="grey" v-else>VACANTE</v-chip>
+                      <div v-else class="d-flex align-center">
+                        <v-chip x-small color="grey lighten-3" text-color="grey" class="mr-1">VACANTE</v-chip>
+                        <v-btn text x-small color="primary" class="px-1 text-capitalize font-weight-bold" @click="abrirModalAsignar(p)">
+                          <v-icon x-small left>mdi-account-plus</v-icon> Asignar
+                        </v-btn>
+                      </div>
                     </td>
                     <td>
                       <span v-if="p.asignaciones && p.asignaciones.length > 0" class="text-caption font-weight-bold">
@@ -114,9 +147,17 @@
                       </span>
                       <span v-else class="text-caption text-secondary">-</span>
                     </td>
+                    <td class="text-center">
+                      <v-btn icon small color="primary" title="Editar puesto" @click="editarPuesto(p)">
+                        <v-icon small>mdi-pencil</v-icon>
+                      </v-btn>
+                      <v-btn icon small color="error" title="Eliminar puesto" @click="confirmarEliminarPuesto(p)">
+                        <v-icon small>mdi-delete</v-icon>
+                      </v-btn>
+                    </td>
                   </tr>
                   <tr v-if="!unidadSeleccionada.puestos || unidadSeleccionada.puestos.length === 0">
-                    <td colspan="4" class="text-center text-caption py-4 text-secondary">
+                    <td colspan="5" class="text-center text-caption py-4 text-secondary">
                       No hay puestos registrados en esta unidad. Presiona "+ Nuevo Puesto".
                     </td>
                   </tr>
@@ -125,7 +166,7 @@
             </v-card>
             <v-card v-else rounded="lg" class="erp-card-elevated pa-6 text-center">
               <v-icon size="48" color="grey lighten-1">mdi-cursor-default-click-outline</v-icon>
-              <p class="text-caption text-secondary mt-2">Selecciona una unidad en el árbol de la izquierda para ver sus puestos.</p>
+              <p class="text-caption text-secondary mt-2">Selecciona una unidad en el árbol de la izquierda para ver y gestionar sus puestos.</p>
             </v-card>
           </v-col>
         </v-row>
@@ -208,36 +249,123 @@
       </v-tab-item>
     </v-tabs-items>
 
-    <!-- DIALOG NUEVA UNIDAD -->
+    <!-- DIALOG UNIDAD (CREAR / EDITAR) -->
     <v-dialog v-model="dialogUnidad" max-width="500px" persistent>
       <v-card rounded="lg">
-        <v-card-title class="font-weight-bold text-h6 primary white--text py-3">Nueva Unidad Organizacional</v-card-title>
+        <v-card-title class="font-weight-bold text-h6 primary white--text py-3">
+          <v-icon left color="white">{{ esModoEdicionUnidad ? 'mdi-pencil' : 'mdi-domain-plus' }}</v-icon>
+          {{ esModoEdicionUnidad ? 'Editar Unidad Organizacional' : 'Nueva Unidad Organizacional' }}
+        </v-card-title>
         <v-card-text class="pt-4">
-          <v-text-field v-model="formUnidad.nombre" label="Nombre de Unidad *" dense outlined class="mb-2"></v-text-field>
-          <v-text-field v-model="formUnidad.sigla" label="Sigla (Ej: DGAF)" dense outlined class="mb-2"></v-text-field>
-          <v-select v-model="formUnidad.padreId" :items="unidadesPlanas" item-text="nombre" item-value="id" label="Depende de (Unidad Padre)" dense outlined clearable></v-select>
+          <v-text-field v-model="formUnidad.nombre" label="Nombre de Unidad *" dense outlined class="mb-2" autofocus></v-text-field>
+          <v-text-field v-model="formUnidad.sigla" label="Sigla (Ej: DAF)" dense outlined class="mb-2"></v-text-field>
+          <v-select
+            v-model="formUnidad.padreId"
+            :items="unidadesPlanasParaPadre"
+            item-text="nombre"
+            item-value="id"
+            label="Depende de (Unidad Padre)"
+            dense
+            outlined
+            clearable
+            hint="Dejar vacío si es la unidad raíz (MAE)"
+            persistent-hint
+          ></v-select>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer></v-spacer>
           <v-btn text @click="dialogUnidad = false">Cancelar</v-btn>
-          <v-btn color="primary" @click="guardarUnidad()">Guardar</v-btn>
+          <v-btn color="primary" class="font-weight-bold" :loading="guardandoUnidad" @click="guardarUnidad()">
+            {{ esModoEdicionUnidad ? 'Actualizar Unidad' : 'Guardar' }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- DIALOG NUEVO PUESTO -->
+    <!-- DIALOG PUESTO (CREAR / EDITAR) -->
     <v-dialog v-model="dialogPuesto" max-width="500px" persistent>
       <v-card rounded="lg">
-        <v-card-title class="font-weight-bold text-h6 primary white--text py-3">Nuevo Puesto de Trabajo</v-card-title>
+        <v-card-title class="font-weight-bold text-h6 primary white--text py-3">
+          <v-icon left color="white">{{ esModoEdicionPuesto ? 'mdi-pencil' : 'mdi-briefcase-plus' }}</v-icon>
+          {{ esModoEdicionPuesto ? 'Editar Puesto de Trabajo' : 'Nuevo Puesto de Trabajo' }}
+        </v-card-title>
         <v-card-text class="pt-4">
-          <v-text-field v-model="formPuesto.nombre" label="Nombre del Puesto / Cargo *" dense outlined class="mb-2"></v-text-field>
+          <v-text-field v-model="formPuesto.nombre" label="Nombre del Puesto / Cargo *" dense outlined class="mb-2" autofocus></v-text-field>
           <v-select v-model="formPuesto.id_unidad_organizacional" :items="unidadesPlanas" item-text="nombre" item-value="id" label="Unidad Organizacional *" dense outlined class="mb-2"></v-select>
-          <v-select v-model="formPuesto.tipo_puesto" :items="['PLANTA', 'EVENTUAL', 'CONSULTOR']" label="Tipo de Contrato *" dense outlined></v-select>
+          <v-select v-model="formPuesto.tipo_puesto" :items="['PLANTA', 'EVENTUAL', 'CONSULTOR']" label="Tipo de Contrato *" dense outlined class="mb-2"></v-select>
+          <v-select
+            v-model="formPuesto.id_escala_salarial"
+            :items="escalasSalariales"
+            item-text="nombre"
+            item-value="id"
+            label="Escala Salarial (Opcional)"
+            dense
+            outlined
+            clearable
+          ></v-select>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer></v-spacer>
           <v-btn text @click="dialogPuesto = false">Cancelar</v-btn>
-          <v-btn color="primary" @click="guardarPuesto()">Crear Puesto</v-btn>
+          <v-btn color="primary" class="font-weight-bold" :loading="guardandoPuesto" @click="guardarPuesto()">
+            {{ esModoEdicionPuesto ? 'Actualizar Puesto' : 'Crear Puesto' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIALOG ASIGNAR FUNCIONARIO A PUESTO -->
+    <v-dialog v-model="dialogAsignar" max-width="500px" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="font-weight-bold text-h6 primary white--text py-3">
+          <v-icon left color="white">mdi-account-plus</v-icon>
+          Asignar Funcionario a Puesto
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <div class="mb-3" v-if="puestoSeleccionadoParaAsignar">
+            <span class="text-caption text-secondary">Cargo:</span>
+            <div class="font-weight-bold text-primary">{{ puestoSeleccionadoParaAsignar.nombre }}</div>
+          </div>
+          <v-autocomplete
+            v-model="formAsignar.id_persona"
+            :items="listaPersonal"
+            :item-text="item => item.nombre_completo || (item.nombres + ' ' + (item.primer_apellido || ''))"
+            item-value="id"
+            label="Seleccionar Funcionario *"
+            dense
+            outlined
+            class="mb-2"
+            no-data-text="No hay personal registrado o disponible"
+          ></v-autocomplete>
+          <v-text-field v-model="formAsignar.nro_item" label="Número de Ítem *" type="number" dense outlined class="mb-2"></v-text-field>
+          <v-text-field v-model="formAsignar.fecha_inicio" label="Fecha de Inicio *" type="date" dense outlined></v-text-field>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn text @click="dialogAsignar = false">Cancelar</v-btn>
+          <v-btn color="primary" class="font-weight-bold" :loading="guardandoAsignacion" @click="guardarAsignacion()">
+            Confirmar Asignación
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- DIALOG CONFIRMAR ACCIÓN (ELIMINAR) -->
+    <v-dialog v-model="dialogConfirmar" max-width="450px" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="error white--text py-3 font-weight-bold">
+          <v-icon left color="white">mdi-alert-circle-outline</v-icon>
+          {{ confirmarTitulo }}
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <p class="mb-0 text-body-1">{{ confirmarMensaje }}</p>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn text @click="dialogConfirmar = false">Cancelar</v-btn>
+          <v-btn color="error" class="font-weight-bold" :loading="ejecutandoAccionConfirmada" @click="ejecutarAccionConfirmada()">
+            Sí, Eliminar
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -318,11 +446,38 @@ export default {
       regionales: [],
       gestiones: [],
 
+      // Modal Unidad
       dialogUnidad: false,
+      esModoEdicionUnidad: false,
+      idUnidadEditar: null,
+      guardandoUnidad: false,
       formUnidad: { nombre: '', sigla: '', padreId: null },
 
+      // Modal Puesto
       dialogPuesto: false,
-      formPuesto: { nombre: '', tipo_puesto: 'PLANTA', id_unidad_organizacional: null },
+      esModoEdicionPuesto: false,
+      idPuestoEditar: null,
+      guardandoPuesto: false,
+      formPuesto: { nombre: '', tipo_puesto: 'PLANTA', id_unidad_organizacional: null, id_escala_salarial: null },
+
+      // Modal Asignar Funcionario
+      dialogAsignar: false,
+      puestoSeleccionadoParaAsignar: null,
+      guardandoAsignacion: false,
+      listaPersonal: [],
+      formAsignar: {
+        id_puesto: null,
+        id_persona: null,
+        nro_item: 1,
+        fecha_inicio: new Date().toISOString().substring(0, 10),
+      },
+
+      // Modal Confirmar
+      dialogConfirmar: false,
+      confirmarTitulo: '',
+      confirmarMensaje: '',
+      ejecutandoAccionConfirmada: false,
+      accionConfirmadaCallback: null,
 
       dialogEscala: false,
       formEscala: { nombre: '', salario_mensual: '' },
@@ -336,11 +491,20 @@ export default {
       snackbar: { status: false, text: '', color: 'success' },
     };
   },
+  computed: {
+    unidadesPlanasParaPadre() {
+      if (!this.esModoEdicionUnidad || !this.idUnidadEditar) {
+        return this.unidadesPlanas;
+      }
+      return this.unidadesPlanas.filter(u => u.id !== this.idUnidadEditar);
+    },
+  },
   mounted() {
     this.cargarOrganigrama();
     this.cargarEscalas();
     this.cargarRegionales();
     this.cargarGestiones();
+    this.cargarPersonal();
   },
   methods: {
     cargarOrganigrama() {
@@ -349,8 +513,15 @@ export default {
           this.unidades = res.data.data || [];
           this.unidadesPlanas = [];
           this.aplanarUnidades(this.unidades);
-          if (this.unidades.length > 0 && !this.unidadSeleccionada) {
-            this.unidadSeleccionada = this.unidades[0];
+          if (this.unidades.length > 0) {
+            if (this.unidadSeleccionada) {
+              const encontrada = this.buscarUnidadPorId(this.unidades, this.unidadSeleccionada.id);
+              this.unidadSeleccionada = encontrada || this.unidades[0];
+            } else {
+              this.unidadSeleccionada = this.unidades[0];
+            }
+          } else {
+            this.unidadSeleccionada = null;
           }
         }
       });
@@ -374,6 +545,14 @@ export default {
       });
     },
 
+    cargarPersonal() {
+      axios.get('/api/rrhh/personal?per_page=150').then(res => {
+        if (res.data?.data) {
+          this.listaPersonal = res.data.data.data || res.data.data || [];
+        }
+      }).catch(() => {});
+    },
+
     aplanarUnidades(lista) {
       lista.forEach(u => {
         this.unidadesPlanas.push({ id: u.id, nombre: u.nombre });
@@ -383,54 +562,218 @@ export default {
       });
     },
 
+    buscarUnidadPorId(lista, id) {
+      for (const u of lista) {
+        if (u.id === id) return u;
+        if (u.dependencias && u.dependencias.length > 0) {
+          const encontrada = this.buscarUnidadPorId(u.dependencias, id);
+          if (encontrada) return encontrada;
+        }
+      }
+      return null;
+    },
+
+    obtenerNombrePadre(padreId) {
+      if (!padreId) return 'Ninguno (Máxima Autoridad - MAE)';
+      const padre = this.unidadesPlanas.find(u => u.id === padreId);
+      return padre ? padre.nombre : `Unidad #${padreId}`;
+    },
+
     onSelectUnidad(activeKeys) {
       if (!activeKeys || activeKeys.length === 0) return;
       const id = activeKeys[0];
-      const buscar = (lista) => {
-        for (const u of lista) {
-          if (u.id === id) return u;
-          if (u.dependencias) {
-            const found = buscar(u.dependencias);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-      this.unidadSeleccionada = buscar(this.unidades);
+      this.unidadSeleccionada = this.buscarUnidadPorId(this.unidades, id);
     },
 
+    // ================= UNIDADES CRUD =================
     abrirModalUnidad() {
-      this.formUnidad = { nombre: '', sigla: '', padreId: this.unidadSeleccionada ? this.unidadSeleccionada.id : null };
+      this.esModoEdicionUnidad = false;
+      this.idUnidadEditar = null;
+      this.formUnidad = {
+        nombre: '',
+        sigla: '',
+        padreId: this.unidadSeleccionada ? this.unidadSeleccionada.id : null,
+      };
+      this.dialogUnidad = true;
+    },
+
+    editarUnidad(unidad) {
+      this.esModoEdicionUnidad = true;
+      this.idUnidadEditar = unidad.id;
+      this.formUnidad = {
+        nombre: unidad.nombre,
+        sigla: unidad.sigla || '',
+        padreId: unidad.padreId || null,
+      };
+      this.dialogUnidad = true;
+    },
+
+    crearSubunidad(unidad) {
+      this.esModoEdicionUnidad = false;
+      this.idUnidadEditar = null;
+      this.formUnidad = {
+        nombre: '',
+        sigla: '',
+        padreId: unidad.id,
+      };
       this.dialogUnidad = true;
     },
 
     guardarUnidad() {
-      if (!this.formUnidad.nombre) return;
-      axios.post('/api/rrhh/unidades-organizacionales', this.formUnidad).then(res => {
+      if (!this.formUnidad.nombre) {
+        this.showSnackbar('El nombre de la unidad es requerido.', 'error');
+        return;
+      }
+      this.guardandoUnidad = true;
+
+      const peticion = this.esModoEdicionUnidad
+        ? axios.put(`/api/rrhh/unidades-organizacionales/${this.idUnidadEditar}`, this.formUnidad)
+        : axios.post('/api/rrhh/unidades-organizacionales', this.formUnidad);
+
+      peticion.then(res => {
         this.dialogUnidad = false;
-        this.showSnackbar(res.data.message || 'Unidad creada', 'success');
+        this.showSnackbar(res.data.message || 'Unidad guardada correctamente', 'success');
         this.cargarOrganigrama();
+      }).catch(err => {
+        this.showSnackbar(err.response?.data?.message || 'Error al guardar unidad', 'error');
+      }).finally(() => {
+        this.guardandoUnidad = false;
       });
     },
 
-    abrirModalPuesto() {
+    confirmarEliminarUnidad(unidad) {
+      this.confirmarTitulo = 'Eliminar Unidad Organizacional';
+      this.confirmarMensaje = `¿Está seguro de que desea eliminar la unidad "${unidad.nombre}"?`;
+      this.accionConfirmadaCallback = () => {
+        return axios.delete(`/api/rrhh/unidades-organizacionales/${unidad.id}`).then(res => {
+          this.showSnackbar(res.data.message || 'Unidad eliminada', 'success');
+          this.unidadSeleccionada = null;
+          this.cargarOrganigrama();
+        });
+      };
+      this.dialogConfirmar = true;
+    },
+
+    // ================= PUESTOS CRUD =================
+    abrirModalPuesto(unidadId = null) {
+      this.esModoEdicionPuesto = false;
+      this.idPuestoEditar = null;
       this.formPuesto = {
         nombre: '',
         tipo_puesto: 'PLANTA',
-        id_unidad_organizacional: this.unidadSeleccionada ? this.unidadSeleccionada.id : null,
+        id_unidad_organizacional: unidadId || (this.unidadSeleccionada ? this.unidadSeleccionada.id : null),
+        id_escala_salarial: null,
+      };
+      this.dialogPuesto = true;
+    },
+
+    editarPuesto(puesto) {
+      this.esModoEdicionPuesto = true;
+      this.idPuestoEditar = puesto.id;
+      this.formPuesto = {
+        nombre: puesto.nombre,
+        tipo_puesto: puesto.tipo_puesto || 'PLANTA',
+        id_unidad_organizacional: puesto.id_unidad_organizacional,
+        id_escala_salarial: puesto.id_escala_salarial || null,
       };
       this.dialogPuesto = true;
     },
 
     guardarPuesto() {
-      if (!this.formPuesto.nombre || !this.formPuesto.id_unidad_organizacional) return;
-      axios.post('/api/rrhh/puestos', this.formPuesto).then(res => {
+      if (!this.formPuesto.nombre || !this.formPuesto.id_unidad_organizacional) {
+        this.showSnackbar('El nombre y la unidad son obligatorios.', 'error');
+        return;
+      }
+      this.guardandoPuesto = true;
+
+      const peticion = this.esModoEdicionPuesto
+        ? axios.put(`/api/rrhh/puestos/${this.idPuestoEditar}`, this.formPuesto)
+        : axios.post('/api/rrhh/puestos', this.formPuesto);
+
+      peticion.then(res => {
         this.dialogPuesto = false;
-        this.showSnackbar(res.data.message || 'Puesto creado', 'success');
+        this.showSnackbar(res.data.message || 'Puesto guardado', 'success');
         this.cargarOrganigrama();
+      }).catch(err => {
+        this.showSnackbar(err.response?.data?.message || 'Error al guardar puesto', 'error');
+      }).finally(() => {
+        this.guardandoPuesto = false;
       });
     },
 
+    confirmarEliminarPuesto(puesto) {
+      this.confirmarTitulo = 'Eliminar Puesto de Trabajo';
+      this.confirmarMensaje = `¿Está seguro de que desea eliminar el puesto "${puesto.nombre}"?`;
+      this.accionConfirmadaCallback = () => {
+        return axios.delete(`/api/rrhh/puestos/${puesto.id}`).then(res => {
+          this.showSnackbar(res.data.message || 'Puesto eliminado', 'success');
+          this.cargarOrganigrama();
+        });
+      };
+      this.dialogConfirmar = true;
+    },
+
+    // ================= ASIGNACIÓN DE FUNCIONARIOS =================
+    abrirModalAsignar(puesto) {
+      this.puestoSeleccionadoParaAsignar = puesto;
+      this.formAsignar = {
+        id_puesto: puesto.id,
+        id_persona: null,
+        nro_item: (puesto.asignaciones && puesto.asignaciones.length > 0) ? puesto.asignaciones[0].nro_item : 1,
+        fecha_inicio: new Date().toISOString().substring(0, 10),
+      };
+      if (this.listaPersonal.length === 0) {
+        this.cargarPersonal();
+      }
+      this.dialogAsignar = true;
+    },
+
+    guardarAsignacion() {
+      if (!this.formAsignar.id_persona) {
+        this.showSnackbar('Debe seleccionar un funcionario.', 'error');
+        return;
+      }
+      this.guardandoAsignacion = true;
+      axios.post('/api/rrhh/asignar-puesto', this.formAsignar).then(res => {
+        this.dialogAsignar = false;
+        this.showSnackbar(res.data.message || 'Funcionario asignado exitosamente.', 'success');
+        this.cargarOrganigrama();
+      }).catch(err => {
+        this.showSnackbar(err.response?.data?.message || 'Error al asignar funcionario', 'error');
+      }).finally(() => {
+        this.guardandoAsignacion = false;
+      });
+    },
+
+    confirmarDesasignar(puesto, asignacion) {
+      this.confirmarTitulo = 'Desasignar Funcionario';
+      this.confirmarMensaje = `¿Desea desasignar al funcionario del puesto "${puesto.nombre}"? El cargo pasará a estado VACANTE.`;
+      this.accionConfirmadaCallback = () => {
+        return axios.delete(`/api/rrhh/asignaciones-puestos/${asignacion.id}`).then(res => {
+          this.showSnackbar(res.data.message || 'Funcionario desasignado.', 'success');
+          this.cargarOrganigrama();
+        });
+      };
+      this.dialogConfirmar = true;
+    },
+
+    // ================= EJECUTAR ACCIÓN CONFIRMADA =================
+    ejecutarAccionConfirmada() {
+      if (!this.accionConfirmadaCallback) {
+        this.dialogConfirmar = false;
+        return;
+      }
+      this.ejecutandoAccionConfirmada = true;
+      this.accionConfirmadaCallback().then(() => {
+        this.dialogConfirmar = false;
+      }).catch(err => {
+        this.showSnackbar(err.response?.data?.message || 'Error al ejecutar la acción', 'error');
+      }).finally(() => {
+        this.ejecutandoAccionConfirmada = false;
+      });
+    },
+
+    // ================= OTROS CATÁLOGOS =================
     guardarEscala() {
       if (!this.formEscala.nombre || !this.formEscala.salario_mensual) return;
       axios.post('/api/rrhh/escalas-salariales', this.formEscala).then(res => {

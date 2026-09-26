@@ -28,6 +28,7 @@ class ConfiguracionEmpresa extends Model
         'token_delegado',
         'certificado_p12_path',
         'password_p12',
+        'endpoints_personalizados',
         '_estado',
         '_transaccion',
         '_usuario_creacion',
@@ -39,6 +40,7 @@ class ConfiguracionEmpresa extends Model
     protected $casts = [
         'codigo_ambiente' => 'integer',
         'codigo_modalidad' => 'integer',
+        'endpoints_personalizados' => 'array',
     ];
 
     /**
@@ -79,5 +81,23 @@ class ConfiguracionEmpresa extends Model
             '_estado' => 'ACTIVO',
             '_usuario_creacion' => 1,
         ]);
+    }
+
+    /**
+     * Retorna el mapa completo de URLs WSDL activas para el ambiente especificado,
+     * fusionando las oficiales por defecto con cualquier personalización guardada.
+     */
+    public function getWsdlEndpoints(?int $ambiente = null): array
+    {
+        $amb = $ambiente ?? (int) $this->codigo_ambiente;
+        $tipo = ($amb === 1) ? 'produccion' : 'piloto';
+        $defaults = config("siat.wsdl.{$tipo}", []);
+
+        $custom = $this->endpoints_personalizados ?? [];
+        if (isset($custom[$tipo]) && is_array($custom[$tipo])) {
+            return array_merge($defaults, array_filter($custom[$tipo]));
+        }
+
+        return $defaults;
     }
 }

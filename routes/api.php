@@ -120,8 +120,15 @@ Route::group(['middleware' => ['jwt.auth']], function () {
 
     Route::get('rrhh/organigrama', [EstructuraOrganizacionalController::class, 'organigrama']);
     Route::post('rrhh/unidades-organizacionales', [EstructuraOrganizacionalController::class, 'storeUnidad']);
+    Route::put('rrhh/unidades-organizacionales/{id}', [EstructuraOrganizacionalController::class, 'updateUnidad']);
+    Route::delete('rrhh/unidades-organizacionales/{id}', [EstructuraOrganizacionalController::class, 'destroyUnidad']);
+
     Route::post('rrhh/puestos', [EstructuraOrganizacionalController::class, 'storePuesto']);
+    Route::put('rrhh/puestos/{id}', [EstructuraOrganizacionalController::class, 'updatePuesto']);
+    Route::delete('rrhh/puestos/{id}', [EstructuraOrganizacionalController::class, 'destroyPuesto']);
+
     Route::post('rrhh/asignar-puesto', [EstructuraOrganizacionalController::class, 'asignarPuesto']);
+    Route::delete('rrhh/asignaciones-puestos/{id}', [EstructuraOrganizacionalController::class, 'desasignarPuesto']);
     Route::get('rrhh/escalas-salariales', [EstructuraOrganizacionalController::class, 'listarEscalasSalariales']);
     Route::post('rrhh/escalas-salariales', [EstructuraOrganizacionalController::class, 'storeEscalaSalarial']);
     Route::get('rrhh/regionales', [EstructuraOrganizacionalController::class, 'listarRegionales']);
@@ -201,6 +208,7 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     Route::get('datos/empresa', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'obtener']);
     Route::post('datos/empresa', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'guardar']);
     Route::post('datos/empresa/probar-conexion', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'probarConexion']);
+    Route::post('datos/empresa/restablecer-endpoints', [\App\Http\Controllers\Datos\ConfiguracionEmpresaController::class, 'restablecerEndpoints']);
 
     // Migrador y Comparador de Respaldos FoxPro (Módulo Datos)
     Route::get('datos/migracion/rutas-predefinidas', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'rutasPredefinidas']);

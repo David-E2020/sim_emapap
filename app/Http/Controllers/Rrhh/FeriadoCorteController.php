@@ -50,7 +50,7 @@ class FeriadoCorteController extends Controller
             'mes' => 'required|integer|min:1|max:12',
             'anio' => 'required|integer',
             'es_feriado_nacional' => 'nullable|boolean',
-            'id_departamento' => 'nullable|integer|exists:rrhh.departamentos,id',
+            'id_departamento' => 'nullable|integer|exists:pgsql.rrhh.departamentos,id',
         ]);
 
         if ($validator->fails()) {

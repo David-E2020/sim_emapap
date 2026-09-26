@@ -89,6 +89,10 @@
           <v-icon left small>mdi-certificate-outline</v-icon>
           Firma Digital ADSIB (.p12)
         </v-tab>
+        <v-tab class="text-capitalize font-weight-bold">
+          <v-icon left small>mdi-web-sync</v-icon>
+          Enlaces WSDL / SIAT
+        </v-tab>
       </v-tabs>
 
       <v-divider></v-divider>
@@ -424,6 +428,85 @@
                 </v-col>
               </v-row>
             </v-tab-item>
+
+            <!-- TAB 4: ENLACES Y SERVICIOS WEB WSDL (SIAT) -->
+            <v-tab-item>
+              <v-alert
+                border="left"
+                colored-border
+                color="indigo"
+                elevation="1"
+                class="mb-4"
+                dense
+              >
+                <div class="d-flex align-center justify-space-between flex-wrap">
+                  <div class="text-body-2 mr-3 mb-2 mb-sm-0">
+                    <strong>Gestión Inteligente de Enlaces SIAT v2:</strong>
+                    Al cambiar entre <strong>Piloto</strong> y <strong>Producción</strong>, el sistema actualiza automáticamente
+                    todas las URLs oficiales del SIN. Si necesitas redirigir un servicio a un proxy local o versión específica,
+                    puedes editar la URL en la tabla y guardarla.
+                  </div>
+                  <v-btn
+                    small
+                    color="indigo darken-1"
+                    outlined
+                    class="text-capitalize"
+                    :loading="restableciendoEndpoints"
+                    @click="restablecerEndpointsOficiales"
+                  >
+                    <v-icon left small>mdi-restore</v-icon>
+                    Restablecer Enlaces Oficiales SIN
+                  </v-btn>
+                </div>
+              </v-alert>
+
+              <v-card outlined rounded="lg" class="overflow-hidden mb-4">
+                <v-simple-table dense>
+                  <template v-slot:default>
+                    <thead>
+                      <tr class="bg-light">
+                        <th class="text-left font-weight-bold" style="width: 25%;">Servicio Web SIN</th>
+                        <th class="text-left font-weight-bold" style="width: 15%;">Identificador</th>
+                        <th class="text-left font-weight-bold" style="width: 48%;">URL del Servicio WSDL / Portal</th>
+                        <th class="text-center font-weight-bold" style="width: 12%;">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="ep in listaEndpoints" :key="ep.clave">
+                        <td class="py-2">
+                          <div class="font-weight-bold text-subtitle-2">{{ ep.nombre }}</div>
+                          <div class="text-caption text-secondary">{{ ep.descripcion }}</div>
+                        </td>
+                        <td>
+                          <code class="text-caption font-weight-bold">{{ ep.clave }}</code>
+                        </td>
+                        <td class="py-2">
+                          <v-text-field
+                            v-model="endpointsEditados[ep.clave]"
+                            dense
+                            outlined
+                            hide-details
+                            class="text-caption"
+                            append-icon="mdi-content-copy"
+                            @click:append="copiarAlPortapapeles(endpointsEditados[ep.clave])"
+                          ></v-text-field>
+                        </td>
+                        <td class="text-center">
+                          <v-chip
+                            x-small
+                            :color="esEndpointModificado(ep.clave) ? 'amber darken-2' : 'success'"
+                            text-color="white"
+                            class="font-weight-bold"
+                          >
+                            {{ esEndpointModificado(ep.clave) ? 'PERSONALIZADA' : 'OFICIAL' }}
+                          </v-chip>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+              </v-card>
+            </v-tab-item>
           </v-tabs-items>
 
           <v-divider class="my-5"></v-divider>
@@ -586,6 +669,10 @@ export default {
       archivoLogo: null,
       archivoCertificado: null,
       logoPreviewUrl: null,
+      restableciendoEndpoints: false,
+      listaEndpoints: [],
+      endpointsEditados: {},
+      endpointsPersonalizadosGuardados: {},
       form: {
         id: null,
         razon_social: '',
@@ -611,6 +698,12 @@ export default {
         icon: 'mdi-check-circle-outline',
       },
     };
+  },
+
+  watch: {
+    'form.codigo_ambiente'(nuevoAmbiente) {
+      this.actualizarEndpointsSegunAmbiente(nuevoAmbiente);
+    },
   },
 
   mounted() {
@@ -644,6 +737,9 @@ export default {
               tiene_password: !!data.tiene_password,
               logo_url: data.logo_url || null,
             };
+            this.listaEndpoints = data.catalogo_endpoints || [];
+            this.endpointsPersonalizadosGuardados = data.endpoints_personalizados || {};
+            this.actualizarEndpointsSegunAmbiente(this.form.codigo_ambiente, data.endpoints_personalizados);
           }
         })
         .catch(error => {
@@ -655,6 +751,54 @@ export default {
         })
         .finally(() => {
           this.loading = false;
+        });
+    },
+
+    actualizarEndpointsSegunAmbiente(nuevoAmbiente, personalizados = null) {
+      const ambTipo = nuevoAmbiente === 1 ? 'produccion' : 'piloto';
+      const overrides = personalizados || this.endpointsPersonalizadosGuardados || {};
+      const ambOverrides = overrides[ambTipo] || {};
+
+      const nuevosEditados = {};
+      (this.listaEndpoints || []).forEach(ep => {
+        const urlOficial = nuevoAmbiente === 1 ? ep.url_produccion : ep.url_piloto;
+        nuevosEditados[ep.clave] = ambOverrides[ep.clave] || urlOficial;
+      });
+      this.endpointsEditados = nuevosEditados;
+    },
+
+    esEndpointModificado(clave) {
+      const ep = (this.listaEndpoints || []).find(e => e.clave === clave);
+      if (!ep) return false;
+      const urlOficial = this.form.codigo_ambiente === 1 ? ep.url_produccion : ep.url_piloto;
+      return this.endpointsEditados[clave] && this.endpointsEditados[clave] !== urlOficial;
+    },
+
+    async restablecerEndpointsOficiales() {
+      this.restableciendoEndpoints = true;
+      try {
+        const res = await axios.post('api/datos/empresa/restablecer-endpoints');
+        if (res.data && res.data.success) {
+          this.endpointsPersonalizadosGuardados = {};
+          this.actualizarEndpointsSegunAmbiente(this.form.codigo_ambiente, {});
+          this.mostrarNotificacion('Todas las URLs WSDL han sido restablecidas a los estándares oficiales del SIN', 'success', 'mdi-check-decagram');
+        }
+      } catch (e) {
+        this.mostrarNotificacion('Error al restablecer enlaces: ' + (e.response?.data?.mensaje || e.message), 'error', 'mdi-alert-circle');
+      } finally {
+        this.restableciendoEndpoints = false;
+      }
+    },
+
+    copiarAlPortapapeles(texto) {
+      if (!texto) return;
+      navigator.clipboard
+        .writeText(texto)
+        .then(() => {
+          this.mostrarNotificacion('Enlace copiado al portapapeles', 'info', 'mdi-content-copy');
+        })
+        .catch(() => {
+          this.mostrarNotificacion('No se pudo copiar el enlace', 'error', 'mdi-alert-circle-outline');
         });
     },
 
@@ -713,6 +857,14 @@ export default {
       }
       if (this.archivoCertificado) {
         formData.append('certificado_p12', this.archivoCertificado);
+      }
+
+      // Endpoints WSDL / SIAT personalizados
+      if (this.endpointsEditados && Object.keys(this.endpointsEditados).length > 0) {
+        const ambTipo = this.form.codigo_ambiente === 1 ? 'produccion' : 'piloto';
+        const payload = { ...(this.endpointsPersonalizadosGuardados || {}) };
+        payload[ambTipo] = { ...this.endpointsEditados };
+        formData.append('endpoints_personalizados', JSON.stringify(payload));
       }
 
       axios

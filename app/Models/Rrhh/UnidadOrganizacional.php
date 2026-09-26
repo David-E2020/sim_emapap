@@ -47,14 +47,17 @@ class UnidadOrganizacional extends Model
 
     public function dependencias(): HasMany
     {
-        return $this->hasMany(self::class, 'padreId', 'id')->with([
-            'puestos.asignaciones.persona',
-            'dependencias',
-        ]);
+        return $this->hasMany(self::class, 'padreId', 'id')
+            ->where('_estado', 'ACTIVO')
+            ->with([
+                'puestos.asignaciones.persona',
+                'dependencias',
+            ]);
     }
 
     public function puestos(): HasMany
     {
-        return $this->hasMany(Puesto::class, 'id_unidad_organizacional', 'id');
+        return $this->hasMany(Puesto::class, 'id_unidad_organizacional', 'id')
+            ->where('_estado', 'ACTIVO');
     }
 }

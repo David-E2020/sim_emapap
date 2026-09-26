@@ -64,7 +64,7 @@ class FacturacionMenuAndPermissionsSeeder extends Seeder
                 'order' => 6,
             ],
             [
-                'label' => 'Clientes / Padrón',
+                'label' => 'Clientes Facturación Libre',
                 'route' => 'facturacion_clientes',
                 'icon' => 'mdi-account-group-outline',
                 'order' => 7,

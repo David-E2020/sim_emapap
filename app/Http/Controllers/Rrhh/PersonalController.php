@@ -58,7 +58,7 @@ class PersonalController extends Controller
             'nombres' => 'required|string|max:100',
             'primer_apellido' => 'nullable|string|max:100',
             'segundo_apellido' => 'nullable|string|max:100',
-            'nro_documento' => 'required|string|max:50|unique:rrhh.personas,nro_documento',
+            'nro_documento' => 'required|string|max:50|unique:pgsql.rrhh.personas,nro_documento',
             'correo_electronico_personal' => 'nullable|email|max:255',
             'telefono_celular' => 'nullable|string|max:50',
             'genero' => 'nullable|string|in:MASCULINO,FEMENINO',

@@ -54,12 +54,22 @@
           <template v-else>
             <v-btn
               color="primary"
-              class="rounded-pill font-weight-bold text-white elevation-1 px-4 my-1"
+              class="rounded-pill font-weight-bold text-white elevation-1 px-4 mr-2 my-1"
               @click="mostrarModalApertura = true"
             >
               <v-icon left small>mdi-lock-open-variant</v-icon> Abrir Turno de Caja
             </v-btn>
           </template>
+
+          <v-btn
+            small
+            outlined
+            color="teal darken-2"
+            class="rounded-pill font-weight-medium my-1"
+            :to="{ path: '/comercial/sesiones-caja' }"
+          >
+            <v-icon left x-small>mdi-history</v-icon> Historial de Cierres
+          </v-btn>
         </div>
       </div>
     </v-card>

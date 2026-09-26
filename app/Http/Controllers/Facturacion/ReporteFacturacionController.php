@@ -29,7 +29,9 @@ class ReporteFacturacionController extends Controller
         }
 
         $sucursalId = $request->input('id_sucursal');
-        $estado = $request->input('estado'); // VALIDADA, ANULADA, o null
+        $puntoVentaId = $request->input('id_punto_venta');
+        $estado = $request->input('estado'); // VALIDADA, CONTINGENCIA, ANULADA, RECHAZADA, o null
+        $tipoEmision = $request->input('tipo_emision'); // 1: En Línea, 2: Fuera de línea / contingencia
 
         $query = Factura::query()
             ->whereDate('fecha_emision', '>=', $fechaDesde)
@@ -39,15 +41,32 @@ class ReporteFacturacionController extends Controller
             $query->where('id_sucursal', (int) $sucursalId);
         }
 
+        if ($puntoVentaId !== null && $puntoVentaId !== '') {
+            $query->where('id_punto_venta', (int) $puntoVentaId);
+        }
+
         if (!empty($estado)) {
-            $query->where('estado_factura', $estado);
+            if ($estado === 'CONTINGENCIA') {
+                $query->where(function ($q) {
+                    $q->whereIn('estado_factura', ['CONTINGENCIA', 'OFFLINE_PENDIENTE', 'OFFLINE_REGULARIZADA'])
+                      ->orWhere('tipo_emision', 2);
+                });
+            } else {
+                $query->where('estado_factura', $estado);
+            }
+        }
+
+        if (!empty($tipoEmision)) {
+            $query->where('tipo_emision', (int) $tipoEmision);
         }
 
         // Métricas agregadas calculadas en base de datos de forma ultra-rápida y eficiente
         $metricas = (clone $query)->selectRaw("
             COUNT(*) as total_registros,
-            COUNT(CASE WHEN estado_factura != 'ANULADA' THEN 1 END) as cantidad_validas,
+            COUNT(CASE WHEN estado_factura = 'VALIDADA' AND (tipo_emision = 1 OR tipo_emision IS NULL) THEN 1 END) as cantidad_validas,
+            COUNT(CASE WHEN estado_factura IN ('CONTINGENCIA', 'OFFLINE_PENDIENTE', 'OFFLINE_REGULARIZADA') OR (tipo_emision = 2 AND estado_factura != 'ANULADA') THEN 1 END) as cantidad_contingencias,
             COUNT(CASE WHEN estado_factura = 'ANULADA' THEN 1 END) as cantidad_anuladas,
+            COUNT(CASE WHEN estado_factura IN ('RECHAZADA', 'OBSERVADA') THEN 1 END) as cantidad_rechazadas,
             COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total ELSE 0 END), 0) as total_facturado,
             COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_descuento ELSE 0 END), 0) as total_descuento,
             COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total_sujeto_iva ELSE 0 END), 0) as total_base_debito_fiscal
@@ -55,7 +74,9 @@ class ReporteFacturacionController extends Controller
 
         $totalRegistros = (int) ($metricas->total_registros ?? 0);
         $cantidadValidas = (int) ($metricas->cantidad_validas ?? 0);
+        $cantidadContingencias = (int) ($metricas->cantidad_contingencias ?? 0);
         $cantidadAnuladas = (int) ($metricas->cantidad_anuladas ?? 0);
+        $cantidadRechazadas = (int) ($metricas->cantidad_rechazadas ?? 0);
         $totalFacturado = (float) ($metricas->total_facturado ?? 0);
         $totalDescuento = (float) ($metricas->total_descuento ?? 0);
         $totalBaseDebito = (float) ($metricas->total_base_debito_fiscal ?? 0);
@@ -65,7 +86,7 @@ class ReporteFacturacionController extends Controller
         $facturas = (clone $query)
             ->with(['cliente:id,nombre_razon_social,numero_documento,complemento', 'sucursal:id,nombre,codigo_sucursal', 'puntoVenta:id,nombre,codigo_punto_venta'])
             ->orderBy('numero_factura', 'asc')
-            ->limit(1000)
+            ->limit(2000)
             ->get();
 
         return response()->json([
@@ -77,7 +98,9 @@ class ReporteFacturacionController extends Controller
             'resumen' => [
                 'total_registros' => $totalRegistros,
                 'cantidad_validas' => $cantidadValidas,
+                'cantidad_contingencias' => $cantidadContingencias,
                 'cantidad_anuladas' => $cantidadAnuladas,
+                'cantidad_rechazadas' => $cantidadRechazadas,
                 'total_facturado' => round($totalFacturado, 2),
                 'total_descuento' => round($totalDescuento, 2),
                 'total_base_debito_fiscal' => round($totalBaseDebito, 2),
@@ -102,6 +125,9 @@ class ReporteFacturacionController extends Controller
         }
 
         $sucursalId = $request->input('id_sucursal');
+        $puntoVentaId = $request->input('id_punto_venta');
+        $estadoFiltro = $request->input('estado');
+        $tipoEmisionFiltro = $request->input('tipo_emision');
 
         $query = Factura::query()
             ->whereDate('fecha_emision', '>=', $fechaDesde)
@@ -109,6 +135,25 @@ class ReporteFacturacionController extends Controller
 
         if ($sucursalId !== null && $sucursalId !== '') {
             $query->where('id_sucursal', (int) $sucursalId);
+        }
+
+        if ($puntoVentaId !== null && $puntoVentaId !== '') {
+            $query->where('id_punto_venta', (int) $puntoVentaId);
+        }
+
+        if (!empty($estadoFiltro)) {
+            if ($estadoFiltro === 'CONTINGENCIA') {
+                $query->where(function ($q) {
+                    $q->whereIn('estado_factura', ['CONTINGENCIA', 'OFFLINE_PENDIENTE', 'OFFLINE_REGULARIZADA'])
+                      ->orWhere('tipo_emision', 2);
+                });
+            } else {
+                $query->where('estado_factura', $estadoFiltro);
+            }
+        }
+
+        if (!empty($tipoEmisionFiltro)) {
+            $query->where('tipo_emision', (int) $tipoEmisionFiltro);
         }
 
         $query->orderBy('numero_factura', 'asc');
@@ -163,7 +208,14 @@ class ReporteFacturacionController extends Controller
                 $subtotal = $totalVenta;
                 $baseFiscal = $esAnulada ? 0.00 : (float) $f->monto_total_sujeto_iva;
                 $debitoFiscal = round($baseFiscal * 0.13, 2);
-                $estado = $esAnulada ? 'A' : 'V';
+
+                if ($esAnulada) {
+                    $estado = 'A';
+                } elseif (in_array($f->estado_factura, ['CONTINGENCIA', 'OFFLINE_PENDIENTE'], true) || (int) $f->tipo_emision === 2) {
+                    $estado = 'E'; // Emitida en Contingencia (RND SIN)
+                } else {
+                    $estado = 'V'; // Válida
+                }
 
                 fputcsv($handle, [
                     $correlativo++,

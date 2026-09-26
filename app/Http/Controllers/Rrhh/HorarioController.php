@@ -122,7 +122,7 @@ class HorarioController extends Controller
     public function asignarHorario(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'id_horario' => 'required|integer|exists:rrhh.horarios,id',
+            'id_horario' => 'required|integer|exists:pgsql.rrhh.horarios,id',
             'personas_ids' => 'required|array|min:1',
             'fecha_inicio' => 'required|date',
             'permanente' => 'nullable|boolean',

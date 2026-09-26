@@ -59,7 +59,9 @@ class SiatSoapService
                 : (string) config('siat.token_delegado', ''));
 
         $tipoAmbiente = $this->ambiente === 1 ? 'produccion' : 'piloto';
-        $this->wsdlUrls = config("siat.wsdl.{$tipoAmbiente}");
+        $this->wsdlUrls = isset($overrides['wsdl_urls']) && is_array($overrides['wsdl_urls'])
+            ? array_merge(config("siat.wsdl.{$tipoAmbiente}", []), $overrides['wsdl_urls'])
+            : ($empresa ? $empresa->getWsdlEndpoints($this->ambiente) : config("siat.wsdl.{$tipoAmbiente}"));
     }
 
     /**

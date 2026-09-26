@@ -136,40 +136,46 @@ class ComercialParametricasSeeder extends Seeder
                 'order' => 3,
             ],
             [
+                'label' => 'Cierres y Arqueos de Caja',
+                'route' => 'comercial_sesiones_caja',
+                'icon' => 'mdi-lock-check',
+                'order' => 4,
+            ],
+            [
                 'label' => 'Convenios de Pago',
                 'route' => 'comercial_convenios',
                 'icon' => 'mdi-handshake-outline',
-                'order' => 4,
+                'order' => 5,
             ],
             [
                 'label' => 'Cortes y Reconexiones',
                 'route' => 'comercial_cortes',
                 'icon' => 'mdi-pipe-disconnected',
-                'order' => 5,
+                'order' => 6,
             ],
             [
                 'label' => 'Zonas y Calles',
                 'route' => 'comercial_zonas_calles',
                 'icon' => 'mdi-map-marker-multiple',
-                'order' => 6,
+                'order' => 7,
             ],
             [
                 'label' => 'Estructura Tarifaria',
                 'route' => 'comercial_tarifas',
                 'icon' => 'mdi-currency-usd',
-                'order' => 7,
+                'order' => 8,
             ],
             [
                 'label' => 'Reportes Comerciales',
                 'route' => 'comercial_reportes',
                 'icon' => 'mdi-chart-box-outline',
-                'order' => 8,
+                'order' => 9,
             ],
             [
                 'label' => 'Aportes e Instalaciones',
                 'route' => 'comercial_aportes',
                 'icon' => 'mdi-pipe-wrench',
-                'order' => 9,
+                'order' => 10,
             ],
         ];
 

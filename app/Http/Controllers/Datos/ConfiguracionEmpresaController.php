@@ -30,6 +30,70 @@ class ConfiguracionEmpresaController extends Controller
         $certExiste = file_exists($certPath);
         $tienePassword = !empty($config->password_p12);
 
+        $endpointsPiloto = config('siat.wsdl.piloto', []);
+        $endpointsProduccion = config('siat.wsdl.produccion', []);
+        $endpointsActivos = $config->getWsdlEndpoints();
+        $endpointsPersonalizados = $config->endpoints_personalizados ?? [];
+
+        $catalogoEndpoints = [
+            [
+                'clave' => 'sincronizacion',
+                'nombre' => 'Facturación Sincronización',
+                'descripcion' => 'Catálogos, actividades económicas, productos/servicios SIN, leyendas y reloj oficial.',
+                'url_piloto' => $endpointsPiloto['sincronizacion'] ?? '',
+                'url_produccion' => $endpointsProduccion['sincronizacion'] ?? '',
+                'url_actual' => $endpointsActivos['sincronizacion'] ?? '',
+            ],
+            [
+                'clave' => 'codigos',
+                'nombre' => 'Facturación Códigos',
+                'descripcion' => 'Obtención y renovación periódica de CUIS (Código Único) y CUFD (Diario).',
+                'url_piloto' => $endpointsPiloto['codigos'] ?? '',
+                'url_produccion' => $endpointsProduccion['codigos'] ?? '',
+                'url_actual' => $endpointsActivos['codigos'] ?? '',
+            ],
+            [
+                'clave' => 'operaciones',
+                'nombre' => 'Facturación Operaciones',
+                'descripcion' => 'Gestión de puntos de venta y registro de eventos significativos de contingencia.',
+                'url_piloto' => $endpointsPiloto['operaciones'] ?? '',
+                'url_produccion' => $endpointsProduccion['operaciones'] ?? '',
+                'url_actual' => $endpointsActivos['operaciones'] ?? '',
+            ],
+            [
+                'clave' => 'compra_venta',
+                'nombre' => 'Servicio Facturación Compra-Venta General',
+                'descripcion' => 'Recepción sincrónica/asincrónica, consulta y anulación ordinaria de facturas.',
+                'url_piloto' => $endpointsPiloto['compra_venta'] ?? '',
+                'url_produccion' => $endpointsProduccion['compra_venta'] ?? '',
+                'url_actual' => $endpointsActivos['compra_venta'] ?? '',
+            ],
+            [
+                'clave' => 'computarizada',
+                'nombre' => 'Servicio Facturación Computarizada en Línea',
+                'descripcion' => 'Emisión directa en modalidad computarizada mediante código de control y hash.',
+                'url_piloto' => $endpointsPiloto['computarizada'] ?? '',
+                'url_produccion' => $endpointsProduccion['computarizada'] ?? '',
+                'url_actual' => $endpointsActivos['computarizada'] ?? '',
+            ],
+            [
+                'clave' => 'electronica',
+                'nombre' => 'Servicio Facturación Electrónica en Línea',
+                'descripcion' => 'Emisión directa en modalidad electrónica con firma digital XMLDSig (.p12).',
+                'url_piloto' => $endpointsPiloto['electronica'] ?? '',
+                'url_produccion' => $endpointsProduccion['electronica'] ?? '',
+                'url_actual' => $endpointsActivos['electronica'] ?? '',
+            ],
+            [
+                'clave' => 'qr',
+                'nombre' => 'Portal de Consulta QR Oficial del SIN',
+                'descripcion' => 'Enlace base para validación en línea de facturas por parte de clientes y abonados.',
+                'url_piloto' => $endpointsPiloto['qr'] ?? '',
+                'url_produccion' => $endpointsProduccion['qr'] ?? '',
+                'url_actual' => $endpointsActivos['qr'] ?? '',
+            ],
+        ];
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -55,6 +119,10 @@ class ConfiguracionEmpresaController extends Controller
                 'cert_path_absoluto' => $certExiste ? 'Almacenamiento Seguro del Sistema' : 'No configurado',
                 'ambiente_descripcion' => $config->codigo_ambiente === 1 ? 'PRODUCCIÓN OFICIAL' : 'PRUEBAS / PILOTO',
                 'modalidad_descripcion' => $config->codigo_modalidad === 1 ? 'ELECTRÓNICA EN LÍNEA (CON FIRMA ADSIB)' : 'COMPUTARIZADA EN LÍNEA',
+                'catalogo_endpoints' => $catalogoEndpoints,
+                'endpoints_activos' => $endpointsActivos,
+                'endpoints_personalizados' => $endpointsPersonalizados,
+                'tiene_endpoints_personalizados' => !empty($endpointsPersonalizados),
             ],
         ], Response::HTTP_OK);
     }
@@ -146,6 +214,17 @@ class ConfiguracionEmpresaController extends Controller
             $data['logo_path'] = '/images/logos/' . $logoName;
         }
 
+        // 5. Procesar personalización de Endpoints WSDL si fue remitida
+        if ($request->has('endpoints_personalizados')) {
+            $endpointsInput = $request->input('endpoints_personalizados');
+            if (is_string($endpointsInput)) {
+                $endpointsInput = json_decode($endpointsInput, true);
+            }
+            if (is_array($endpointsInput)) {
+                $data['endpoints_personalizados'] = $endpointsInput;
+            }
+        }
+
         $config->update($data);
 
         return response()->json([
@@ -153,6 +232,25 @@ class ConfiguracionEmpresaController extends Controller
             'message' => 'Configuración institucional y parámetros SIAT actualizados exitosamente.',
             'mensaje' => 'Configuración institucional y parámetros SIAT actualizados exitosamente.',
             'data' => $config->fresh(),
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Restablece todas las URLs de servicios web WSDL a los valores oficiales de Impuestos Nacionales.
+     */
+    public function restablecerEndpoints(): JsonResponse
+    {
+        $config = ConfiguracionEmpresa::getActiva();
+        $config->endpoints_personalizados = null;
+        $config->_usuario_modificacion = auth()->id() ?? 1;
+        $config->_fecha_modificacion = now();
+        $config->_transaccion = 'ACTUALIZAR';
+        $config->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Todas las URLs WSDL y portal QR han sido restablecidas a los estándares oficiales del SIN.',
+            'endpoints_activos' => $config->getWsdlEndpoints(),
         ], Response::HTTP_OK);
     }
 
