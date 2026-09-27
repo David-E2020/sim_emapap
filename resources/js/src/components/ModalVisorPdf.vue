@@ -247,6 +247,11 @@ export default {
         });
       }
     },
+    formatoInicial(nuevo) {
+      if (nuevo) {
+        this.formatoActual = nuevo;
+      }
+    },
   },
   mounted() {
     if (this.value && this.urlCompleta) {

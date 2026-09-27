@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Comercial;
 
 use App\Models\Comercial\Abonado;
+use App\Models\Comercial\AporteConexion;
 use App\Models\Comercial\LecturaMensual;
 use App\Models\Comercial\OrdenTrabajo;
 use App\Models\Comercial\PeriodoFacturacion;
@@ -118,10 +119,18 @@ class DocumentoComercialPdfService
             ->orderByDesc('id')
             ->get();
 
+        $codigoPad = str_pad(trim((string) $abonado->codigo), 5, '0', STR_PAD_LEFT);
+        $aportes = AporteConexion::where('codigo_socio', $codigoPad)
+            ->orWhere('codigo_socio', trim((string) $abonado->codigo))
+            ->orderBy('fecha')
+            ->orderBy('id')
+            ->get();
+
         $html = View::make('reportes.comercial.extracto-cuenta', [
             'abonado' => $abonado,
             'lecturas' => $lecturas,
             'convenios' => $convenios,
+            'aportes' => $aportes,
         ])->render();
 
         return SnappyPdf::loadHTML($html)

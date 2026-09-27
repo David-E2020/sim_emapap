@@ -255,6 +255,83 @@
     </tbody>
   </table>
 
+  <!-- CONTRATOS DE CONEXIÓN E INSTALACIÓN (APORTES AGUA Y ALCANTARILLADO) -->
+  @php
+    $totalAportesContratado = 0;
+    $totalAportesPagado = 0;
+    $totalAportesPendiente = 0;
+    if (isset($aportes)) {
+      foreach ($aportes as $ap) {
+        $montoAp = (float) $ap->total;
+        $saldoAp = (float) $ap->saldo;
+        $totalAportesContratado += $montoAp;
+        if ($ap->pagado) {
+          $totalAportesPagado += $montoAp;
+        } else {
+          $totalAportesPendiente += ($saldoAp > 0 ? $saldoAp : $montoAp);
+        }
+      }
+    }
+  @endphp
+
+  @if(isset($aportes) && count($aportes) > 0)
+    <h4 style="margin: 15px 0 4px 0; color: #1e293b; font-size: 11px;">CONTRATOS DE CONEXIÓN E INSTALACIÓN (APORTES AGUA Y ALCANTARILLADO)</h4>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Servicio</th>
+          <th>Fecha Contrato</th>
+          <th>Periodo</th>
+          <th>Detalle / Concepto</th>
+          <th>Monto Cuota (Bs)</th>
+          <th>Abonado (Bs)</th>
+          <th>Saldo (Bs)</th>
+          <th>Estado</th>
+          <th>N° Factura / Recibo</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($aportes as $ap)
+          <tr>
+            <td>
+              <strong style="color: {{ strtoupper($ap->tipo_servicio) === 'ALCANTARILLADO' ? '#0f766e' : '#0284c7' }};">
+                {{ strtoupper($ap->tipo_servicio) === 'ALCANTARILLADO' ? 'ALCANTARILLADO' : 'AGUA POTABLE' }}
+              </strong>
+            </td>
+            <td>{{ $ap->fecha ? \Carbon\Carbon::parse($ap->fecha)->format('d/m/Y') : '-' }}</td>
+            <td><strong>{{ $ap->periodo ?: '-' }}</strong></td>
+            <td class="text-left" style="font-size: 9px;">
+              {{ $ap->orden ?: 'Cuota' }}
+              @if($ap->aporte > 0 || $ap->instalacion > 0)
+                <span style="color: #64748b;">(Ap. {{ number_format($ap->aporte, 2) }} + Inst. {{ number_format($ap->instalacion, 2) }})</span>
+              @endif
+              @if($ap->observaciones)
+                - {{ $ap->observaciones }}
+              @endif
+            </td>
+            <td class="text-right"><strong>{{ number_format((float) $ap->total, 2) }}</strong></td>
+            <td class="text-right">{{ number_format((float) $ap->abono, 2) }}</td>
+            <td class="text-right">{{ number_format((float) $ap->saldo, 2) }}</td>
+            <td>
+              @if($ap->pagado)
+                <span class="badge badge-pagado">PAGADO</span>
+              @else
+                <span class="badge badge-pendiente">PENDIENTE</span>
+              @endif
+            </td>
+            <td>
+              @if($ap->factura)
+                <strong>#{{ $ap->factura }}</strong>
+              @else
+                -
+              @endif
+            </td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
+  @endif
+
   <!-- CONVENIOS SI HUBIERAN -->
   @if(count($convenios) > 0)
     <h4 style="margin: 15px 0 4px 0; color: #1e293b; font-size: 11px;">CONVENIOS DE PAGO SUSCRITOS</h4>
@@ -293,16 +370,40 @@
       <td class="text-right"><strong>{{ number_format($totalConsumo, 2) }} m³</strong></td>
     </tr>
     <tr>
-      <td style="font-weight: bold; color: #334155;">Total Histórico Facturado:</td>
+      <td style="font-weight: bold; color: #334155;">Consumo Mensual Facturado:</td>
       <td class="text-right">Bs {{ number_format($totalFacturado, 2) }}</td>
     </tr>
     <tr>
-      <td style="font-weight: bold; color: #166534;">Total Recaudado / Pagado:</td>
+      <td style="font-weight: bold; color: #166534;">Consumo Mensual Cancelado:</td>
       <td class="text-right" style="color: #166534;"><strong>Bs {{ number_format($totalPagado, 2) }}</strong></td>
     </tr>
+    <tr>
+      <td style="font-weight: bold; color: #b91c1c;">Saldo Pendiente Consumo Mensual:</td>
+      <td class="text-right" style="color: #b91c1c;"><strong>Bs {{ number_format($totalPendiente, 2) }}</strong></td>
+    </tr>
+
+    @if(isset($aportes) && count($aportes) > 0)
+      <tr style="border-top: 1px dashed #cbd5e1;">
+        <td style="font-weight: bold; color: #0284c7;">Aportes / Conexiones Contratadas:</td>
+        <td class="text-right">Bs {{ number_format($totalAportesContratado, 2) }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold; color: #166534;">Aportes / Conexiones Canceladas:</td>
+        <td class="text-right" style="color: #166534;"><strong>Bs {{ number_format($totalAportesPagado, 2) }}</strong></td>
+      </tr>
+      @if($totalAportesPendiente > 0)
+        <tr>
+          <td style="font-weight: bold; color: #b91c1c;">Saldo Pendiente Aportes / Conexión:</td>
+          <td class="text-right" style="color: #b91c1c;"><strong>Bs {{ number_format($totalAportesPendiente, 2) }}</strong></td>
+        </tr>
+      @endif
+    @endif
+
     <tr style="border-top: 2px solid #cbd5e1; background-color: #e2e8f0;">
-      <td style="font-weight: bold; color: #b91c1c; font-size: 12px;">SALDO PENDIENTE ACTUAL:</td>
-      <td class="text-right" style="color: #b91c1c; font-size: 12px;"><strong>Bs {{ number_format($totalPendiente, 2) }}</strong></td>
+      <td style="font-weight: bold; color: #b91c1c; font-size: 12px;">SALDO PENDIENTE CONSOLIDADO:</td>
+      <td class="text-right" style="color: #b91c1c; font-size: 12px;">
+        <strong>Bs {{ number_format($totalPendiente + $totalAportesPendiente, 2) }}</strong>
+      </td>
     </tr>
   </table>
 

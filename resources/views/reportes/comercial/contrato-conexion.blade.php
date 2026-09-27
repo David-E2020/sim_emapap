@@ -201,21 +201,25 @@
     <table class="cronograma-tabla">
       <thead>
         <tr>
-          <th>Periodo</th>
-          <th>Fecha de Pago</th>
-          <th style="text-align: right;">Importe (Bs)</th>
+          <th style="width: 15%;">Cuota</th>
+          <th style="width: 20%;">Periodo</th>
+          <th style="width: 25%;">Fecha Prog. / Pago</th>
+          <th style="width: 20%;">Factura</th>
+          <th style="width: 20%; text-align: right;">Importe (Bs)</th>
         </tr>
       </thead>
       <tbody>
         @foreach($cuotas as $c)
           <tr>
+            <td>Cuota {{ $c['numero'] ?? $loop->iteration }}</td>
             <td>{{ $c['periodo'] }}</td>
             <td>{{ $c['fecha_pago'] }}</td>
+            <td>{{ !empty($c['factura']) ? '#' . $c['factura'] : 'Pendiente' }}</td>
             <td style="text-align: right;">{{ number_format($c['importe'], 2) }}</td>
           </tr>
         @endforeach
         <tr class="total-row">
-          <td colspan="2" style="text-align: right;">TOTAL:</td>
+          <td colspan="4" style="text-align: right;">TOTAL CONTRATADO:</td>
           <td style="text-align: right;">{{ number_format($aporte->total, 2) }}</td>
         </tr>
       </tbody>

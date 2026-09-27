@@ -31,11 +31,10 @@
     </v-card>
 
     <!-- FILTROS Y BÚSQUEDA -->
-    <!-- FILTROS Y BÚSQUEDA -->
     <v-card rounded="lg" class="mb-5 pa-4 erp-card-elevated">
       <v-row dense align="center">
         <!-- Criterio / Tipo de búsqueda -->
-        <v-col cols="12" sm="5" md="3">
+        <v-col cols="12" sm="6" md="3">
           <v-select
             v-model="tipoBusqueda"
             :items="tiposBusqueda"
@@ -51,7 +50,7 @@
         </v-col>
 
         <!-- Campo de texto de búsqueda -->
-        <v-col cols="12" sm="7" md="4">
+        <v-col cols="12" sm="6" md="3">
           <v-text-field
             v-model="busqueda"
             :label="etiquetaBusqueda"
@@ -62,12 +61,12 @@
             hide-details
             clearable
             @keyup.enter="cargarFacturas"
-            @click:clear="cargarFacturas"
+            @click:clear="alLimpiarBusqueda"
           ></v-text-field>
         </v-col>
 
         <!-- Estado Fiscal -->
-        <v-col cols="12" sm="6" md="2">
+        <v-col cols="12" sm="4" md="2">
           <v-select
             v-model="filtroEstado"
             :items="['TODOS', 'VALIDADA', 'ANULADA', 'OBSERVADA', 'CONTINGENCIA']"
@@ -79,11 +78,11 @@
           ></v-select>
         </v-col>
 
-        <!-- Fecha Emisión -->
-        <v-col cols="12" sm="6" md="2">
+        <!-- Fecha Desde -->
+        <v-col cols="12" sm="4" md="2">
           <v-text-field
-            v-model="filtroFecha"
-            label="Fecha Emisión"
+            v-model="filtroFechaInicio"
+            label="Fecha Desde"
             type="date"
             dense
             outlined
@@ -93,13 +92,115 @@
           ></v-text-field>
         </v-col>
 
-        <!-- Botón Filtrar -->
-        <v-col cols="12" md="1">
-          <v-btn color="primary" dense block height="40" class="elevation-1" @click="cargarFacturas" title="Buscar">
-            <v-icon>mdi-magnify</v-icon>
-          </v-btn>
+        <!-- Fecha Hasta -->
+        <v-col cols="12" sm="4" md="2">
+          <v-text-field
+            v-model="filtroFechaFin"
+            label="Fecha Hasta"
+            type="date"
+            dense
+            outlined
+            hide-details
+            clearable
+            @change="cargarFacturas"
+          ></v-text-field>
         </v-col>
       </v-row>
+
+      <!-- BARRA DE ACCIONES Y ATAJOS DE FECHA -->
+      <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-3" style="border-top: 1px dashed #e0e0e0;">
+        <!-- Atajos rápidos -->
+        <div class="d-flex align-center flex-wrap gap-1">
+          <span class="text-caption text-secondary mr-1 font-weight-medium">Atajos de fecha:</span>
+          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('hoy')">
+            Hoy
+          </v-btn>
+          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('semana')">
+            Esta Semana
+          </v-btn>
+          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('mes')">
+            Este Mes
+          </v-btn>
+          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('gestion')">
+            Año {{ new Date().getFullYear() }}
+          </v-btn>
+          <v-btn
+            v-if="busqueda || filtroEstado !== 'TODOS' || filtroFechaInicio || filtroFechaFin"
+            x-small
+            text
+            class="text-capitalize font-weight-bold ml-1"
+            color="red darken-1"
+            @click="limpiarFiltros"
+          >
+            <v-icon x-small left>mdi-close-circle-outline</v-icon> Limpiar Filtros
+          </v-btn>
+        </div>
+
+        <!-- Botones de Acción: Buscar y Exportar -->
+        <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
+          <v-btn
+            color="primary"
+            class="text-capitalize font-weight-medium rounded-pill elevation-1 px-4"
+            small
+            :loading="cargando"
+            @click="cargarFacturas"
+          >
+            <v-icon left small>mdi-magnify</v-icon> Buscar
+          </v-btn>
+
+          <!-- MENÚ DE EXPORTACIÓN (PDF / EXCEL) -->
+          <v-menu offset-y transition="slide-y-transition">
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn
+                color="teal darken-1"
+                dark
+                class="text-capitalize font-weight-medium rounded-pill elevation-1 px-4"
+                small
+                v-bind="attrs"
+                v-on="on"
+                :loading="exportando"
+              >
+                <v-icon left small>mdi-file-export-outline</v-icon>
+                Exportar
+                <v-icon right small>mdi-chevron-down</v-icon>
+              </v-btn>
+            </template>
+            <v-list dense>
+              <v-list-item @click="exportarReporte('pdf')">
+                <v-list-item-icon class="mr-2">
+                  <v-icon color="red darken-1" small>mdi-file-pdf-box</v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                  <v-list-item-title class="font-weight-medium">Planilla Oficial en PDF</v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">Documento formal con firmas, KPIs y diseño institucional</v-list-item-subtitle>
+                </v-list-item-content>
+              </v-list-item>
+
+              <v-divider class="my-1"></v-divider>
+
+              <v-list-item @click="exportarReporte('excel')">
+                <v-list-item-icon class="mr-2">
+                  <v-icon color="green darken-2" small>mdi-file-excel-box</v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                  <v-list-item-title class="font-weight-medium">Planilla Excel Profesional (.xlsx)</v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">Libro formateado con colores, cuadrícula, totales y fórmulas</v-list-item-subtitle>
+                </v-list-item-content>
+              </v-list-item>
+
+              <v-list-item @click="exportarReporte('csv')">
+                <v-list-item-icon class="mr-2">
+                  <v-icon color="blue-grey darken-1" small>mdi-file-delimited-outline</v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                  <v-list-item-title class="font-weight-medium">Exportar a CSV Masivo (.csv)</v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">Datos planos delimitados por punto y coma (para grandes volúmenes)</v-list-item-subtitle>
+                </v-list-item-content>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </div>
+      </div>
     </v-card>
 
     <!-- TABLA DE FACTURAS -->
@@ -390,14 +491,58 @@
       </v-card>
     </v-dialog>
 
-    <!-- VISOR UNIVERSAL MODAL DE FACTURA SIAT (CARTA / ROLLO 80MM) -->
+    <!-- DIÁLOGO DE PROGRESO DE EXPORTACIÓN (EXCEL / PDF) -->
+    <v-dialog v-model="dialogoExportando" persistent max-width="480">
+      <v-card rounded="lg" class="pa-5">
+        <div class="d-flex align-center mb-3">
+          <v-avatar :color="formatoExportando === 'pdf' ? 'red darken-1' : 'green darken-2'" size="46" class="mr-3 elevation-2 text-white">
+            <v-icon color="white">{{ formatoExportando === 'pdf' ? 'mdi-file-pdf-box' : 'mdi-file-excel-box' }}</v-icon>
+          </v-avatar>
+          <div>
+            <h3 class="text-subtitle-1 font-weight-bold mb-0">
+              {{ formatoExportando === 'pdf' ? 'Generando Planilla PDF Oficial' : (formatoExportando === 'csv' ? 'Generando Archivo CSV Masivo' : 'Generando Planilla Excel Profesional (.xlsx)') }}
+            </h3>
+            <span class="text-caption text-secondary">
+              {{ formatoExportando === 'pdf' ? 'Compilando documento fiscal para impresión y auditoría...' : 'Formateando celdas, colores institucionales y fórmulas de suma...' }}
+            </span>
+          </div>
+        </div>
+
+        <v-card-text class="pa-0 mt-3">
+          <div class="d-flex justify-space-between align-center mb-1">
+            <span class="text-caption font-weight-medium grey--text text--darken-2">
+              <v-icon x-small color="teal" class="mr-1">mdi-progress-download</v-icon>
+              {{ mensajeProgresoExportacion }}
+            </span>
+            <span class="text-caption font-weight-bold teal--text text--darken-2">{{ progresoExportacion }}%</span>
+          </div>
+
+          <v-progress-linear
+            :value="progresoExportacion"
+            color="teal darken-1"
+            height="10"
+            rounded
+            striped
+          ></v-progress-linear>
+
+          <div v-if="totalFacturas > 5000 && !filtroFechaInicio && !filtroFechaFin" class="mt-3 pa-2 rounded grey lighten-4 d-flex align-center text-caption text-secondary">
+            <v-icon small color="amber darken-3" class="mr-2">mdi-lightbulb-on-outline</v-icon>
+            <span>Consejo: Puede seleccionar un <strong>Rango de Fechas</strong> o un <strong>Abonado</strong> para acotar el reporte y acelerar la descarga.</span>
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- VISOR UNIVERSAL MODAL DE FACTURA SIAT (CARTA / ROLLO 80MM) / PLANILLA -->
     <modal-visor-pdf
       v-model="mostrarVisorPdf"
       :url="urlVisorPdf"
       :titulo="tituloVisorPdf"
       :subtitulo="subtituloVisorPdf"
-      :mostrar-selector-formato="true"
+      :mostrar-selector-formato="mostrarSelectorFormatoVisor"
       :formato-inicial="formatoVisor"
+      :url-excel="urlExcelReporte"
+      :nombre-excel="nombreExcelReporte"
       @cambio-formato="alCambiarFormatoPdf"
     ></modal-visor-pdf>
 
@@ -438,6 +583,15 @@ export default {
       subtituloVisorPdf: '',
       facturaVisorId: null,
       formatoVisor: 'carta',
+      mostrarSelectorFormatoVisor: true,
+      urlExcelReporte: '',
+      nombreExcelReporte: 'Planilla_Facturas_EMAPAP.xlsx',
+      exportando: false,
+      dialogoExportando: false,
+      formatoExportando: 'excel',
+      progresoExportacion: 0,
+      mensajeProgresoExportacion: '',
+      intervaloProgreso: null,
       cargando: false,
       verificandoId: null,
       reenviandoId: null,
@@ -447,17 +601,18 @@ export default {
       anulando: false,
       enviandoCorreo: false,
       correoDestino: '',
-      busqueda: '',
-      tipoBusqueda: 'todos',
+      busqueda: this.$route.query.codigo || this.$route.query.codigo_abonado || this.$route.query.search || '',
+      tipoBusqueda: this.$route.query.tipo_busqueda || 'codigo_abonado',
       tiposBusqueda: [
+        { texto: 'Código de Abonado', valor: 'codigo_abonado' },
         { texto: 'Todos los campos', valor: 'todos' },
         { texto: 'N° de Factura', valor: 'numero_factura' },
         { texto: 'C.I. / NIT', valor: 'carnet_nit' },
-        { texto: 'Código de Abonado', valor: 'codigo_abonado' },
         { texto: 'Razón Social / Nombre', valor: 'cliente' },
       ],
       filtroEstado: 'TODOS',
-      filtroFecha: null,
+      filtroFechaInicio: null,
+      filtroFechaFin: null,
       totalFacturas: 0,
       opciones: {},
       facturas: [],
@@ -492,18 +647,18 @@ export default {
   computed: {
     etiquetaBusqueda() {
       switch (this.tipoBusqueda) {
+        case 'codigo_abonado': return 'Código de Abonado';
         case 'numero_factura': return 'Número de Factura';
         case 'carnet_nit': return 'C.I. / NIT del Cliente';
-        case 'codigo_abonado': return 'Código de Abonado';
         case 'cliente': return 'Razón Social / Nombre';
         default: return 'Buscar factura...';
       }
     },
     placeholderBusqueda() {
       switch (this.tipoBusqueda) {
+        case 'codigo_abonado': return 'Ej. 00001, 5105...';
         case 'numero_factura': return 'Ej. 1045, 23010...';
         case 'carnet_nit': return 'Ej. 4582910, 10239401...';
-        case 'codigo_abonado': return 'Ej. 00001, 5105...';
         case 'cliente': return 'Ej. Juan Pérez, Empresa...';
         default: return 'N° Factura, Carnet, Código o Nombre...';
       }
@@ -529,10 +684,10 @@ export default {
           page: page || 1,
           per_page: itemsPerPage || 15,
           search: this.busqueda || '',
-          tipo_busqueda: this.tipoBusqueda || 'todos',
+          tipo_busqueda: this.tipoBusqueda || 'codigo_abonado',
           estado: this.filtroEstado === 'TODOS' ? '' : this.filtroEstado,
-          fecha_inicio: this.filtroFecha || '',
-          fecha_fin: this.filtroFecha || '',
+          fecha_inicio: this.filtroFechaInicio || '',
+          fecha_fin: this.filtroFechaFin || '',
         };
 
         const res = await window.axios.get('/api/facturacion/facturas', { params });
@@ -542,6 +697,171 @@ export default {
         console.error('Error al cargar facturas', e);
       } finally {
         this.cargando = false;
+      }
+    },
+    alLimpiarBusqueda() {
+      this.busqueda = '';
+      this.cargarFacturas();
+    },
+    establecerRangoRapido(tipo) {
+      const hoy = new Date();
+      const formatear = d => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      if (tipo === 'hoy') {
+        const hoyStr = formatear(hoy);
+        this.filtroFechaInicio = hoyStr;
+        this.filtroFechaFin = hoyStr;
+      } else if (tipo === 'semana') {
+        const inicioSemana = new Date(hoy);
+        const dia = inicioSemana.getDay() || 7;
+        inicioSemana.setDate(inicioSemana.getDate() - dia + 1);
+        this.filtroFechaInicio = formatear(inicioSemana);
+        this.filtroFechaFin = formatear(hoy);
+      } else if (tipo === 'mes') {
+        const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        this.filtroFechaInicio = formatear(inicioMes);
+        this.filtroFechaFin = formatear(hoy);
+      } else if (tipo === 'gestion') {
+        const inicioGestion = new Date(hoy.getFullYear(), 0, 1);
+        this.filtroFechaInicio = formatear(inicioGestion);
+        this.filtroFechaFin = formatear(hoy);
+      }
+      this.cargarFacturas();
+    },
+    limpiarFiltros() {
+      this.busqueda = '';
+      this.tipoBusqueda = 'codigo_abonado';
+      this.filtroEstado = 'TODOS';
+      this.filtroFechaInicio = null;
+      this.filtroFechaFin = null;
+      this.cargarFacturas();
+    },
+    exportarReporte(formato) {
+      const params = new URLSearchParams();
+      if (this.busqueda) params.append('search', this.busqueda);
+      params.append('tipo_busqueda', this.tipoBusqueda || 'codigo_abonado');
+      if (this.filtroEstado && this.filtroEstado !== 'TODOS') params.append('estado', this.filtroEstado);
+      if (this.filtroFechaInicio) params.append('fecha_inicio', this.filtroFechaInicio);
+      if (this.filtroFechaFin) params.append('fecha_fin', this.filtroFechaFin);
+
+      const q = params.toString();
+      const hoy = new Date().toISOString().slice(0, 10);
+
+      if (formato === 'pdf') {
+        this.iniciarProgresoExportacion('pdf', 'Preparando documento fiscal oficial en PDF...');
+        this.facturaVisorId = null;
+        this.mostrarSelectorFormatoVisor = false;
+        this.urlExcelReporte = `/api/facturacion/facturas/exportar-excel?formato=xlsx&${q}`;
+        this.nombreExcelReporte = `Planilla_Facturas_EMAPAP_${hoy}.xlsx`;
+        this.urlVisorPdf = `/api/facturacion/facturas/exportar-pdf?${q}`;
+        this.tituloVisorPdf = 'Planilla Oficial de Facturas Emitidas';
+        this.subtituloVisorPdf = 'Visualización e impresión oficial de documentos fiscales';
+
+        this.avanzarProgreso(30, 'Consultando base de datos y consolidando totales...');
+        setTimeout(() => {
+          this.avanzarProgreso(75, 'Renderizando maquetación apaisada de alta resolución...');
+          setTimeout(() => {
+            this.avanzarProgreso(100, '¡Planilla generada con éxito!');
+            setTimeout(() => {
+              this.finalizarProgreso();
+              this.mostrarVisorPdf = true;
+            }, 300);
+          }, 450);
+        }, 350);
+      } else if (formato === 'excel') {
+        this.descargarArchivoExcel(q, 'xlsx');
+      } else if (formato === 'csv') {
+        this.descargarArchivoExcel(q, 'csv');
+      }
+    },
+    iniciarProgresoExportacion(formato, mensajeInicial) {
+      if (this.intervaloProgreso) clearInterval(this.intervaloProgreso);
+      this.formatoExportando = formato;
+      this.progresoExportacion = 10;
+      this.mensajeProgresoExportacion = mensajeInicial;
+      this.dialogoExportando = true;
+    },
+    avanzarProgreso(pct, mensaje) {
+      this.progresoExportacion = pct;
+      if (mensaje) this.mensajeProgresoExportacion = mensaje;
+    },
+    finalizarProgreso() {
+      if (this.intervaloProgreso) {
+        clearInterval(this.intervaloProgreso);
+        this.intervaloProgreso = null;
+      }
+      this.dialogoExportando = false;
+      this.progresoExportacion = 0;
+    },
+    async descargarArchivoExcel(q, tipo = 'xlsx') {
+      const extension = tipo === 'xlsx' ? 'xlsx' : 'csv';
+      const mensajeTipo = tipo === 'xlsx' ? 'Excel Profesional (.xlsx)' : 'CSV Masivo (.csv)';
+      this.iniciarProgresoExportacion(
+        tipo,
+        `Iniciando generación de planilla ${mensajeTipo}...`
+      );
+
+      // Simular progreso activo durante el procesamiento del servidor
+      let paso = 15;
+      this.intervaloProgreso = setInterval(() => {
+        if (paso < 85) {
+          paso += 12;
+          let msg = 'Recopilando registros fiscales y aplicando filtros...';
+          if (paso >= 40 && paso < 70) {
+            msg = tipo === 'xlsx'
+              ? 'Aplicando cuadrícula profesional, colores EMAPAP y fórmulas...'
+              : 'Estructurando registros con codificación UTF-8...';
+          } else if (paso >= 70) {
+            msg = 'Empaquetando archivo y transmitiendo datos...';
+          }
+          this.avanzarProgreso(paso, msg);
+        }
+      }, 300);
+
+      try {
+        const url = `/api/facturacion/facturas/exportar-excel?formato=${tipo}&${q}`;
+        const res = await window.axios.get(url, {
+          responseType: 'blob',
+          onDownloadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const porcentaje = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              if (porcentaje > 85) {
+                this.avanzarProgreso(Math.min(porcentaje, 99), 'Descargando datos recibidos...');
+              }
+            }
+          },
+        });
+
+        this.avanzarProgreso(100, `¡Planilla ${extension.toUpperCase()} generada exitosamente!`);
+
+        const mime = tipo === 'xlsx'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'text/csv;charset=utf-8;';
+        const blob = new Blob([res.data], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = blobUrl;
+        const hoy = new Date().toISOString().slice(0, 10);
+        link.setAttribute('download', `Planilla_Facturas_EMAPAP_${hoy}.${extension}`);
+        document.body.appendChild(link);
+        link.click();
+
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+          this.finalizarProgreso();
+          this.mostrarNotificacion(`Planilla ${extension.toUpperCase()} descargada exitosamente`);
+        }, 500);
+      } catch (err) {
+        console.error('Error al exportar archivo:', err);
+        this.finalizarProgreso();
+        this.mostrarNotificacion(`No se pudo generar el archivo ${extension.toUpperCase()}`, 'error', 'mdi-alert-circle');
       }
     },
     formatearFecha(fechaStr) {
@@ -585,6 +905,8 @@ export default {
       const numFactura = (typeof item === 'object' && item.numero_factura) ? item.numero_factura : id;
       this.facturaVisorId = id;
       this.formatoVisor = formato;
+      this.mostrarSelectorFormatoVisor = true;
+      this.urlExcelReporte = '';
       this.urlVisorPdf = `/api/facturacion/facturas/${id}/pdf?formato=${formato}`;
       this.tituloVisorPdf = `Factura Electrónica SIAT N° ${numFactura}`;
       this.subtituloVisorPdf = 'Visualización e Impresión de Documento Fiscal Autorizado';

@@ -159,7 +159,7 @@ class ReportesOperativosPdfService
             ->whereNotIn('estado_servicio', ['BAJA', 'CORTADO']);
 
         if ($idZona) {
-            $query->where('id_zona', $idZona);
+            $query->where('abonados.id_zona', $idZona);
         }
 
         $abonados = $query->leftJoin('comercial.zonas', 'abonados.id_zona', '=', 'zonas.id')

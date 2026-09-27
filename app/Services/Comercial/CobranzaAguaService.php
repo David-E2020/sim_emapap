@@ -427,4 +427,36 @@ class CobranzaAguaService
             ];
         });
     }
+
+    /**
+     * Sincroniza masivamente el saldo_deuda y meses_mora de todos los abonados
+     * contra las lecturas mensuales pendientes reales en el sistema comercial.
+     */
+    public static function sincronizarSaldosGlobales(): void
+    {
+        \Illuminate\Support\Facades\DB::statement("
+            UPDATE comercial.abonados a
+            SET 
+                saldo_deuda = COALESCE(sub.total_deuda, 0.00),
+                meses_mora = COALESCE(sub.total_meses, 0)
+            FROM (
+                SELECT id_abonado, ROUND(SUM(total_facturado)::numeric, 2) as total_deuda, COUNT(*) as total_meses
+                FROM comercial.lecturas_mensuales
+                WHERE estado_pago = 'PENDIENTE' AND total_facturado > 0
+                GROUP BY id_abonado
+            ) sub
+            WHERE a.id = sub.id_abonado;
+        ");
+
+        \Illuminate\Support\Facades\DB::statement("
+            UPDATE comercial.abonados
+            SET saldo_deuda = 0.00, meses_mora = 0
+            WHERE id NOT IN (
+                SELECT DISTINCT id_abonado 
+                FROM comercial.lecturas_mensuales 
+                WHERE estado_pago = 'PENDIENTE' AND total_facturado > 0
+            );
+        ");
+    }
 }
+

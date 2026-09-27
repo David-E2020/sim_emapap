@@ -634,39 +634,62 @@
 
         <!-- Tabla Detalle Abonados a Cortar -->
         <v-card rounded="lg" class="erp-card-elevated mb-4">
-          <v-simple-table dense>
-            <template v-slot:default>
-              <thead>
-                <tr class="grey lighten-4">
-                  <th class="font-weight-bold text-center">N°</th>
-                  <th class="font-weight-bold text-center">Código</th>
-                  <th class="font-weight-bold">Titular / Abonado</th>
-                  <th class="font-weight-bold">Zona Comercial</th>
-                  <th class="font-weight-bold">Dirección / Calle</th>
-                  <th class="font-weight-bold text-center">Categoría</th>
-                  <th class="font-weight-bold text-center">Medidor</th>
-                  <th class="font-weight-bold text-center">Meses Mora</th>
-                  <th class="text-right font-weight-bold">Deuda (Bs)</th>
-                </tr>
-              </thead>
-              <tbody v-if="datosNominaCortes && datosNominaCortes.abonados">
-                <tr v-for="(a, idx) in datosNominaCortes.abonados" :key="a.id">
-                  <td class="text-center">{{ idx + 1 }}</td>
-                  <td class="text-center font-weight-bold">{{ a.codigo }}</td>
-                  <td class="font-weight-medium">{{ a.nombre_completo }}</td>
-                  <td>{{ a.zona ? a.zona.nombre : 'S/Z' }}</td>
-                  <td>{{ a.calle ? a.calle.nombre : 'S/C' }} {{ a.numero_vivienda ? '#' + a.numero_vivienda : '' }}</td>
-                  <td class="text-center">{{ a.categoria ? a.categoria.nombre : 'DOMESTICO' }}</td>
-                  <td class="text-center font-weight-bold">{{ a.medidor_actual ? a.medidor_actual.numero_serie : (a.numero_medidor || 'S/M') }}</td>
-                  <td class="text-center font-weight-bold error--text">{{ a.meses_mora }}</td>
-                  <td class="text-right font-weight-bold error--text">Bs {{ Number(a.saldo_deuda).toFixed(2) }}</td>
-                </tr>
-                <tr v-if="datosNominaCortes.abonados.length === 0">
-                  <td colspan="9" class="text-center py-4 text-secondary">No existen abonados en mora que cumplan este criterio de corte.</td>
-                </tr>
-              </tbody>
+          <v-card-title class="py-2 px-4 grey lighten-4 d-flex justify-space-between align-center flex-wrap gap-2">
+            <span class="text-subtitle-1 font-weight-bold">
+              <v-icon left small color="error">mdi-account-cancel</v-icon>
+              Listado de Abonados para Notificación o Corte
+            </span>
+            <v-text-field
+              v-model="buscarCorte"
+              prepend-inner-icon="mdi-magnify"
+              label="Buscar por código, titular, calle o medidor..."
+              dense
+              outlined
+              hide-details
+              clearable
+              style="max-width: 320px;"
+            ></v-text-field>
+          </v-card-title>
+
+          <v-data-table
+            :headers="headersNominaCortes"
+            :items="listaNominaCortes"
+            :search="buscarCorte"
+            :loading="cargandoNominaCortes"
+            :items-per-page="50"
+            :footer-props="{
+              'items-per-page-options': [25, 50, 100, 250],
+              'items-per-page-text': 'Filas por página:'
+            }"
+            dense
+            no-data-text="No existen abonados en mora que cumplan este criterio de corte."
+            no-results-text="No se encontraron coincidencias para la búsqueda."
+          >
+            <template v-slot:item.item_index="{ item }">
+              <span class="text-caption text-secondary">{{ item.item_index }}</span>
             </template>
-          </v-simple-table>
+            <template v-slot:item.codigo="{ item }">
+              <span class="font-weight-bold">{{ item.codigo }}</span>
+            </template>
+            <template v-slot:item.nombre_completo="{ item }">
+              <span class="font-weight-medium">{{ item.nombre_completo }}</span>
+            </template>
+            <template v-slot:item.meses_mora="{ item }">
+              <v-chip
+                x-small
+                :color="item.meses_mora >= 3 ? 'error' : 'warning'"
+                text-color="white"
+                class="font-weight-bold"
+              >
+                {{ item.meses_mora }} meses
+              </v-chip>
+            </template>
+            <template v-slot:item.saldo_deuda="{ item }">
+              <span class="font-weight-bold error--text">
+                Bs {{ item.saldo_deuda_num.toFixed(2) }}
+              </span>
+            </template>
+          </v-data-table>
         </v-card>
       </v-tab-item>
 
@@ -676,7 +699,7 @@
           <v-col cols="12" sm="3">
             <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
               <div class="text-caption text-secondary font-weight-bold">ABONADOS EN MORA</div>
-              <div class="text-h4 font-weight-black error--text mt-1">{{ datosMora.metricas.total_abonados_mora }}</div>
+              <div class="text-h4 font-weight-black error--text mt-1">{{ Number(datosMora.metricas.total_abonados_mora).toLocaleString() }}</div>
             </v-card>
           </v-col>
           <v-col cols="12" sm="3">
@@ -689,45 +712,87 @@
           </v-col>
           <v-col cols="12" sm="3">
             <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
-              <div class="text-caption text-secondary font-weight-bold">MORA 2 MESES (EN RIESGO CORTE)</div>
-              <div class="text-h4 font-weight-black warning--text mt-1">{{ datosMora.metricas.mora_2_meses }}</div>
+              <div class="text-caption text-secondary font-weight-bold">MORA 2 MESES (EN RIESGO)</div>
+              <div class="text-h4 font-weight-black warning--text mt-1">{{ Number(datosMora.metricas.mora_2_meses).toLocaleString() }}</div>
             </v-card>
           </v-col>
           <v-col cols="12" sm="3">
             <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
-              <div class="text-caption text-secondary font-weight-bold">MORA >= 3 MESES (CORTADO)</div>
-              <div class="text-h4 font-weight-black deep-orange--text mt-1">{{ datosMora.metricas.mora_3_o_mas_meses }}</div>
+              <div class="text-caption text-secondary font-weight-bold">MORA &ge; 3 MESES (CORTADO)</div>
+              <div class="text-h4 font-weight-black deep-orange--text mt-1">{{ Number(datosMora.metricas.mora_3_o_mas_meses).toLocaleString() }}</div>
             </v-card>
           </v-col>
         </v-row>
 
-        <v-card rounded="lg" class="erp-card-elevated" v-if="datosMora">
-          <v-card-title class="py-2 px-4 text-subtitle-1 font-weight-bold grey lighten-4">
-            Top 10 Mayores Deudores
-          </v-card-title>
-          <v-simple-table dense>
-            <template v-slot:default>
-              <thead>
-                <tr class="grey lighten-4">
-                  <th>Código</th>
-                  <th>Abonado</th>
-                  <th>Zona</th>
-                  <th class="text-center">Meses Mora</th>
-                  <th class="text-right">Monto Deuda</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="d in datosMora.top_deudores" :key="d.id">
-                  <td class="font-weight-bold">{{ d.codigo }}</td>
-                  <td>{{ d.nombre_completo }}</td>
-                  <td>{{ d.zona ? d.zona.nombre : '-' }}</td>
-                  <td class="text-center font-weight-bold error--text">{{ d.meses_mora }}</td>
-                  <td class="text-right font-weight-bold error--text">Bs {{ parseFloat(d.saldo_deuda).toFixed(2) }}</td>
-                </tr>
-              </tbody>
-            </template>
-          </v-simple-table>
-        </v-card>
+        <v-row dense v-if="datosMora">
+          <!-- RESUMEN DE CARTERA VENCIDA POR ZONAS -->
+          <v-col cols="12" md="6">
+            <v-card rounded="lg" class="erp-card-elevated h-100">
+              <v-card-title class="py-2 px-4 text-subtitle-1 font-weight-bold grey lighten-4">
+                <v-icon left small color="primary">mdi-map-marker-multiple</v-icon>
+                Cartera Vencida por Zonas Comerciales
+              </v-card-title>
+              <v-simple-table dense>
+                <template v-slot:default>
+                  <thead>
+                    <tr class="grey lighten-4">
+                      <th class="font-weight-bold">Zona Comercial</th>
+                      <th class="text-center font-weight-bold">Abonados Mora</th>
+                      <th class="text-right font-weight-bold">Deuda Acumulada</th>
+                      <th class="text-center font-weight-bold">% Cartera</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="z in datosMora.deuda_por_zona" :key="z.zona">
+                      <td class="font-weight-medium">{{ z.zona }}</td>
+                      <td class="text-center font-weight-bold">{{ z.abonados_mora }}</td>
+                      <td class="text-right font-weight-bold error--text">Bs {{ parseFloat(z.total_deuda).toFixed(2) }}</td>
+                      <td class="text-center">
+                        <span class="text-caption font-weight-bold">
+                          {{ datosMora.metricas.total_deuda_acumulada > 0 ? ((z.total_deuda / datosMora.metricas.total_deuda_acumulada) * 100).toFixed(1) : 0 }}%
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </template>
+              </v-simple-table>
+            </v-card>
+          </v-col>
+
+          <!-- TOP 10 MAYORES DEUDORES -->
+          <v-col cols="12" md="6">
+            <v-card rounded="lg" class="erp-card-elevated h-100">
+              <v-card-title class="py-2 px-4 text-subtitle-1 font-weight-bold grey lighten-4">
+                <v-icon left small color="error">mdi-alert-octagon</v-icon>
+                Top 10 Mayores Deudores Institucionales
+              </v-card-title>
+              <v-simple-table dense>
+                <template v-slot:default>
+                  <thead>
+                    <tr class="grey lighten-4">
+                      <th>Código</th>
+                      <th>Titular</th>
+                      <th>Zona</th>
+                      <th class="text-center">Meses</th>
+                      <th class="text-right">Monto Deuda</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="d in datosMora.top_deudores" :key="d.id">
+                      <td class="font-weight-bold">{{ d.codigo }}</td>
+                      <td class="font-weight-medium text-truncate" style="max-width: 160px;">{{ d.nombre_completo }}</td>
+                      <td class="text-caption">{{ d.zona ? d.zona.nombre : '-' }}</td>
+                      <td class="text-center">
+                        <v-chip x-small color="error" text-color="white" class="font-weight-bold">{{ d.meses_mora }} m</v-chip>
+                      </td>
+                      <td class="text-right font-weight-black error--text">Bs {{ parseFloat(d.saldo_deuda).toFixed(2) }}</td>
+                    </tr>
+                  </tbody>
+                </template>
+              </v-simple-table>
+            </v-card>
+          </v-col>
+        </v-row>
       </v-tab-item>
 
       <!-- PESTAÑA 3: BALANCE DE CONSUMO MENSUAL -->
@@ -845,12 +910,36 @@ export default {
       filtroMesesMoraCortes: 2,
       datosNominaCortes: null,
       cargandoNominaCortes: false,
+      buscarCorte: '',
+      headersNominaCortes: [
+        { text: '#', value: 'item_index', sortable: false, width: '45px', align: 'center' },
+        { text: 'Código', value: 'codigo', align: 'center', width: '90px' },
+        { text: 'Titular / Abonado', value: 'nombre_completo' },
+        { text: 'Zona Comercial', value: 'zona_nombre' },
+        { text: 'Dirección / Calle', value: 'direccion_completa', sortable: false },
+        { text: 'Categoría', value: 'categoria_nombre', align: 'center' },
+        { text: 'N° Medidor', value: 'medidor_serie', align: 'center' },
+        { text: 'Meses Mora', value: 'meses_mora', align: 'center' },
+        { text: 'Deuda Total', value: 'saldo_deuda', align: 'right' },
+      ],
     };
   },
   computed: {
     diferenciaArqueo() {
       if (!this.datosConsolidados || !this.datosConsolidados.metricas) return 0;
       return parseFloat(this.datosConsolidados.metricas.diferencia_neta || 0);
+    },
+    listaNominaCortes() {
+      if (!this.datosNominaCortes || !this.datosNominaCortes.abonados) return [];
+      return this.datosNominaCortes.abonados.map((a, idx) => ({
+        ...a,
+        item_index: idx + 1,
+        zona_nombre: a.zona ? a.zona.nombre : 'S/Z',
+        direccion_completa: `${a.calle ? a.calle.nombre : 'S/C'} ${a.numero_vivienda ? '#' + a.numero_vivienda : ''}`,
+        categoria_nombre: a.categoria ? a.categoria.nombre : 'DOMESTICO',
+        medidor_serie: a.medidor_actual ? a.medidor_actual.numero_serie : (a.numero_medidor || 'S/M'),
+        saldo_deuda_num: parseFloat(a.saldo_deuda || 0),
+      }));
     },
   },
   mounted() {

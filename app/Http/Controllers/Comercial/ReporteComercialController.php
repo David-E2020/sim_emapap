@@ -15,6 +15,7 @@ use App\Models\Comercial\PeriodoFacturacion;
 use App\Models\Comercial\ReciboCaja;
 use App\Models\Comercial\Zona;
 use App\Models\Facturacion\SiatPuntoVenta;
+use App\Models\User;
 use App\Services\Comercial\ReporteRecaudacionConsolidadaPdfService;
 use App\Services\Comercial\ReportesOperativosPdfService;
 use Carbon\Carbon;
@@ -217,54 +218,129 @@ class ReporteComercialController extends Controller
         $idCajero = $request->filled('id_cajero') ? (int) $request->input('id_cajero') : null;
         $metodoPago = $request->filled('metodo_pago') ? (int) $request->input('metodo_pago') : null;
 
-        // 1. Lecturas de Agua
-        $queryLecturas = LecturaMensual::with(['abonado', 'facturaSiat', 'cajero', 'sesionCaja.puntoVenta'])
-            ->where('estado_pago', 'PAGADO')
-            ->whereBetween('fecha_pago', [$fechaInicio, $fechaFin]);
+        // 1. Estadísticas de Lecturas Mensuales (Agua Potable y Alcantarillado)
+        $queryLecturas = DB::table('comercial.lecturas_mensuales as l')
+            ->leftJoin('facturacion.facturas as f', 'l.id_factura', '=', 'f.id')
+            ->leftJoin('comercial.caja_sesiones as s', 'l.id_sesion_caja', '=', 's.id')
+            ->where('l.estado_pago', 'PAGADO')
+            ->whereBetween('l.fecha_pago', [$fechaInicio, $fechaFin]);
 
         if ($idCajero) {
-            $queryLecturas->where('id_cajero', $idCajero);
+            $queryLecturas->where('l.id_cajero', $idCajero);
         }
         if ($idPuntoVenta) {
-            $queryLecturas->whereHas('sesionCaja', fn($q) => $q->where('id_punto_venta', $idPuntoVenta));
+            $queryLecturas->where(function ($q) use ($idPuntoVenta) {
+                $q->where('s.id_punto_venta', $idPuntoVenta);
+                if ($idPuntoVenta === 1) {
+                    $q->orWhereNull('s.id_punto_venta');
+                }
+            });
         }
         if ($metodoPago) {
-            $queryLecturas->whereHas('facturaSiat', fn($q) => $q->where('codigo_metodo_pago', $metodoPago));
+            $queryLecturas->where(DB::raw('COALESCE(f.codigo_metodo_pago, 1)'), $metodoPago);
         }
-        $lecturas = $queryLecturas->get();
 
-        // 2. Cuotas de Convenio
-        $queryCuotas = ConvenioCuota::with(['convenio.abonado', 'facturaSiat', 'cajero', 'sesionCaja.puntoVenta'])
-            ->where('estado_pago', 'PAGADO')
-            ->whereBetween('fecha_pago', [$fechaInicio, $fechaFin]);
+        $lecturasStats = (clone $queryLecturas)->selectRaw('
+            COUNT(*) as cantidad_total,
+            SUM(COALESCE(l.monto_agua, 0)) as total_agua,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(l.monto_agua, 0) ELSE 0 END) as agua_efectivo,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(l.monto_agua, 0) ELSE 0 END) as agua_qr,
+            SUM(COALESCE(l.monto_alcantarillado, 0)) as total_alcantarillado,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(l.monto_alcantarillado, 0) ELSE 0 END) as alcantarillado_efectivo,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(l.monto_alcantarillado, 0) ELSE 0 END) as alcantarillado_qr,
+            COUNT(CASE WHEN COALESCE(l.monto_descuento_ley1886, 0) > 0 THEN 1 END) as cant_ley1886,
+            SUM(COALESCE(l.monto_descuento_ley1886, 0)) as total_ley1886,
+            SUM(COALESCE(l.total_facturado, 0)) as total_facturado,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as total_efectivo,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as total_qr
+        ')->first();
+
+        $cantLecturas = (int) ($lecturasStats?->cantidad_total ?? 0);
+        $aguaEfectivo = (float) ($lecturasStats?->agua_efectivo ?? 0);
+        $aguaQr = (float) ($lecturasStats?->agua_qr ?? 0);
+        $totalAgua = round($aguaEfectivo + $aguaQr, 2);
+
+        $alcantarilladoEfectivo = (float) ($lecturasStats?->alcantarillado_efectivo ?? 0);
+        $alcantarilladoQr = (float) ($lecturasStats?->alcantarillado_qr ?? 0);
+        $totalAlcantarillado = round($alcantarilladoEfectivo + $alcantarilladoQr, 2);
+
+        $cantLey1886 = (int) ($lecturasStats?->cant_ley1886 ?? 0);
+        $descLey1886 = (float) ($lecturasStats?->total_ley1886 ?? 0);
+
+        $totalLecturasFacturado = (float) ($lecturasStats?->total_facturado ?? 0);
+        $lecturasTotalEf = (float) ($lecturasStats?->total_efectivo ?? 0);
+        $lecturasTotalQr = (float) ($lecturasStats?->total_qr ?? 0);
+
+        // 2. Cuotas de Convenios
+        $queryCuotas = DB::table('comercial.convenio_cuotas as c')
+            ->leftJoin('facturacion.facturas as f', 'c.id_factura', '=', 'f.id')
+            ->leftJoin('comercial.caja_sesiones as s', 'c.id_sesion_caja', '=', 's.id')
+            ->where('c.estado_pago', 'PAGADO')
+            ->whereBetween('c.fecha_pago', [$fechaInicio, $fechaFin]);
 
         if ($idCajero) {
-            $queryCuotas->where('id_cajero', $idCajero);
+            $queryCuotas->where('c.id_cajero', $idCajero);
         }
         if ($idPuntoVenta) {
-            $queryCuotas->whereHas('sesionCaja', fn($q) => $q->where('id_punto_venta', $idPuntoVenta));
+            $queryCuotas->where(function ($q) use ($idPuntoVenta) {
+                $q->where('s.id_punto_venta', $idPuntoVenta);
+                if ($idPuntoVenta === 1) {
+                    $q->orWhereNull('s.id_punto_venta');
+                }
+            });
         }
         if ($metodoPago) {
-            $queryCuotas->whereHas('facturaSiat', fn($q) => $q->where('codigo_metodo_pago', $metodoPago));
+            $queryCuotas->where(DB::raw('COALESCE(f.codigo_metodo_pago, 1)'), $metodoPago);
         }
-        $cuotas = $queryCuotas->get();
 
-        // 3. Recibos de Caja
-        $queryRecibos = ReciboCaja::with(['abonado', 'cajero', 'sesionCaja.puntoVenta'])
-            ->where('estado', 'VALIDO')
-            ->whereBetween('fecha_cobro', [$fechaInicio, $fechaFin]);
+        $cuotasStats = (clone $queryCuotas)->selectRaw('
+            COUNT(*) as cantidad_total,
+            SUM(COALESCE(c.monto_cuota, 0)) as total_cuotas,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(c.monto_cuota, 0) ELSE 0 END) as cuotas_efectivo,
+            SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(c.monto_cuota, 0) ELSE 0 END) as cuotas_qr
+        ')->first();
+
+        $cantCuotas = (int) ($cuotasStats?->cantidad_total ?? 0);
+        $cuotasEfectivo = (float) ($cuotasStats?->cuotas_efectivo ?? 0);
+        $cuotasQr = (float) ($cuotasStats?->cuotas_qr ?? 0);
+        $totalConvenios = round($cuotasEfectivo + $cuotasQr, 2);
+
+        // 3. Recibos de Caja (Aportes e Instalaciones de Conexión, Reconexiones, etc.)
+        $queryRecibos = DB::table('comercial.recibos_caja as r')
+            ->leftJoin('comercial.caja_sesiones as s', 'r.id_sesion_caja', '=', 's.id')
+            ->where('r.estado', 'VALIDO')
+            ->whereBetween('r.fecha_cobro', [$fechaInicio, $fechaFin]);
 
         if ($idCajero) {
-            $queryRecibos->where('id_cajero', $idCajero);
+            $queryRecibos->where('r.id_cajero', $idCajero);
         }
         if ($idPuntoVenta) {
-            $queryRecibos->whereHas('sesionCaja', fn($q) => $q->where('id_punto_venta', $idPuntoVenta));
+            $queryRecibos->where(function ($q) use ($idPuntoVenta) {
+                $q->where('s.id_punto_venta', $idPuntoVenta);
+                if ($idPuntoVenta === 1) {
+                    $q->orWhereNull('s.id_punto_venta');
+                }
+            });
         }
-        // Recibos son en efectivo salvo indicación contraria
         if ($metodoPago && $metodoPago !== 1) {
             $queryRecibos->whereRaw('1 = 0');
         }
-        $recibos = $queryRecibos->get();
+
+        $recibosPorRubro = (clone $queryRecibos)->selectRaw("
+            CASE
+                WHEN LOWER(r.descripcion) LIKE '%alcantarillado%' THEN 'Conexiones e Instalaciones (Alcantarillado)'
+                WHEN LOWER(r.descripcion) LIKE '%aportes/inst. agua%' OR LOWER(r.descripcion) LIKE '%instalacion de agua%' OR r.concepto_tipo IN ('APORTE', 'INSTALACION', 'DERECHO_CONEXION') THEN 'Conexiones e Instalaciones (Agua Potable)'
+                WHEN r.concepto_tipo = 'RECONEXION' OR LOWER(r.descripcion) LIKE '%reconexion%' THEN 'Reconexiones de Servicio'
+                WHEN r.concepto_tipo = 'CAMBIO_NOMBRE' OR LOWER(r.descripcion) LIKE '%cambio de nombre%' THEN 'Cambios de Titularidad / Nombre'
+                WHEN LOWER(r.descripcion) LIKE '%medidor%' OR LOWER(r.descripcion) LIKE '%accesorios%' THEN 'Materiales y Servicios Operativos'
+                ELSE 'Otros Trámites y Multas'
+            END as rubro_nombre,
+            COUNT(*) as transacciones,
+            SUM(COALESCE(r.monto_total, 0)) as total
+        ")->groupBy('rubro_nombre')->get()->keyBy('rubro_nombre');
+
+        $cantRecibos = (int) (clone $queryRecibos)->count();
+        $totalRecibos = (float) (clone $queryRecibos)->sum('r.monto_total');
 
         // 4. Sesiones de Caja
         $querySesiones = CajaSesion::with(['puntoVenta', 'cajero', 'supervisor'])
@@ -287,34 +363,11 @@ class ReporteComercialController extends Controller
         }
         $movimientos = $queryMovimientos->get();
 
-        // --- CÁLCULO DE RUBROS Y MÉTODOS ---
-        $lecturasEf = $lecturas->filter(fn($l) => ($l->facturaSiat?->codigo_metodo_pago ?? 1) === 1);
-        $lecturasQr = $lecturas->filter(fn($l) => ($l->facturaSiat?->codigo_metodo_pago ?? 1) !== 1);
-
-        $cuotasEf = $cuotas->filter(fn($c) => ($c->facturaSiat?->codigo_metodo_pago ?? 1) === 1);
-        $cuotasQr = $cuotas->filter(fn($c) => ($c->facturaSiat?->codigo_metodo_pago ?? 1) !== 1);
-
-        $aguaEfectivo = (float) $lecturasEf->sum('monto_agua');
-        $aguaQr = (float) $lecturasQr->sum('monto_agua');
-        $totalAgua = round($aguaEfectivo + $aguaQr, 2);
-
-        $alcantarilladoEfectivo = (float) $lecturasEf->sum('monto_alcantarillado');
-        $alcantarilladoQr = (float) $lecturasQr->sum('monto_alcantarillado');
-        $totalAlcantarillado = round($alcantarilladoEfectivo + $alcantarilladoQr, 2);
-
-        $descLey1886 = (float) $lecturas->sum('monto_descuento_ley1886');
-
-        $cuotasEfectivo = (float) $cuotasEf->sum('monto_cuota');
-        $cuotasQr = (float) $cuotasQr->sum('monto_cuota');
-        $totalConvenios = round($cuotasEfectivo + $cuotasQr, 2);
-
-        $totalRecibos = (float) $recibos->sum('monto_total');
-
-        $totalLecturas = (float) $lecturas->sum('total_facturado');
-        $totalGeneralRecaudado = round($totalLecturas + $totalConvenios + $totalRecibos, 2);
-
-        $totalEfectivo = round((float) $lecturasEf->sum('total_facturado') + $cuotasEfectivo + $totalRecibos, 2);
-        $totalQr = round((float) $lecturasQr->sum('total_facturado') + $cuotasQr, 2);
+        // --- CÁLCULO DE TOTALES GENERALES ---
+        $totalGeneralRecaudado = round($totalLecturasFacturado + $totalConvenios + $totalRecibos, 2);
+        $totalEfectivo = round($lecturasTotalEf + $cuotasEfectivo + $totalRecibos, 2);
+        $totalQr = round($lecturasTotalQr + $cuotasQr, 2);
+        $totalTransacciones = $cantLecturas + $cantCuotas + $cantRecibos;
 
         $totalFondoInicial = (float) $sesiones->sum('monto_apertura');
         $totalIngresosExtra = (float) $movimientos->where('tipo', 'INGRESO')->sum('monto');
@@ -325,64 +378,114 @@ class ReporteComercialController extends Controller
         $totalDeclaradoFisico = (float) $sesionesCerradas->sum('monto_cierre_declarado');
         $diferenciaNeta = round((float) $sesionesCerradas->sum('diferencia'), 2);
 
-        // Distribución por Rubros
+        // --- DISTRIBUCIÓN POR RUBROS ---
         $porRubro = [
             [
                 'nombre' => 'Servicio de Agua Potable',
-                'cantidad' => $lecturas->count(),
+                'cantidad' => $cantLecturas,
                 'efectivo' => $aguaEfectivo,
                 'qr' => $aguaQr,
                 'total' => $totalAgua,
             ],
             [
                 'nombre' => 'Tasa de Alcantarillado Sanitario',
-                'cantidad' => $lecturas->count(),
+                'cantidad' => $cantLecturas,
                 'efectivo' => $alcantarilladoEfectivo,
                 'qr' => $alcantarilladoQr,
                 'total' => $totalAlcantarillado,
             ],
             [
                 'nombre' => 'Descuento Ley 1886 (3ra Edad)',
-                'cantidad' => $lecturas->where('monto_descuento_ley1886', '>', 0)->count(),
+                'cantidad' => $cantLey1886,
                 'efectivo' => -$descLey1886,
                 'qr' => 0.00,
                 'total' => -$descLey1886,
             ],
             [
                 'nombre' => 'Cuotas de Convenios de Pago',
-                'cantidad' => $cuotas->count(),
+                'cantidad' => $cantCuotas,
                 'efectivo' => $cuotasEfectivo,
                 'qr' => $cuotasQr,
                 'total' => $totalConvenios,
             ],
-            [
-                'nombre' => 'Recibos de Caja (Otros Conceptos)',
-                'cantidad' => $recibos->count(),
+        ];
+
+        // Añadir sub-rubros de recibos (Conexiones, Reconexiones, Titularidad, Materiales, Trámites)
+        $rubrosDefinidos = [
+            'Conexiones e Instalaciones (Agua Potable)',
+            'Conexiones e Instalaciones (Alcantarillado)',
+            'Reconexiones de Servicio',
+            'Cambios de Titularidad / Nombre',
+            'Materiales y Servicios Operativos',
+            'Otros Trámites y Multas',
+        ];
+
+        foreach ($rubrosDefinidos as $rNom) {
+            $item = $recibosPorRubro->get($rNom);
+            if ($item && (float) $item->total > 0) {
+                $porRubro[] = [
+                    'nombre' => $rNom,
+                    'cantidad' => (int) $item->transacciones,
+                    'efectivo' => (float) $item->total,
+                    'qr' => 0.00,
+                    'total' => (float) $item->total,
+                ];
+            }
+        }
+
+        if ($totalRecibos > 0 && count($porRubro) === 4) {
+            $porRubro[] = [
+                'nombre' => 'Recibos de Caja (Varios)',
+                'cantidad' => $cantRecibos,
                 'efectivo' => $totalRecibos,
                 'qr' => 0.00,
                 'total' => $totalRecibos,
-            ],
-        ];
+            ];
+        }
 
-        // Distribución por Ventanilla / Caja
+        // --- DISTRIBUCIÓN POR VENTANILLA / CAJA ---
         $puntosVenta = SiatPuntoVenta::where('_estado', 'ACTIVO')->get()->keyBy('id');
         $porCaja = [];
 
+        $lecPorCaja = (clone $queryLecturas)
+            ->groupBy(DB::raw('COALESCE(s.id_punto_venta, 1)'))
+            ->selectRaw('
+                COALESCE(s.id_punto_venta, 1) as id_punto_venta,
+                COUNT(*) as transacciones,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as efectivo,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as qr,
+                SUM(COALESCE(l.total_facturado, 0)) as total
+            ')->get()->keyBy('id_punto_venta');
+
+        $cuoPorCaja = (clone $queryCuotas)
+            ->groupBy(DB::raw('COALESCE(s.id_punto_venta, 1)'))
+            ->selectRaw('
+                COALESCE(s.id_punto_venta, 1) as id_punto_venta,
+                COUNT(*) as transacciones,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(c.monto_cuota, 0) ELSE 0 END) as efectivo,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(c.monto_cuota, 0) ELSE 0 END) as qr,
+                SUM(COALESCE(c.monto_cuota, 0)) as total
+            ')->get()->keyBy('id_punto_venta');
+
+        $recPorCaja = (clone $queryRecibos)
+            ->groupBy(DB::raw('COALESCE(s.id_punto_venta, 1)'))
+            ->selectRaw('
+                COALESCE(s.id_punto_venta, 1) as id_punto_venta,
+                COUNT(*) as transacciones,
+                SUM(COALESCE(r.monto_total, 0)) as efectivo,
+                0 as qr,
+                SUM(COALESCE(r.monto_total, 0)) as total
+            ')->get()->keyBy('id_punto_venta');
+
         foreach ($puntosVenta as $pvId => $pv) {
-            $lecCaja = $lecturas->filter(fn($l) => $l->sesionCaja?->id_punto_venta === $pvId);
-            $cuoCaja = $cuotas->filter(fn($c) => $c->sesionCaja?->id_punto_venta === $pvId);
-            $recCaja = $recibos->filter(fn($r) => $r->sesionCaja?->id_punto_venta === $pvId);
+            $lC = $lecPorCaja->get($pvId);
+            $cC = $cuoPorCaja->get($pvId);
+            $rC = $recPorCaja->get($pvId);
 
             $turnosCaja = $sesiones->where('id_punto_venta', $pvId)->count();
-            $cantTrans = $lecCaja->count() + $cuoCaja->count() + $recCaja->count();
-
-            $efCaja = (float) $lecCaja->filter(fn($l) => ($l->facturaSiat?->codigo_metodo_pago ?? 1) === 1)->sum('total_facturado')
-                + (float) $cuoCaja->filter(fn($c) => ($c->facturaSiat?->codigo_metodo_pago ?? 1) === 1)->sum('monto_cuota')
-                + (float) $recCaja->sum('monto_total');
-
-            $qrCaja = (float) $lecCaja->filter(fn($l) => ($l->facturaSiat?->codigo_metodo_pago ?? 1) !== 1)->sum('total_facturado')
-                + (float) $cuoCaja->filter(fn($c) => ($c->facturaSiat?->codigo_metodo_pago ?? 1) !== 1)->sum('monto_cuota');
-
+            $cantTrans = (int) ($lC?->transacciones ?? 0) + (int) ($cC?->transacciones ?? 0) + (int) ($rC?->transacciones ?? 0);
+            $efCaja = (float) ($lC?->efectivo ?? 0) + (float) ($cC?->efectivo ?? 0) + (float) ($rC?->efectivo ?? 0);
+            $qrCaja = (float) ($lC?->qr ?? 0) + (float) ($cC?->qr ?? 0);
             $totCaja = round($efCaja + $qrCaja, 2);
 
             if ($turnosCaja > 0 || $cantTrans > 0) {
@@ -399,53 +502,72 @@ class ReporteComercialController extends Controller
             }
         }
 
-        // Distribución por Cajero
-        $cajerosGroup = [];
-        foreach ($lecturas as $l) {
-            $cid = $l->id_cajero ?? 0;
-            $cnom = $l->cajero?->name ?? "Cajero #{$cid}";
-            $esEf = ($l->facturaSiat?->codigo_metodo_pago ?? 1) === 1;
-            $m = (float) $l->total_facturado;
-            $cajerosGroup[$cid]['cajero'] = $cnom;
-            $cajerosGroup[$cid]['transacciones'] = ($cajerosGroup[$cid]['transacciones'] ?? 0) + 1;
-            $cajerosGroup[$cid]['efectivo'] = ($cajerosGroup[$cid]['efectivo'] ?? 0) + ($esEf ? $m : 0);
-            $cajerosGroup[$cid]['qr'] = ($cajerosGroup[$cid]['qr'] ?? 0) + (!$esEf ? $m : 0);
-            $cajerosGroup[$cid]['total'] = ($cajerosGroup[$cid]['total'] ?? 0) + $m;
-        }
-        foreach ($cuotas as $c) {
-            $cid = $c->id_cajero ?? 0;
-            $cnom = $c->cajero?->name ?? "Cajero #{$cid}";
-            $esEf = ($c->facturaSiat?->codigo_metodo_pago ?? 1) === 1;
-            $m = (float) $c->monto_cuota;
-            $cajerosGroup[$cid]['cajero'] = $cnom;
-            $cajerosGroup[$cid]['transacciones'] = ($cajerosGroup[$cid]['transacciones'] ?? 0) + 1;
-            $cajerosGroup[$cid]['efectivo'] = ($cajerosGroup[$cid]['efectivo'] ?? 0) + ($esEf ? $m : 0);
-            $cajerosGroup[$cid]['qr'] = ($cajerosGroup[$cid]['qr'] ?? 0) + (!$esEf ? $m : 0);
-            $cajerosGroup[$cid]['total'] = ($cajerosGroup[$cid]['total'] ?? 0) + $m;
-        }
-        foreach ($recibos as $r) {
-            $cid = $r->id_cajero ?? 0;
-            $cnom = $r->cajero?->name ?? "Cajero #{$cid}";
-            $m = (float) $r->monto_total;
-            $cajerosGroup[$cid]['cajero'] = $cnom;
-            $cajerosGroup[$cid]['transacciones'] = ($cajerosGroup[$cid]['transacciones'] ?? 0) + 1;
-            $cajerosGroup[$cid]['efectivo'] = ($cajerosGroup[$cid]['efectivo'] ?? 0) + $m;
-            $cajerosGroup[$cid]['qr'] = ($cajerosGroup[$cid]['qr'] ?? 0);
-            $cajerosGroup[$cid]['total'] = ($cajerosGroup[$cid]['total'] ?? 0) + $m;
-        }
+        // --- DISTRIBUCIÓN POR CAJERO ---
+        $usersMap = User::pluck('name', 'id')->toArray();
+
+        $lecPorCajero = (clone $queryLecturas)
+            ->groupBy(DB::raw('COALESCE(l.id_cajero, 1)'))
+            ->selectRaw('
+                COALESCE(l.id_cajero, 1) as id_cajero,
+                COUNT(*) as transacciones,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as efectivo,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(l.total_facturado, 0) ELSE 0 END) as qr,
+                SUM(COALESCE(l.total_facturado, 0)) as total
+            ')->get()->keyBy('id_cajero');
+
+        $cuoPorCajero = (clone $queryCuotas)
+            ->groupBy(DB::raw('COALESCE(c.id_cajero, 1)'))
+            ->selectRaw('
+                COALESCE(c.id_cajero, 1) as id_cajero,
+                COUNT(*) as transacciones,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) = 1 THEN COALESCE(c.monto_cuota, 0) ELSE 0 END) as efectivo,
+                SUM(CASE WHEN COALESCE(f.codigo_metodo_pago, 1) != 1 THEN COALESCE(c.monto_cuota, 0) ELSE 0 END) as qr,
+                SUM(COALESCE(c.monto_cuota, 0)) as total
+            ')->get()->keyBy('id_cajero');
+
+        $recPorCajero = (clone $queryRecibos)
+            ->groupBy(DB::raw('COALESCE(r.id_cajero, 1)'))
+            ->selectRaw('
+                COALESCE(r.id_cajero, 1) as id_cajero,
+                COUNT(*) as transacciones,
+                SUM(COALESCE(r.monto_total, 0)) as efectivo,
+                0 as qr,
+                SUM(COALESCE(r.monto_total, 0)) as total
+            ')->get()->keyBy('id_cajero');
+
+        $cajeroIds = collect([])
+            ->concat($lecPorCajero->keys())
+            ->concat($cuoPorCajero->keys())
+            ->concat($recPorCajero->keys())
+            ->concat($sesiones->pluck('id_cajero'))
+            ->unique()
+            ->filter();
 
         $porCajero = [];
-        foreach ($cajerosGroup as $cid => $data) {
+        foreach ($cajeroIds as $cid) {
+            $cid = (int) $cid;
+            $lCj = $lecPorCajero->get($cid);
+            $cCj = $cuoPorCajero->get($cid);
+            $rCj = $recPorCajero->get($cid);
+
             $turnosCajero = $sesiones->where('id_cajero', $cid)->count();
-            $porCajero[] = [
-                'id_cajero' => $cid,
-                'cajero' => $data['cajero'],
-                'turnos' => $turnosCajero,
-                'transacciones' => $data['transacciones'],
-                'efectivo' => round($data['efectivo'], 2),
-                'qr' => round($data['qr'], 2),
-                'total' => round($data['total'], 2),
-            ];
+            $cantTrans = (int) ($lCj?->transacciones ?? 0) + (int) ($cCj?->transacciones ?? 0) + (int) ($rCj?->transacciones ?? 0);
+            $efCj = (float) ($lCj?->efectivo ?? 0) + (float) ($cCj?->efectivo ?? 0) + (float) ($rCj?->efectivo ?? 0);
+            $qrCj = (float) ($lCj?->qr ?? 0) + (float) ($cCj?->qr ?? 0);
+            $totCj = round($efCj + $qrCj, 2);
+
+            if ($turnosCajero > 0 || $cantTrans > 0) {
+                $nombreCajero = $usersMap[$cid] ?? "Cajero #{$cid}";
+                $porCajero[] = [
+                    'id_cajero' => $cid,
+                    'cajero' => $nombreCajero,
+                    'turnos' => $turnosCajero,
+                    'transacciones' => $cantTrans,
+                    'efectivo' => $efCj,
+                    'qr' => $qrCj,
+                    'total' => $totCj,
+                ];
+            }
         }
 
         // Listado formateado de turnos
@@ -491,7 +613,7 @@ class ReporteComercialController extends Controller
                 'total_esperado_efectivo' => $totalEsperadoEfectivo,
                 'total_declarado_fisico' => $totalDeclaradoFisico,
                 'diferencia_neta' => $diferenciaNeta,
-                'total_transacciones' => $lecturas->count() + $cuotas->count() + $recibos->count(),
+                'total_transacciones' => $totalTransacciones,
             ],
             'por_rubro' => $porRubro,
             'por_caja' => $porCaja,
@@ -539,8 +661,8 @@ class ReporteComercialController extends Controller
             $query->where('id_zona', $idZona);
         }
 
-        $totalAbonadosMora = $query->count();
-        $totalDeudaAcumulada = (float) $query->sum('saldo_deuda');
+        $totalAbonadosMora = (clone $query)->count();
+        $totalDeudaAcumulada = (float) (clone $query)->sum('saldo_deuda');
 
         // Segmentación por antigüedad de mora
         $mora1Mes = (clone $query)->where('meses_mora', 1)->count();
@@ -550,14 +672,23 @@ class ReporteComercialController extends Controller
         // Top 10 mayores deudores
         $topDeudores = (clone $query)->orderByDesc('saldo_deuda')->limit(10)->get();
 
-        // Resumen por Zona
-        $deudaPorZona = Zona::withCount(['abonados as en_mora' => fn($q) => $q->where('meses_mora', '>', 0)])
+        // Resumen por Zona optimizado con agregación SQL
+        $deudaZonasMap = DB::table('comercial.abonados')
+            ->selectRaw('id_zona, COUNT(*) as en_mora, SUM(COALESCE(saldo_deuda, 0)) as total_deuda')
+            ->where('meses_mora', '>', 0)
+            ->groupBy('id_zona')
             ->get()
-            ->map(function ($z) {
+            ->keyBy('id_zona');
+
+        $deudaPorZona = Zona::orderBy('nombre')
+            ->get()
+            ->map(function ($z) use ($deudaZonasMap) {
+                $stat = $deudaZonasMap->get($z->id);
                 return [
+                    'id_zona' => $z->id,
                     'zona' => $z->nombre,
-                    'abonados_mora' => $z->en_mora,
-                    'total_deuda' => (float) Abonado::where('id_zona', $z->id)->sum('saldo_deuda'),
+                    'abonados_mora' => (int) ($stat?->en_mora ?? 0),
+                    'total_deuda' => round((float) ($stat?->total_deuda ?? 0), 2),
                 ];
             });
 
@@ -565,7 +696,7 @@ class ReporteComercialController extends Controller
             'success' => true,
             'metricas' => [
                 'total_abonados_mora' => $totalAbonadosMora,
-                'total_deuda_acumulada' => $totalDeudaAcumulada,
+                'total_deuda_acumulada' => round($totalDeudaAcumulada, 2),
                 'mora_1_mes' => $mora1Mes,
                 'mora_2_meses' => $mora2Meses,
                 'mora_3_o_mas_meses' => $mora3OMas,
@@ -583,27 +714,43 @@ class ReporteComercialController extends Controller
         $periodos = PeriodoFacturacion::withCount('lecturas')
             ->orderByDesc('id')
             ->limit(12)
-            ->get()
-            ->map(function ($p) {
-                $lecturas = LecturaMensual::where('id_periodo', $p->id)->get();
-                $consumoTotalM3 = (float) $lecturas->sum('consumo_m3');
-                $totalFacturado = (float) $lecturas->sum('total_facturado');
-                $totalCobrado = (float) $lecturas->where('estado_pago', 'PAGADO')->sum('total_facturado');
+            ->get();
 
-                return [
-                    'periodo' => $p->periodo,
-                    'estado' => $p->estado,
-                    'abonados_medidos' => $p->lecturas_count,
-                    'volumen_total_m3' => $consumoTotalM3,
-                    'monto_facturado_bs' => $totalFacturado,
-                    'monto_cobrado_bs' => $totalCobrado,
-                    'porcentaje_recaudacion' => $totalFacturado > 0 ? round(($totalCobrado / $totalFacturado) * 100, 1) : 0,
-                ];
-            });
+        $periodosIds = $periodos->pluck('id');
+        $stats = DB::table('comercial.lecturas_mensuales')
+            ->whereIn('id_periodo', $periodosIds)
+            ->groupBy('id_periodo')
+            ->selectRaw('
+                id_periodo,
+                COUNT(*) as abonados_medidos,
+                SUM(COALESCE(consumo_m3, 0)) as volumen_total_m3,
+                SUM(COALESCE(total_facturado, 0)) as monto_facturado_bs,
+                SUM(CASE WHEN estado_pago = \'PAGADO\' THEN COALESCE(total_facturado, 0) ELSE 0 END) as monto_cobrado_bs
+            ')
+            ->get()
+            ->keyBy('id_periodo');
+
+        $periodosResult = $periodos->map(function ($p) use ($stats) {
+            $st = $stats->get($p->id);
+            $volumen = (float) ($st?->volumen_total_m3 ?? 0);
+            $facturado = (float) ($st?->monto_facturado_bs ?? 0);
+            $cobrado = (float) ($st?->monto_cobrado_bs ?? 0);
+
+            return [
+                'id_periodo' => $p->id,
+                'periodo' => $p->periodo,
+                'estado' => $p->estado,
+                'abonados_medidos' => (int) ($st?->abonados_medidos ?? $p->lecturas_count),
+                'volumen_total_m3' => round($volumen, 2),
+                'monto_facturado_bs' => round($facturado, 2),
+                'monto_cobrado_bs' => round($cobrado, 2),
+                'porcentaje_recaudacion' => $facturado > 0 ? round(($cobrado / $facturado) * 100, 1) : 0,
+            ];
+        });
 
         return response()->json([
             'success' => true,
-            'periodos' => $periodos,
+            'periodos' => $periodosResult,
         ], Response::HTTP_OK);
     }
 
@@ -857,7 +1004,7 @@ class ReporteComercialController extends Controller
             ->whereNotIn('estado_servicio', ['BAJA', 'CORTADO']);
 
         if ($idZona) {
-            $query->where('id_zona', $idZona);
+            $query->where('abonados.id_zona', $idZona);
         }
 
         $abonados = $query->leftJoin('comercial.zonas', 'abonados.id_zona', '=', 'zonas.id')
@@ -907,7 +1054,7 @@ class ReporteComercialController extends Controller
             ->whereNotIn('estado_servicio', ['BAJA', 'CORTADO']);
 
         if ($idZona) {
-            $query->where('id_zona', $idZona);
+            $query->where('abonados.id_zona', $idZona);
         }
 
         $abonados = $query->leftJoin('comercial.zonas', 'abonados.id_zona', '=', 'zonas.id')

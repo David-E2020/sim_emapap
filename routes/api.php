@@ -409,6 +409,8 @@ Route::group(['middleware' => ['jwt.auth']], function () {
         // Facturas y Cobro en Ventanilla
         Route::group(['middleware' => ['check.permission:facturacion.caja.cobrar|facturacion.facturas.ver|facturacion.facturas.crear|facturacion.facturas.anular']], function () {
             Route::get('facturas', [FacturaController::class, 'index']);
+            Route::get('facturas/exportar-pdf', [FacturaController::class, 'exportarPdf']);
+            Route::get('facturas/exportar-excel', [FacturaController::class, 'exportarExcel']);
             Route::post('facturas', [FacturaController::class, 'store']);
             Route::post('facturas/emision-masiva', [FacturaController::class, 'emisionMasiva']);
             Route::post('facturas/{id}/anular', [FacturaController::class, 'anular']);
@@ -577,6 +579,7 @@ Route::group(['middleware' => ['jwt.auth']], function () {
             Route::get('aportes', [AporteConexionController::class, 'index']);
             Route::post('aportes', [AporteConexionController::class, 'store']);
             Route::get('aportes/{id}/contrato-pdf', [AporteConexionController::class, 'contratoPdf']);
+            Route::get('aportes/{id}/factura-pdf', [AporteConexionController::class, 'facturaPdf']);
             Route::get('abonados/{id}/aportes', [AporteConexionController::class, 'porAbonado']);
         });
     });

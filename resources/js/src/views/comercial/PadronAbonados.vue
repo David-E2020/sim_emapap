@@ -804,7 +804,19 @@
                           </v-chip>
                         </td>
                         <td class="text-center text-caption font-weight-bold">
-                          {{ ap.factura ? '#' + ap.factura : '-' }}
+                          <v-chip
+                            v-if="ap.factura"
+                            x-small
+                            outlined
+                            color="primary"
+                            class="font-weight-bold cursor-pointer"
+                            title="Ver Factura / Recibo de Pago"
+                            @click="verFacturaAporte(ap)"
+                          >
+                            <v-icon x-small left color="primary">mdi-receipt-text-outline</v-icon>
+                            #{{ ap.factura }}
+                          </v-chip>
+                          <span v-else class="grey--text">-</span>
                         </td>
                         <td class="text-center">
                           <v-btn
@@ -932,12 +944,15 @@
       </v-card>
     </v-dialog>
 
-    <!-- VISOR UNIVERSAL MODAL DE PDF (EXTRACTO DE CUENTA / HISTORIAL) -->
+    <!-- VISOR UNIVERSAL MODAL DE PDF (EXTRACTO, CONTRATO O FACTURA) -->
     <modal-visor-pdf
       v-model="mostrarVisorPdf"
       :url="urlVisorPdf"
       :titulo="tituloVisorPdf"
       :subtitulo="subtituloVisorPdf"
+      :mostrar-selector-formato="esFacturaVisor"
+      :formato-inicial="formatoVisor"
+      @cambio-formato="alCambiarFormatoVisor"
     ></modal-visor-pdf>
 
     <!-- NOTIFICACIÓN NATIVA DEL SISTEMA (SNACKBAR) -->
@@ -976,6 +991,10 @@ export default {
       urlVisorPdf: '',
       tituloVisorPdf: '',
       subtituloVisorPdf: '',
+      esFacturaVisor: false,
+      formatoVisor: 'rollo',
+      itemAporteActual: null,
+      facturaSiatIdActual: null,
       cargando: false,
       guardando: false,
       tipoBusqueda: 'todos',
@@ -1344,6 +1363,9 @@ export default {
     },
     imprimirContratoAporte(aporte) {
       if (!aporte) return;
+      this.esFacturaVisor = false;
+      this.itemAporteActual = null;
+      this.facturaSiatIdActual = null;
       const esAgua = (aporte.tipo_servicio || 'AGUA').toUpperCase() === 'AGUA';
       this.urlVisorPdf = `/api/comercial/aportes/${aporte.id}/contrato-pdf`;
       this.tituloVisorPdf = esAgua
@@ -1354,16 +1376,42 @@ export default {
     },
     descargarExtracto(item) {
       if (!item) return;
+      this.esFacturaVisor = false;
+      this.itemAporteActual = null;
+      this.facturaSiatIdActual = null;
       this.urlVisorPdf = `/api/comercial/abonados/${item.id}/extracto/pdf`;
       this.tituloVisorPdf = `Extracto de Cuenta - Abonado #${item.codigo}`;
       this.subtituloVisorPdf = `${item.nombre_completo || ''} | NIT/CI: ${item.numero_documento || 'S/N'}`;
       this.mostrarVisorPdf = true;
     },
     abrirFacturaDesdeFicha(facturaId, numeroFactura) {
-      this.urlVisorPdf = `/api/facturacion/facturas/${facturaId}/pdf?formato=rollo`;
-      this.tituloVisorPdf = `Factura Electrónica SIAT #${numeroFactura}`;
+      this.facturaSiatIdActual = facturaId;
+      this.itemAporteActual = null;
+      this.esFacturaVisor = true;
+      this.formatoVisor = 'rollo';
+      this.urlVisorPdf = `/api/facturacion/publico/facturas/${facturaId}/pdf?formato=rollo`;
+      this.tituloVisorPdf = `Factura Electrónica SIAT N° ${numeroFactura}`;
       this.subtituloVisorPdf = 'Comprobante Oficial Autorizado por el SIN';
       this.mostrarVisorPdf = true;
+    },
+    verFacturaAporte(ap) {
+      if (!ap || !ap.factura) return;
+      this.itemAporteActual = ap;
+      this.facturaSiatIdActual = null;
+      this.esFacturaVisor = true;
+      this.formatoVisor = 'rollo';
+      this.urlVisorPdf = `/api/comercial/aportes/${ap.id}/factura-pdf?formato=rollo`;
+      this.tituloVisorPdf = `Factura / Recibo Oficial N° ${ap.factura}`;
+      this.subtituloVisorPdf = `Abonado: [${ap.codigo_socio}] ${ap.nombre_socio || ''} | Periodo: ${ap.periodo || '-'} | Total: Bs ${parseFloat(ap.total).toFixed(2)}`;
+      this.mostrarVisorPdf = true;
+    },
+    alCambiarFormatoVisor(nuevoFormato) {
+      this.formatoVisor = nuevoFormato;
+      if (this.itemAporteActual) {
+        this.urlVisorPdf = `/api/comercial/aportes/${this.itemAporteActual.id}/factura-pdf?formato=${nuevoFormato}&_t=${Date.now()}`;
+      } else if (this.facturaSiatIdActual) {
+        this.urlVisorPdf = `/api/facturacion/publico/facturas/${this.facturaSiatIdActual}/pdf?formato=${nuevoFormato}&_t=${Date.now()}`;
+      }
     },
     abrirCambioMedidor(item) {
       this.formCambio = {

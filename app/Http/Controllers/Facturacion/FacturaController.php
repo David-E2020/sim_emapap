@@ -29,6 +29,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Facturacion\ConfiguracionEmpresa;
+use Barryvdh\Snappy\Facades\SnappyPdf;
+use Illuminate\Database\Eloquent\Builder;
+use App\Services\Facturacion\ReporteFacturasExcelService;
+use Illuminate\Support\Facades\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 class FacturaController extends Controller
@@ -39,17 +45,17 @@ class FacturaController extends Controller
         private readonly FirmaDigitalService $firmaDigitalService,
         private readonly SiatSoapService $siatSoapService,
         private readonly RepresentacionGraficaService $representacionGraficaService,
-        private readonly \App\Services\Facturacion\EmisionFacturaService $emisionFacturaService
+        private readonly \App\Services\Facturacion\EmisionFacturaService $emisionFacturaService,
+        private readonly ReporteFacturasExcelService $reporteFacturasExcelService
     ) {}
 
     /**
-     * Listado paginado de facturas con filtros de búsqueda.
+     * Construye la consulta filtrada según los parámetros de búsqueda de la bandeja.
      */
-    public function index(Request $request): JsonResponse
+    private function aplicarFiltrosFacturas(Request $request): Builder
     {
-        $perPage = (int) $request->input('per_page', 15);
         $search = $request->input('search');
-        $tipoBusqueda = (string) $request->input('tipo_busqueda', 'todos');
+        $tipoBusqueda = (string) $request->input('tipo_busqueda', 'codigo_abonado');
         $estado = $request->input('estado');
         $idSucursal = $request->input('id_sucursal');
         $fechaInicio = $request->input('fecha_inicio');
@@ -87,7 +93,7 @@ class FacturaController extends Controller
             });
         }
 
-        if (!empty($estado)) {
+        if (!empty($estado) && $estado !== 'TODOS') {
             $query->where('estado_factura', $estado);
         }
 
@@ -100,9 +106,22 @@ class FacturaController extends Controller
                 Carbon::parse($fechaInicio)->startOfDay(),
                 Carbon::parse($fechaFin)->endOfDay(),
             ]);
+        } elseif (!empty($fechaInicio)) {
+            $query->where('fecha_emision', '>=', Carbon::parse($fechaInicio)->startOfDay());
+        } elseif (!empty($fechaFin)) {
+            $query->where('fecha_emision', '<=', Carbon::parse($fechaFin)->endOfDay());
         }
 
-        $paginator = $query->paginate($perPage);
+        return $query;
+    }
+
+    /**
+     * Listado paginado de facturas con filtros de búsqueda.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->input('per_page', 15);
+        $paginator = $this->aplicarFiltrosFacturas($request)->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -111,6 +130,169 @@ class FacturaController extends Controller
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
         ], Response::HTTP_OK);
+    }
+
+    /**
+     * Exportar listado de facturas a Excel XLSX profesional o CSV delimitado.
+     */
+    public function exportarExcel(Request $request): StreamedResponse
+    {
+        $formato = (string) $request->input('formato', 'xlsx');
+        $query = $this->aplicarFiltrosFacturas($request);
+
+        $filtrosAplicados = [
+            'tipo_busqueda' => $request->input('tipo_busqueda', 'codigo_abonado'),
+            'search' => $request->input('search'),
+            'estado' => $request->input('estado', 'TODOS'),
+            'fecha_inicio' => $request->input('fecha_inicio'),
+            'fecha_fin' => $request->input('fecha_fin'),
+        ];
+
+        // Por defecto genera el archivo Excel profesional .XLSX con estilos oficiales
+        if ($formato === 'xlsx') {
+            return $this->reporteFacturasExcelService->exportarXlsx(
+                $query,
+                $filtrosAplicados,
+                auth()->user()?->name ?? 'Administración EMAPAP',
+                25000
+            );
+        }
+
+        // Modo CSV delimitado por punto y coma (para descargas de volúmenes masivos de datos)
+        $queryCsv = $query->reorder('id', 'desc');
+        $fecha = Carbon::now()->format('Ymd_His');
+        $filename = "Bandeja_Facturas_EMAPAP_{$fecha}.csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        return response()->stream(function () use ($queryCsv) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
+
+            fputcsv($handle, [
+                'NRO FACTURA',
+                'FECHA EMISION',
+                'CODIGO ABONADO',
+                'NUMERO DOCUMENTO',
+                'COMPLEMENTO',
+                'RAZON SOCIAL / CLIENTE',
+                'MONTO TOTAL (BS)',
+                'SUJETO IVA (BS)',
+                'DESCUENTO (BS)',
+                'ESTADO FACTURA',
+                'MODALIDAD EMISION',
+                'METODO PAGO',
+                'CUF',
+                'USUARIO EMISION',
+            ], ';', '"', "\\");
+
+            foreach ($queryCsv->cursor() as $f) {
+                $codigoAbonado = $f->abonado ? $f->abonado->codigo : '';
+                $tipoEmisionStr = ((int) $f->tipo_emision === 2) ? 'CONTINGENCIA' : 'EN LINEA';
+
+                fputcsv($handle, [
+                    $f->numero_factura,
+                    $f->fecha_emision ? Carbon::parse($f->fecha_emision)->format('d/m/Y H:i:s') : '',
+                    $codigoAbonado,
+                    $f->numero_documento,
+                    $f->complemento ?? '',
+                    $f->nombre_razon_social,
+                    number_format((float) $f->monto_total, 2, '.', ''),
+                    number_format((float) $f->monto_total_sujeto_iva, 2, '.', ''),
+                    number_format((float) $f->monto_descuento, 2, '.', ''),
+                    $f->estado_factura,
+                    $tipoEmisionStr,
+                    $f->codigo_metodo_pago ?? 1,
+                    $f->cuf,
+                    $f->usuario_emision ?? '',
+                ], ';', '"', "\\");
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
+    /**
+     * Exportar listado de facturas a Planilla PDF oficial.
+     */
+    public function exportarPdf(Request $request): HttpResponse
+    {
+        @ini_set('memory_limit', '512M');
+        @ini_set('max_execution_time', '300');
+
+        $query = $this->aplicarFiltrosFacturas($request)->reorder('id', 'desc');
+
+        $totalRegistrosEnBd = (clone $query)->count();
+        // Límite de seguridad para renderizado en PDF (máximo 3500 registros, aprox. 80 páginas)
+        $limitePdf = (int) $request->input('limite', 3500);
+        $facturas = $query->limit($limitePdf)->get();
+
+        $empresa = null;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('facturacion.configuracion_empresa')) {
+                $empresa = ConfiguracionEmpresa::getActiva();
+            }
+        } catch (\Throwable $e) {
+            $empresa = null;
+        }
+
+        $totalValidadas = 0;
+        $totalAnuladas = 0;
+        $totalContingencia = 0;
+        $montoTotalValidadas = 0.0;
+
+        foreach ($facturas as $f) {
+            $st = strtoupper((string) $f->estado_factura);
+            if ($st === 'VALIDADA' || $st === 'VALIDATED') {
+                $totalValidadas++;
+                $montoTotalValidadas += (float) $f->monto_total;
+            } elseif ($st === 'ANULADA' || $st === 'CANCELLED') {
+                $totalAnuladas++;
+            } elseif ($st === 'CONTINGENCIA' || (int) $f->tipo_emision === 2) {
+                $totalContingencia++;
+                $montoTotalValidadas += (float) $f->monto_total;
+            }
+        }
+
+        $filtrosAplicados = [
+            'tipo_busqueda' => $request->input('tipo_busqueda', 'codigo_abonado'),
+            'search' => $request->input('search'),
+            'estado' => $request->input('estado', 'TODOS'),
+            'fecha_inicio' => $request->input('fecha_inicio'),
+            'fecha_fin' => $request->input('fecha_fin'),
+        ];
+
+        $html = View::make('reportes.facturacion.listado-facturas-pdf', [
+            'facturas' => $facturas,
+            'totalRegistrosEnBd' => $totalRegistrosEnBd,
+            'empresa' => $empresa,
+            'filtros' => $filtrosAplicados,
+            'totalValidadas' => $totalValidadas,
+            'totalAnuladas' => $totalAnuladas,
+            'totalContingencia' => $totalContingencia,
+            'montoTotalValidadas' => $montoTotalValidadas,
+            'generadoPor' => auth()->user()?->name ?? 'Administración EMAPAP',
+            'fechaImpresion' => Carbon::now()->format('d/m/Y H:i:s'),
+        ])->render();
+
+        $pdfBinario = SnappyPdf::loadHTML($html)
+            ->setPaper('letter')
+            ->setOrientation('landscape')
+            ->setOption('margin-top', '8mm')
+            ->setOption('margin-bottom', '8mm')
+            ->setOption('margin-left', '8mm')
+            ->setOption('margin-right', '8mm')
+            ->setOption('enable-local-file-access', true)
+            ->output();
+
+        $fecha = Carbon::now()->format('Ymd_His');
+        return response($pdfBinario, Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"Reporte_Facturas_{$fecha}.pdf\"",
+        ]);
     }
 
     /**
