@@ -967,11 +967,13 @@ class MigracionFoxProController extends Controller
 
         file_put_contents("{$jobsDir}/{$jobId}.json", json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-        // Lanzar proceso desacoplado de la petición web
-        $phpBinary = PHP_BINARY ?: 'php';
-        $artisan = base_path('artisan');
-        $logOutput = storage_path("logs/migracion_{$jobId}.log");
-        $command = "{$phpBinary} {$artisan} datos:migrar-segundo-plano {$jobId} > {$logOutput} 2>&1 &";
+        // Lanzar proceso desacoplado de la petición web asegurando escape de rutas con espacios
+        $phpBinary = escapeshellarg(PHP_BINARY ?: 'php');
+        $artisan = escapeshellarg(base_path('artisan'));
+        $argJobId = escapeshellarg($jobId);
+        $logOutput = escapeshellarg(storage_path("logs/migracion_{$jobId}.log"));
+
+        $command = "nohup {$phpBinary} {$artisan} datos:migrar-segundo-plano {$argJobId} > {$logOutput} 2>&1 &";
         exec($command);
 
         return response()->json([

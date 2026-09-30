@@ -293,10 +293,9 @@
         </v-card-title>
 
         <!-- INDICADOR DE ETAPAS (1. Respaldo -> 2. Qué y Cuánto se Migrará -> 3. Ejecución Hilo) -->
-        <div class="px-5 py-2 border-bottom bg-light d-flex align-center justify-center flex-wrap gap-2">
+        <div class="modal-stepper-bar px-5 py-2 border-bottom d-flex align-center justify-center flex-wrap gap-2">
           <v-chip
-            :color="vistaModal === 'origen' ? 'primary' : 'grey lighten-2'"
-            :text-color="vistaModal === 'origen' ? 'white' : 'grey darken-3'"
+            :color="vistaModal === 'origen' ? 'primary' : ''"
             small
             class="font-weight-bold"
             :outlined="vistaModal !== 'origen'"
@@ -309,8 +308,7 @@
           <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
 
           <v-chip
-            :color="vistaModal === 'comparativa' ? 'primary' : 'grey lighten-2'"
-            :text-color="vistaModal === 'comparativa' ? 'white' : 'grey darken-3'"
+            :color="vistaModal === 'comparativa' ? 'primary' : ''"
             small
             class="font-weight-bold"
             :outlined="vistaModal !== 'comparativa'"
@@ -324,8 +322,7 @@
           <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
 
           <v-chip
-            :color="vistaModal === 'ejecucion' ? 'primary' : 'grey lighten-2'"
-            :text-color="vistaModal === 'ejecucion' ? 'white' : 'grey darken-3'"
+            :color="vistaModal === 'ejecucion' ? 'primary' : ''"
             small
             class="font-weight-bold"
             :outlined="vistaModal !== 'ejecucion'"
@@ -434,8 +431,8 @@
                   <v-card
                     outlined
                     rounded="lg"
-                    class="pa-3 cursor-pointer transition-all fill-height"
-                    :class="esSimulacion ? 'blue lighten-5 border-primary elevation-1' : 'bg-light'"
+                    class="pa-3 cursor-pointer transition-all fill-height mode-card"
+                    :class="esSimulacion ? 'is-active-sim elevation-1' : ''"
                     @click="esSimulacion = true"
                   >
                     <div class="d-flex align-start">
@@ -459,8 +456,8 @@
                   <v-card
                     outlined
                     rounded="lg"
-                    class="pa-3 cursor-pointer transition-all fill-height"
-                    :class="!esSimulacion ? 'green lighten-5 border-success elevation-1' : 'bg-light'"
+                    class="pa-3 cursor-pointer transition-all fill-height mode-card"
+                    :class="!esSimulacion ? 'is-active-real elevation-1' : ''"
                     @click="esSimulacion = false"
                   >
                     <div class="d-flex align-start">
@@ -707,18 +704,20 @@
           <div v-else-if="vistaModal === 'ejecucion'">
             <v-card
               outlined
-              class="pa-4 mb-4"
+              class="pa-4 mb-4 job-status-card"
               rounded="lg"
-              :color="jobEstado === 'COMPLETADO' ? 'green lighten-5' : (jobEstado === 'CANCELADO' ? 'red lighten-5' : 'blue lighten-5')"
+              :class="[
+                jobEstado === 'COMPLETADO' ? 'status-completado' : (jobEstado === 'CANCELADO' ? 'status-cancelado' : 'status-procesando')
+              ]"
             >
               <div class="d-flex align-center justify-space-between flex-wrap">
                 <div class="d-flex align-center">
                   <v-avatar
                     :color="jobEstado === 'COMPLETADO' ? 'success' : (jobEstado === 'CANCELADO' ? 'error' : 'primary')"
-                    size="40"
-                    class="mr-3"
+                    size="44"
+                    class="mr-3 elevation-2"
                   >
-                    <v-icon color="white">
+                    <v-icon color="white" size="24">
                       {{ jobEstado === 'COMPLETADO' ? 'mdi-check-bold' : (jobEstado === 'CANCELADO' ? 'mdi-close-octagon' : 'mdi-cog-sync') }}
                     </v-icon>
                   </v-avatar>
@@ -727,8 +726,8 @@
                       {{ jobEstado === 'COMPLETADO' ? '¡Migración Finalizada!' : (jobEstado === 'CANCELADO' ? 'Migración Cancelada' : 'Migración en Ejecución...') }}
                     </div>
                     <div class="text-caption text-secondary">
-                      Módulo actual: <strong class="primary--text">{{ jobModuloActual || 'Iniciando subproceso...' }}</strong>
-                      <span v-if="jobActualId" class="ml-2 font-monospace">({{ jobActualId.substring(0, 8) }}...)</span>
+                      Módulo actual: <strong class="primary--text">{{ getLabelModulo(jobModuloActual) || jobModuloActual || 'Iniciando subproceso...' }}</strong>
+                      <span v-if="jobActualId" class="ml-2 font-monospace text-caption">({{ jobActualId.substring(0, 8) }}...)</span>
                     </div>
                   </div>
                 </div>
@@ -748,31 +747,40 @@
                 </div>
               </div>
 
-              <!-- BARRA DE PROGRESO -->
+              <!-- BARRA DE PROGRESO ANIMADA Y DINÁMICA -->
               <div class="mt-4">
-                <div class="d-flex justify-space-between text-caption font-weight-bold mb-1">
-                  <span>Progreso de sincronización</span>
-                  <span>{{ jobProgreso }}%</span>
+                <div class="d-flex justify-space-between align-center text-caption font-weight-bold mb-1">
+                  <span class="d-flex align-center">
+                    <v-icon v-if="ejecutandoFondo" x-small color="primary" class="spin-icon mr-1">mdi-loading</v-icon>
+                    Progreso de sincronización
+                  </span>
+                  <span class="font-monospace text-subtitle-2 font-weight-black primary--text">{{ jobProgreso }}%</span>
                 </div>
-                <v-progress-linear
-                  :value="jobProgreso"
-                  :color="jobEstado === 'COMPLETADO' ? 'success' : (jobEstado === 'CANCELADO' ? 'error' : 'primary')"
-                  height="10"
-                  rounded
-                  :indeterminate="ejecutandoFondo && jobProgreso === 0"
-                  striped
-                ></v-progress-linear>
+
+                <div class="progress-bar-container">
+                  <v-progress-linear
+                    :value="jobProgreso"
+                    :color="jobEstado === 'COMPLETADO' ? 'success' : (jobEstado === 'CANCELADO' ? 'error' : 'primary')"
+                    height="16"
+                    rounded
+                    :class="['animated-emapa-progress', ejecutandoFondo ? 'is-running' : '']"
+                  >
+                    <template v-slot:default="{ value }">
+                      <span class="white--text font-weight-bold text-caption text-shadow">{{ Math.ceil(value) }}%</span>
+                    </template>
+                  </v-progress-linear>
+                </div>
               </div>
             </v-card>
 
             <!-- TERMINAL DE TELEMETRÍA EN VIVO -->
-            <v-card outlined rounded="lg" class="mb-4">
-              <v-card-title class="grey darken-4 white--text py-2 px-4 text-caption font-weight-bold d-flex justify-space-between">
+            <v-card outlined rounded="lg" class="mb-4 terminal-card">
+              <v-card-title class="terminal-header py-2 px-4 text-caption font-weight-bold d-flex justify-space-between">
                 <span><v-icon left x-small color="green accent-3">mdi-console</v-icon> Bitácora en Vivo del Subproceso</span>
-                <span class="text-caption grey--text">{{ jobLogs.length }} eventos registrados</span>
+                <span class="text-caption text-secondary">{{ jobLogs.length }} eventos registrados</span>
               </v-card-title>
               <div
-                class="grey darken-4 pa-3 white--text font-monospace text-caption"
+                class="terminal-body pa-3 font-monospace text-caption"
                 style="height: 220px; overflow-y: auto; line-height: 1.6;"
                 ref="terminalFondoLogs"
               >
@@ -792,7 +800,7 @@
 
         <!-- PIE DEL MODAL SEGÚN LA ETAPA -->
         <v-divider></v-divider>
-        <v-card-actions class="py-3 px-5 d-flex justify-space-between flex-wrap">
+        <v-card-actions class="modal-footer py-3 px-5 d-flex justify-space-between flex-wrap">
           <!-- Botón Cerrar / Volver -->
           <div>
             <v-btn
@@ -1446,6 +1454,7 @@ export default {
         this.modalNuevaMigracion = false;
         this.mostrarMensaje('La migración continúa en segundo plano. Puede abrirla o ver la bitácora.', 'info', 'mdi-information');
       }
+      this.cargarHistorial();
     },
     // ==========================================
     // HELPERS VISUALES Y FORMATO
@@ -1676,6 +1685,173 @@ export default {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* BARRA DE PASOS EN MODAL */
+.theme--dark .modal-stepper-bar {
+  background: rgba(15, 23, 42, 0.7) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.theme--light .modal-stepper-bar {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* TARJETAS DE MODO (SIMULACIÓN VS REAL) */
+.theme--dark .mode-card {
+  background: rgba(30, 41, 59, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.theme--dark .mode-card.is-active-sim {
+  background: rgba(30, 58, 138, 0.35) !important;
+  border-color: #3b82f6 !important;
+}
+.theme--dark .mode-card.is-active-real {
+  background: rgba(6, 78, 59, 0.35) !important;
+  border-color: #10b981 !important;
+}
+
+.theme--light .mode-card {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.theme--light .mode-card.is-active-sim {
+  background: #eff6ff !important;
+  border-color: #3b82f6 !important;
+}
+.theme--light .mode-card.is-active-real {
+  background: #f0fdf4 !important;
+  border-color: #10b981 !important;
+}
+
+/* TARJETA DE ESTADO DE JOB (PASO 3) */
+.theme--dark .job-status-card {
+  background: rgba(30, 41, 59, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.theme--dark .job-status-card.status-procesando {
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.6) 100%) !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+}
+.theme--dark .job-status-card.status-completado {
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.25) 0%, rgba(15, 23, 42, 0.6) 100%) !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+.theme--dark .job-status-card.status-cancelado {
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.25) 0%, rgba(15, 23, 42, 0.6) 100%) !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+}
+
+.theme--light .job-status-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.theme--light .job-status-card.status-procesando {
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%) !important;
+  border: 1px solid #bfdbfe !important;
+}
+.theme--light .job-status-card.status-completado {
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%) !important;
+  border: 1px solid #bbf7d0 !important;
+}
+.theme--light .job-status-card.status-cancelado {
+  background: linear-gradient(135deg, #fef2f2 0%, #f8fafc 100%) !important;
+  border: 1px solid #fecaca !important;
+}
+
+/* CONTENEDOR Y BARRA DE PROGRESO ANIMADA PROFESIONAL */
+.progress-bar-container {
+  position: relative;
+  border-radius: 9999px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.animated-emapa-progress .v-progress-linear__determinate {
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Rayas diagonales animadas ("Barber-pole stripes") */
+.animated-emapa-progress.is-running .v-progress-linear__determinate {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.22) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.22) 75%,
+    transparent 75%,
+    transparent
+  ) !important;
+  background-size: 28px 28px !important;
+  animation: barberPoleStripes 0.8s linear infinite !important;
+}
+
+@keyframes barberPoleStripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 28px 0;
+  }
+}
+
+/* Efecto haz de luz brillante / Shimmer que viaja por la barra */
+.animated-emapa-progress.is-running .v-progress-linear__determinate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: progressShimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+  0% {
+    left: -150%;
+  }
+  100% {
+    left: 150%;
+  }
+}
+
+.text-shadow {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* TERMINAL DE TELEMETRÍA */
+.terminal-card {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: #0f172a !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+}
+.terminal-header {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.terminal-body {
+  background: #090d16 !important;
+  color: #e2e8f0 !important;
+}
+
+/* FOOTER DEL MODAL */
+.theme--dark .modal-footer {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.theme--light .modal-footer {
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
 }
 
 .spin-icon {

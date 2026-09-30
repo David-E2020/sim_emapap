@@ -289,14 +289,100 @@ class MigrarSegundoPlanoCommand extends Command
                     case 'lecturas':
                         $path = $resolverArchivo(['operacio.dbf', 'operahis.dbf']);
                         if ($path) {
-                            $res = $migrador->migrarOperacionesLecturas($path, $esSimulacion, $limite, null);
+                            $res = $migrador->migrarOperacionesDbf($path, $esSimulacion, null, $limite, null);
                             $regProcesados = $res['total_en_dbf'];
                             $regCorrectos = $res['lecturas_migradas'];
-                            $mensajeModulo = "Lecturas migradas: {$regCorrectos} de {$regProcesados}";
+                            $extra = !empty($res['facturas_vinculadas']) ? ", Facturas vinculadas: {$res['facturas_vinculadas']}" : '';
+                            $mensajeModulo = "Lecturas migradas: {$regCorrectos} de {$regProcesados}{$extra}";
                             $detalles = $res;
                         } else {
                             $estadoModulo = 'ADVERTENCIA';
                             $mensajeModulo = 'Archivo operacio.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'plan_cuentas':
+                        $path = $resolverArchivo(['cuentas.dbf', 'plancta.dbf']);
+                        if ($path) {
+                            $res = $migrador->migrarPlanCuentas($path, $esSimulacion, $limite);
+                            $regProcesados = $res['total_en_dbf'];
+                            $regCorrectos = $res['insertados'];
+                            $mensajeModulo = "Plan de Cuentas: {$regCorrectos} de {$regProcesados}";
+                            $detalles = $res;
+                        } else {
+                            $estadoModulo = 'ADVERTENCIA';
+                            $mensajeModulo = 'Archivo cuentas.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'comprobantes':
+                        $pathDiario = $resolverArchivo(['diariotr.dbf']);
+                        $pathGlosas = $resolverArchivo(['glosastr.dbf', 'glosas.dbf']);
+                        if ($pathDiario) {
+                            $res = $migrador->migrarComprobantesDiario($pathDiario, $pathGlosas, $esSimulacion, $limite);
+                            $regProcesados = $res['total_en_dbf'];
+                            $regCorrectos = $res['insertados'];
+                            $mensajeModulo = "Comprobantes Diario: {$regCorrectos} líneas (Cabeceras: {$res['comprobantes_cabeceras']})";
+                            $detalles = $res;
+                        } else {
+                            $estadoModulo = 'ADVERTENCIA';
+                            $mensajeModulo = 'Archivo diariotr.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'compras':
+                        $path = $resolverArchivo(['compras.dbf', 'comprasC.dbf']);
+                        if ($path) {
+                            $res = $migrador->migrarFacturasCompra($path, $esSimulacion, $limite);
+                            $regProcesados = $res['total_en_dbf'];
+                            $regCorrectos = $res['insertados'];
+                            $mensajeModulo = "Facturas de Compra: {$regCorrectos} de {$regProcesados}";
+                            $detalles = $res;
+                        } else {
+                            $estadoModulo = 'ADVERTENCIA';
+                            $mensajeModulo = 'Archivo compras.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'materiales_almacen':
+                        $path = $resolverArchivo(['almacen.dbf', 'articulos.dbf']);
+                        if ($path) {
+                            $res = $migrador->migrarMaterialesAlmacen($path, $esSimulacion, $limite);
+                            $regProcesados = $res['total_en_dbf'];
+                            $regCorrectos = $res['insertados'];
+                            $mensajeModulo = "Materiales de Almacén: {$regCorrectos} de {$regProcesados}";
+                            $detalles = $res;
+                        } else {
+                            $estadoModulo = 'ADVERTENCIA';
+                            $mensajeModulo = 'Archivo almacen.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'rubros_activos':
+                        $path = $resolverArchivo(['afrubros.dbf', 'rubros.dbf']);
+                        if ($path) {
+                            $res = $migrador->migrarRubrosActivos($path, $esSimulacion);
+                            $regProcesados = $res['total_en_dbf'];
+                            $regCorrectos = $res['insertados'];
+                            $mensajeModulo = "Rubros Activos Fijos: {$regCorrectos} de {$regProcesados}";
+                            $detalles = $res;
+                        } else {
+                            $estadoModulo = 'ADVERTENCIA';
+                            $mensajeModulo = 'Archivo afrubros.dbf no encontrado.';
+                        }
+                        break;
+
+                    case 'bienes_activos':
+                        $path = $resolverArchivo(['afijo.dbf', 'afijo01.dbf']);
+                        if ($path) {
+                            $res = $migrador->migrarBienesActivos($path, $esSimulacion, $limite);
+                            $regProcesados = $res['total_en_dbf'];
+                            $regCorrectos = $res['insertados'];
+                            $mensajeModulo = "Bienes y Activos Fijos: {$regCorrectos} de {$regProcesados}";
+                            $detalles = $res;
+                        } else {
+                            $estadoModulo = 'ADVERTENCIA';
+                            $mensajeModulo = 'Archivo afijo.dbf no encontrado.';
                         }
                         break;
 
@@ -305,7 +391,7 @@ class MigrarSegundoPlanoCommand extends Command
                         $mensajeModulo = "Módulo {$mod} completado.";
                         break;
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 $estadoModulo = 'ERROR';
                 $mensajeModulo = "Excepción en {$mod}: " . $e->getMessage();
                 Log::error("Error en migración background {$mod}: " . $e->getMessage());
@@ -316,6 +402,8 @@ class MigrarSegundoPlanoCommand extends Command
                 DB::table('migracion.logs')->insert([
                     'job_id' => $jobId,
                     'modulo' => $mod,
+                    'tabla_origen' => $mod,
+                    'tabla_destino' => $mod,
                     'es_simulacion' => $esSimulacion,
                     'registros_procesados' => $regProcesados,
                     'registros_correctos' => $regCorrectos,
@@ -323,9 +411,10 @@ class MigrarSegundoPlanoCommand extends Command
                     'mensaje' => $mensajeModulo,
                     'detalles_json' => !empty($detalles) ? json_encode($detalles) : null,
                     'created_at' => Carbon::now(),
+                    'updated_at' => Carbon::now(),
                 ]);
-            } catch (Exception $ex) {
-                // Continuar si la tabla de bitácora no está disponible
+            } catch (\Throwable $ex) {
+                Log::warning("No se pudo registrar log de migración para {$mod}: " . $ex->getMessage());
             }
 
             $procesados++;

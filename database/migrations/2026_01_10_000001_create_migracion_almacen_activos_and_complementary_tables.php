@@ -27,8 +27,8 @@ return new class extends Migration
                 $table->bigIncrements('id');
                 $table->string('job_id', 64)->index();
                 $table->string('modulo', 50)->index();
-                $table->string('tabla_origen', 100);
-                $table->string('tabla_destino', 100);
+                $table->string('tabla_origen', 100)->nullable();
+                $table->string('tabla_destino', 100)->nullable();
                 $table->integer('registros_procesados')->default(0);
                 $table->integer('registros_correctos')->default(0);
                 $table->integer('registros_erroneos')->default(0);
