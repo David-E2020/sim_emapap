@@ -322,8 +322,6 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 /* Main Page Container - Supports Dark and Light Themes seamlessly via CSS variables */
 .claude-login-page {
   /* Dark Theme Tokens (Default) */

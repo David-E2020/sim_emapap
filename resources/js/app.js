@@ -1,4 +1,5 @@
 require("./bootstrap");
+import '@fontsource/inter';
 import '@/plugins/vue-composition-api'
 import '@resources/sass/styles/styles.scss'
 import vuetify from './src/plugins/vuetify'
