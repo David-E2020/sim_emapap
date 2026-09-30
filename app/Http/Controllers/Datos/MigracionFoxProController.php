@@ -733,120 +733,142 @@ class MigracionFoxProController extends Controller
      */
     public function subirChunk(Request $request): JsonResponse
     {
-        $request->validate([
-            'chunk' => 'required|file',
-            'chunk_index' => 'required|integer',
-            'total_chunks' => 'required|integer',
-            'file_id' => 'required|string|max:100',
-            'file_name' => 'required|string|max:255',
-        ]);
+        try {
+            $request->validate([
+                'chunk' => 'required|file',
+                'chunk_index' => 'required|integer',
+                'total_chunks' => 'required|integer',
+                'file_id' => 'required|string|max:100',
+                'file_name' => 'required|string|max:255',
+            ]);
 
-        $chunk = $request->file('chunk');
-        $chunkIndex = (int) $request->input('chunk_index');
-        $totalChunks = (int) $request->input('total_chunks');
-        $fileId = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string) $request->input('file_id'));
-        $fileName = (string) $request->input('file_name');
+            $chunk = $request->file('chunk');
+            $chunkIndex = (int) $request->input('chunk_index');
+            $totalChunks = (int) $request->input('total_chunks');
+            $fileId = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string) $request->input('file_id'));
+            $fileName = (string) $request->input('file_name');
 
-        $chunksDir = storage_path("app/temp_chunks/{$fileId}");
-        if (!file_exists($chunksDir)) {
-            mkdir($chunksDir, 0775, true);
-        }
-
-        // Mover fragmento con nombre indexado
-        $chunk->move($chunksDir, "chunk_{$chunkIndex}");
-
-        // Si es el último fragmento, ensamblar y descomprimir
-        if ($chunkIndex === $totalChunks - 1) {
-            $folderName = 'unpacked_' . date('Ymd_His') . '_' . Str::random(6);
-            $targetDir = storage_path("app/respaldos_migracion/{$folderName}");
-            if (!file_exists($targetDir)) {
-                mkdir($targetDir, 0775, true);
-            }
-
-            $assembledZip = "{$chunksDir}/assembled.zip";
-            $outHandle = fopen($assembledZip, 'wb');
-
-            for ($i = 0; $i < $totalChunks; $i++) {
-                $partPath = "{$chunksDir}/chunk_{$i}";
-                if (!file_exists($partPath)) {
-                    fclose($outHandle);
+            $chunksDir = storage_path("app/temp_chunks/{$fileId}");
+            if (!file_exists($chunksDir)) {
+                if (!@mkdir($chunksDir, 0775, true) && !is_dir($chunksDir)) {
                     return response()->json([
                         'status' => 'error',
-                        'message' => "Falta el fragmento {$i} del archivo.",
-                    ], 422);
-                }
-                $inHandle = fopen($partPath, 'rb');
-                while (!feof($inHandle)) {
-                    fwrite($outHandle, (string) fread($inHandle, 1048576));
-                }
-                fclose($inHandle);
-                @unlink($partPath);
-            }
-            fclose($outHandle);
-
-            // Descomprimir
-            $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-            if ($extension === 'zip') {
-                $zip = new ZipArchive();
-                if ($zip->open($assembledZip) === true) {
-                    $zip->extractTo($targetDir);
-                    $zip->close();
-                } else {
-                    $cmd7z = "7z x -y " . escapeshellarg($assembledZip) . " -o" . escapeshellarg($targetDir) . " 2>&1";
-                    exec($cmd7z, $out, $code);
-                    if ($code !== 0) {
-                        @unlink($assembledZip);
-                        return response()->json([
-                            'status' => 'error',
-                            'message' => 'No se pudo descomprimir el archivo ZIP ensamblado.',
-                        ], 500);
-                    }
-                }
-            } else {
-                $cmd7z = "7z x -y " . escapeshellarg($assembledZip) . " -o" . escapeshellarg($targetDir) . " 2>&1";
-                exec($cmd7z, $out, $code);
-                if ($code !== 0) {
-                    @unlink($assembledZip);
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Error al descomprimir archivo.',
+                        'message' => 'No se pudo crear la carpeta temporal de fragmentos en el servidor.',
                     ], 500);
                 }
             }
 
-            @unlink($assembledZip);
-            @rmdir($chunksDir);
+            // Mover fragmento con nombre indexado
+            $chunk->move($chunksDir, "chunk_{$chunkIndex}");
 
-            // Localizar directorio que contiene archivos .DBF (búsqueda recursiva para cualquier nivel de carpetas)
-            $rutaFinal = $targetDir;
-            try {
-                $iterator = new \RecursiveIteratorIterator(
-                    new \RecursiveDirectoryIterator($targetDir, \RecursiveDirectoryIterator::SKIP_DOTS),
-                    \RecursiveIteratorIterator::SELF_FIRST
-                );
-                foreach ($iterator as $item) {
-                    if ($item->isFile() && preg_match('/\.dbf$/i', $item->getFilename())) {
-                        $rutaFinal = $item->getPath();
-                        break;
+            // Si es el último fragmento, ensamblar y descomprimir
+            if ($chunkIndex === $totalChunks - 1) {
+                set_time_limit(600);
+                @ini_set('memory_limit', '1024M');
+
+                $folderName = 'unpacked_' . date('Ymd_His') . '_' . Str::random(6);
+                $targetDir = storage_path("app/respaldos_migracion/{$folderName}");
+                if (!file_exists($targetDir)) {
+                    mkdir($targetDir, 0775, true);
+                }
+
+                $assembledZip = "{$chunksDir}/assembled.zip";
+                $outHandle = fopen($assembledZip, 'wb');
+
+                for ($i = 0; $i < $totalChunks; $i++) {
+                    $partPath = "{$chunksDir}/chunk_{$i}";
+                    if (!file_exists($partPath)) {
+                        fclose($outHandle);
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => "Falta el fragmento {$i} del archivo en el servidor.",
+                        ], 422);
+                    }
+                    $inHandle = fopen($partPath, 'rb');
+                    while (!feof($inHandle)) {
+                        fwrite($outHandle, (string) fread($inHandle, 1048576));
+                    }
+                    fclose($inHandle);
+                    @unlink($partPath);
+                }
+                fclose($outHandle);
+
+                // Descomprimir
+                $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+                $descomprimido = false;
+
+                if ($extension === 'zip') {
+                    $zip = new ZipArchive();
+                    if ($zip->open($assembledZip) === true) {
+                        $zip->extractTo($targetDir);
+                        $zip->close();
+                        $descomprimido = true;
                     }
                 }
-            } catch (\Throwable $e) {
-                Log::warning("Error buscando DBFs recursivamente: " . $e->getMessage());
+
+                if (!$descomprimido) {
+                    // Fallback con herramienta nativa unzip de Linux
+                    $cmdUnzip = "unzip -q -o " . escapeshellarg($assembledZip) . " -d " . escapeshellarg($targetDir) . " 2>&1";
+                    exec($cmdUnzip, $out, $code);
+                    if ($code === 0) {
+                        $descomprimido = true;
+                    } else {
+                        // Fallback secundario si 7z estuviera instalado
+                        $cmd7z = "7z x -y " . escapeshellarg($assembledZip) . " -o" . escapeshellarg($targetDir) . " 2>&1";
+                        exec($cmd7z, $out7z, $code7z);
+                        if ($code7z === 0) {
+                            $descomprimido = true;
+                        }
+                    }
+                }
+
+                @unlink($assembledZip);
+                @rmdir($chunksDir);
+
+                if (!$descomprimido) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'No se pudo descomprimir el archivo de respaldo ensamblado en el servidor.',
+                    ], 500);
+                }
+
+                // Localizar directorio que contiene archivos .DBF (búsqueda recursiva para cualquier nivel de carpetas)
+                $rutaFinal = $targetDir;
+                try {
+                    $iterator = new \RecursiveIteratorIterator(
+                        new \RecursiveDirectoryIterator($targetDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                        \RecursiveIteratorIterator::SELF_FIRST
+                    );
+                    foreach ($iterator as $item) {
+                        if ($item->isFile() && preg_match('/\.dbf$/i', $item->getFilename())) {
+                            $rutaFinal = $item->getPath();
+                            break;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("Error buscando DBFs recursivamente: " . $e->getMessage());
+                }
+
+                return response()->json([
+                    'status' => 'success',
+                    'completado' => true,
+                    'ruta_extraida' => $rutaFinal,
+                    'message' => 'Archivo subido y extraído exitosamente.',
+                ]);
             }
 
             return response()->json([
                 'status' => 'success',
-                'completado' => true,
-                'ruta_extraida' => $rutaFinal,
-                'message' => 'Archivo subido y extraído exitosamente.',
+                'completado' => false,
+                'chunk_index' => $chunkIndex,
             ]);
+        } catch (\Throwable $e) {
+            Log::error("Error en subirChunk: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error al procesar fragmento en servidor: ' . $e->getMessage(),
+            ], 500);
         }
-
-        return response()->json([
-            'status' => 'success',
-            'completado' => false,
-            'chunk_index' => $chunkIndex,
-        ]);
     }
 
     /**

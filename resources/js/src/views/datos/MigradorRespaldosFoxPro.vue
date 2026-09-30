@@ -1258,9 +1258,10 @@ export default {
       this.progresoSubida = 0;
       this.mensajeSubida = 'Preparando archivo...';
 
-      const chunkSize = 1.5 * 1024 * 1024; // 1.5 MB por chunk (evita error 413)
+      const chunkSize = 2 * 1024 * 1024; // 2 MB por fragmento (eficiente para redes locales/remotas)
       const totalChunks = Math.ceil(file.size / chunkSize);
       const fileId = 'up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      const mbTotal = (file.size / (1024 * 1024)).toFixed(1);
 
       for (let i = 0; i < totalChunks; i++) {
         const start = i * chunkSize;
@@ -1274,18 +1275,30 @@ export default {
         formData.append('file_id', fileId);
         formData.append('file_name', file.name);
 
-        const mbEnviado = (end / (1024 * 1024)).toFixed(1);
-        const mbTotal = (file.size / (1024 * 1024)).toFixed(1);
+        const mbEnviado = (start / (1024 * 1024)).toFixed(1);
         this.mensajeSubida = `Subiendo: ${mbEnviado} MB de ${mbTotal} MB (Fragmento ${i + 1}/${totalChunks})...`;
 
         try {
-          const res = await axios.post('api/datos/migracion/subir-chunk', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+          // NOTA CRÍTICA: NO definir 'Content-Type': 'multipart/form-data' manualmente.
+          // El navegador genera automáticamente el encabezado con el boundary multipart correspondiente.
+          const res = await axios.post('/api/datos/migracion/subir-chunk', formData, {
+            timeout: 120000,
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                const fraction = progressEvent.loaded / progressEvent.total;
+                const chunkPct = Math.round(((i + fraction) / totalChunks) * 100);
+                this.progresoSubida = Math.min(chunkPct, 99);
+                const bytesActuales = start + progressEvent.loaded;
+                const mbAct = (bytesActuales / (1024 * 1024)).toFixed(1);
+                this.mensajeSubida = `Subiendo: ${mbAct} MB de ${mbTotal} MB (Fragmento ${i + 1}/${totalChunks})...`;
+              }
+            },
           });
 
           this.progresoSubida = Math.round(((i + 1) / totalChunks) * 100);
 
-          if (res.data.completado) {
+          if (res.data && res.data.completado) {
+            this.progresoSubida = 100;
             this.mensajeSubida = '¡Archivo subido y extraído! Analizando tablas...';
             this.rutaManual = res.data.ruta_extraida;
             this.subiendoArchivo = false;
@@ -1293,8 +1306,9 @@ export default {
             return;
           }
         } catch (err) {
-          const msg = err.response?.data?.message || 'Error durante la subida del respaldo';
-          this.mostrarMensaje(msg, 'error', 'mdi-alert-circle');
+          const msg = err.response?.data?.message || err.message || 'Error durante la subida del respaldo';
+          this.mensajeSubida = `Error en fragmento ${i + 1}: ${msg}`;
+          this.mostrarMensaje(`Error en fragmento ${i + 1}: ${msg}`, 'error', 'mdi-alert-circle');
           this.subiendoArchivo = false;
           return;
         }
