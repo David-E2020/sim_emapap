@@ -967,13 +967,25 @@ class MigracionFoxProController extends Controller
 
         file_put_contents("{$jobsDir}/{$jobId}.json", json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-        // Lanzar proceso desacoplado de la petición web asegurando escape de rutas con espacios
-        $phpBinary = escapeshellarg(PHP_BINARY ?: 'php');
+        // Localizar el binario de PHP CLI (evita php-fpm en entornos Docker / Dokploy)
+        $phpFinder = new \Symfony\Component\Process\PhpExecutableFinder();
+        $phpPath = $phpFinder->find(false);
+        if (!$phpPath || str_contains($phpPath, 'fpm') || str_contains($phpPath, 'cgi')) {
+            if (file_exists('/usr/local/bin/php') && is_executable('/usr/local/bin/php')) {
+                $phpPath = '/usr/local/bin/php';
+            } elseif (file_exists('/usr/bin/php') && is_executable('/usr/bin/php')) {
+                $phpPath = '/usr/bin/php';
+            } else {
+                $phpPath = 'php';
+            }
+        }
+
+        $phpBinary = escapeshellarg($phpPath);
         $artisan = escapeshellarg(base_path('artisan'));
         $argJobId = escapeshellarg($jobId);
         $logOutput = escapeshellarg(storage_path("logs/migracion_{$jobId}.log"));
 
-        $command = "nohup {$phpBinary} {$artisan} datos:migrar-segundo-plano {$argJobId} > {$logOutput} 2>&1 &";
+        $command = "nohup {$phpBinary} {$artisan} datos:migrar-segundo-plano {$argJobId} < /dev/null > {$logOutput} 2>&1 &";
         exec($command);
 
         return response()->json([
@@ -990,6 +1002,8 @@ class MigracionFoxProController extends Controller
     public function estadoJob(string $jobId): JsonResponse
     {
         $jobFile = storage_path("app/migracion_jobs/{$jobId}.json");
+        $logFile = storage_path("logs/migracion_{$jobId}.log");
+
         if (!file_exists($jobFile)) {
             return response()->json([
                 'status' => 'error',
@@ -998,6 +1012,28 @@ class MigracionFoxProController extends Controller
         }
 
         $data = json_decode((string) file_get_contents($jobFile), true) ?: [];
+
+        // Detección de fallos tempranos en segundo plano (proceso muerto o error al arrancar)
+        if (($data['estado'] ?? '') === 'PROCESANDO') {
+            $iniciadoEn = isset($data['iniciado_en']) ? Carbon::parse($data['iniciado_en']) : null;
+            $segundosTranscurridos = $iniciadoEn ? $iniciadoEn->diffInSeconds(Carbon::now()) : 0;
+
+            // Si ya pasaron más de 8 segundos y sigue en progreso 0 sin haber registrado PID
+            if ($segundosTranscurridos > 8 && empty($data['pid']) && ($data['progreso'] ?? 0) === 0) {
+                $errorLog = file_exists($logFile) ? trim((string) file_get_contents($logFile)) : '';
+                $data['estado'] = 'ERROR';
+                $data['modulo_actual'] = 'Error al iniciar proceso';
+                $data['logs'][] = [
+                    'hora' => Carbon::now()->format('H:i:s'),
+                    'id' => 'SISTEMA',
+                    'estado' => 'ERROR',
+                    'mensaje' => !empty($errorLog)
+                        ? "Fallo al iniciar el comando en el servidor: {$errorLog}"
+                        : "El proceso en segundo plano no pudo iniciar en el servidor (sin respuesta tras {$segundosTranscurridos}s). Revise permisos o intérprete PHP en el contenedor.",
+                ];
+                file_put_contents($jobFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            }
+        }
 
         return response()->json([
             'status' => 'success',

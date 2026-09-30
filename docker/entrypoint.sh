@@ -5,6 +5,8 @@ echo "==> Iniciando SIM-EMAPAP en Dokploy..."
 
 # 1. Asegurar directorios de almacenamiento y caché
 mkdir -p /var/www/html/storage/app/public
+mkdir -p /var/www/html/storage/app/migracion_jobs
+mkdir -p /var/www/html/storage/app/respaldos_migracion
 mkdir -p /var/www/html/storage/framework/sessions
 mkdir -p /var/www/html/storage/framework/views
 mkdir -p /var/www/html/storage/framework/cache/data
