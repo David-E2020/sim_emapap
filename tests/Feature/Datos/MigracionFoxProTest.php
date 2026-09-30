@@ -45,6 +45,26 @@ class MigracionFoxProTest extends TestCase
     }
 
     /**
+     * Test de explorador de directorios en el servidor.
+     */
+    public function test_explorar_servidor_directorios(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->postJson('/api/datos/migracion/explorar-servidor', [
+                'ruta' => $this->rutaRespaldoReal,
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+            ]);
+
+        $this->assertTrue($response->json('es_directorio_dbf'), 'La carpeta DATA debe ser detectada como directorio DBF.');
+        $this->assertGreaterThan(10, $response->json('total_dbfs'));
+        $this->assertNotEmpty($response->json('archivos_dbf_muestra'));
+    }
+
+    /**
      * Test de escaneo y comparativa volumétrica multiesquema FoxPro vs PostgreSQL.
      */
     public function test_escanear_directorio_real_foxpro(): void
@@ -232,5 +252,133 @@ class MigracionFoxProTest extends TestCase
         $resultado = $response->json('resultado');
         $this->assertEquals($jobId, $resultado['job_id']);
         $this->assertArrayHasKey('registros_eliminados', $resultado);
+    }
+
+    /**
+     * Test de inicio en segundo plano y consulta de estado (ligero y asíncrono).
+     */
+    public function test_iniciar_fondo_y_consultar_estado(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->postJson('/api/datos/migracion/iniciar-fondo', [
+                'ruta' => $this->rutaRespaldoReal,
+                'es_simulacion' => true,
+                'limite' => 5,
+                'modulos' => ['calles'],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+            ]);
+
+        $jobId = $response->json('job_id');
+        $this->assertNotEmpty($jobId);
+
+        // Consultar estado del job
+        $resEstado = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->getJson("/api/datos/migracion/estado-job/{$jobId}");
+
+        $resEstado->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+            ]);
+
+        $this->assertEquals($jobId, $resEstado->json('data.job_id'));
+    }
+
+    /**
+     * Test de cancelación inmediata de job en segundo plano.
+     */
+    public function test_cancelar_job(): void
+    {
+        // Iniciar un job
+        $init = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->postJson('/api/datos/migracion/iniciar-fondo', [
+                'ruta' => $this->rutaRespaldoReal,
+                'es_simulacion' => true,
+                'limite' => 5,
+                'modulos' => ['calles'],
+            ]);
+
+        $jobId = $init->json('job_id');
+        $this->assertNotEmpty($jobId);
+
+        // Cancelar inmediatamente
+        $resCancel = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->postJson("/api/datos/migracion/cancelar-job/{$jobId}");
+
+        $resCancel->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+                'message' => 'Proceso cancelado exitosamente.',
+            ]);
+
+        // Verificar estado CANCELADO
+        $resEstado = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->getJson("/api/datos/migracion/estado-job/{$jobId}");
+
+        $resEstado->assertStatus(200);
+        $this->assertEquals('CANCELADO', $resEstado->json('data.estado'));
+    }
+
+    /**
+     * Test de subida por fragmentos (Chunks) para respaldos de gran volumen (195MB+).
+     */
+    public function test_subir_chunk_fragmentos_ensamblaje(): void
+    {
+        $zipPath = tempnam(sys_get_temp_dir(), 'test_zip_') . '.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('DATA/test_calles.dbf', 'CONTENIDO_DBF_FICTICIO');
+        $zip->close();
+
+        $zipData = file_get_contents($zipPath);
+        $totalLength = strlen($zipData);
+        $chunkSize = (int) ceil($totalLength / 2);
+        $part0 = substr($zipData, 0, $chunkSize);
+        $part1 = substr($zipData, $chunkSize);
+
+        $fileId = 'test_upload_' . uniqid();
+        $uploadedPart0 = \Illuminate\Http\UploadedFile::fake()->createWithContent('backup.zip', $part0);
+
+        // Enviar chunk 0
+        $resChunk0 = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->post('/api/datos/migracion/subir-chunk', [
+                'chunk' => $uploadedPart0,
+                'chunk_index' => 0,
+                'total_chunks' => 2,
+                'file_id' => $fileId,
+                'file_name' => 'backup.zip',
+            ]);
+
+        $resChunk0->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+                'completado' => false,
+            ]);
+
+        // Enviar chunk 1 (final)
+        $uploadedPart1 = \Illuminate\Http\UploadedFile::fake()->createWithContent('backup.zip', $part1);
+        $resChunk1 = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+            ->post('/api/datos/migracion/subir-chunk', [
+                'chunk' => $uploadedPart1,
+                'chunk_index' => 1,
+                'total_chunks' => 2,
+                'file_id' => $fileId,
+                'file_name' => 'backup.zip',
+            ]);
+
+        $resChunk1->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+                'completado' => true,
+            ]);
+
+        $this->assertNotEmpty($resChunk1->json('ruta_extraida'));
+        $this->assertFileExists($resChunk1->json('ruta_extraida') . '/test_calles.dbf');
+
+        // Limpieza
+        @unlink($zipPath);
     }
 }

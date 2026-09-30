@@ -267,10 +267,10 @@
     </v-card>
 
     <!-- ============================================================== -->
-    <!-- 4. MODAL POPUP: ASISTENTE DE NUEVA MIGRACIÓN (3 PASOS)         -->
+    <!-- 4. MODAL POPUP: MIGRACIÓN DIRECTA EN SEGUNDO PLANO             -->
     <!-- ============================================================== -->
-    <v-dialog v-model="modalNuevaMigracion" max-width="1280" scrollable persistent>
-      <v-card class="modal-nueva-migracion">
+    <v-dialog v-model="modalNuevaMigracion" :max-width="vistaModal === 'comparativa' ? 1220 : 850" persistent scrollable>
+      <v-card class="rounded-xl overflow-hidden">
         <!-- CABECERA DEL MODAL -->
         <v-card-title class="modal-header py-3 px-5 d-flex align-center justify-space-between">
           <div class="d-flex align-center">
@@ -278,498 +278,580 @@
               <v-icon color="white" size="22">mdi-database-sync</v-icon>
             </v-avatar>
             <div>
-              <h3 class="text-h6 font-weight-bold mb-0 white--text">Asistente de Migración de Respaldos FoxPro</h3>
+              <h3 class="text-h6 font-weight-bold mb-0 white--text">
+                {{ vistaModal === 'origen' ? 'Nueva Migración de Respaldos FoxPro' : (vistaModal === 'comparativa' ? 'Auditoría Volumétrica: Qué y Cuánto se Migrará' : 'Centro de Control: Migración en Segundo Plano') }}
+              </h3>
               <span class="text-caption text-light-translucent">
-                Diagnóstico volumétrico, correspondencia de esquemas y migración asíncrona asistida
+                {{ vistaModal === 'origen' ? 'Selección de respaldo y modo de operación — El ERP continuará 100% disponible' : (vistaModal === 'comparativa' ? 'Consulte tablas, registros pendientes por migrar y porcentaje de sincronización' : 'Ejecución desacoplada en hilo independiente — Sin lentitud para los usuarios') }}
               </span>
             </div>
           </div>
 
-          <v-btn icon dark @click="modalNuevaMigracion = false">
+          <v-btn icon dark :disabled="cancelandoJob || subiendoArchivo" @click="cerrarModalNuevaMigracion">
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </v-card-title>
 
-        <!-- NAVEGACIÓN POR PASOS / TABS DENTRO DEL MODAL -->
-        <v-tabs
-          v-model="pasoWizard"
-          color="primary"
-          slider-color="primary"
-          background-color="transparent"
-          class="border-bottom px-4 pt-1"
-        >
-          <v-tab class="text-capitalize font-weight-bold">
-            <v-icon left small>mdi-folder-search-outline</v-icon>
-            1. Origen y Respaldo
-          </v-tab>
-          <v-tab class="text-capitalize font-weight-bold">
-            <v-icon left small>mdi-table-compare</v-icon>
-            2. Comparativa por Esquemas
-          </v-tab>
-          <v-tab class="text-capitalize font-weight-bold">
-            <v-icon left small>mdi-cog-play-outline</v-icon>
-            3. Asistente y Ejecución
-          </v-tab>
-        </v-tabs>
+        <!-- INDICADOR DE ETAPAS (1. Respaldo -> 2. Qué y Cuánto se Migrará -> 3. Ejecución Hilo) -->
+        <div class="px-5 py-2 border-bottom bg-light d-flex align-center justify-center flex-wrap gap-2">
+          <v-chip
+            :color="vistaModal === 'origen' ? 'primary' : 'grey lighten-2'"
+            :text-color="vistaModal === 'origen' ? 'white' : 'grey darken-3'"
+            small
+            class="font-weight-bold"
+            :outlined="vistaModal !== 'origen'"
+            @click="ejecutandoFondo ? null : vistaModal = 'origen'"
+          >
+            <v-icon left x-small>{{ vistaModal === 'comparativa' || vistaModal === 'ejecucion' ? 'mdi-check-circle' : 'mdi-numeric-1-circle' }}</v-icon>
+            1. Selección de Respaldo (.ZIP)
+          </v-chip>
 
-        <!-- CONTENIDO SCROLLABLE DEL MODAL -->
-        <v-card-text class="pa-5" style="max-height: 70vh;">
-          <v-tabs-items v-model="pasoWizard">
-            <!-- -------------------------------------------------------- -->
-            <!-- PASO 1: ORIGEN DE DATOS Y CARGA DE ARCHIVO                -->
-            <!-- -------------------------------------------------------- -->
-            <v-tab-item>
-              <v-row>
-                <!-- Selector de Respaldo en Servidor -->
-                <v-col cols="12" md="7">
-                  <v-card outlined rounded="lg" class="pa-5 fill-height">
-                    <div class="d-flex align-center mb-3">
-                      <v-avatar color="primary lighten-5" size="36" class="mr-3">
-                        <v-icon color="primary" small>mdi-harddisk</v-icon>
-                      </v-avatar>
-                      <div>
-                        <h4 class="text-subtitle-1 font-weight-bold mb-0">Directorio de Respaldos en Servidor</h4>
-                        <span class="text-caption text-secondary">Seleccione un respaldo detectado o especifique la ruta</span>
-                      </div>
-                    </div>
+          <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
 
-                    <v-divider class="my-3"></v-divider>
+          <v-chip
+            :color="vistaModal === 'comparativa' ? 'primary' : 'grey lighten-2'"
+            :text-color="vistaModal === 'comparativa' ? 'white' : 'grey darken-3'"
+            small
+            class="font-weight-bold"
+            :outlined="vistaModal !== 'comparativa'"
+            :disabled="!totalDbfsEncontrados && vistaModal === 'origen'"
+            @click="totalDbfsEncontrados && !ejecutandoFondo ? vistaModal = 'comparativa' : null"
+          >
+            <v-icon left x-small>{{ vistaModal === 'ejecucion' ? 'mdi-check-circle' : 'mdi-numeric-2-circle' }}</v-icon>
+            2. Qué y Cuánto se Migrará (Auditoría)
+          </v-chip>
 
-                    <label class="text-caption font-weight-bold text-secondary mb-1 d-block">
-                      Respaldo Preconfigurado Detectado:
-                    </label>
-                    <v-select
-                      v-model="rutaSeleccionada"
-                      :items="rutasPredefinidas"
-                      item-text="nombre"
-                      item-value="ruta"
-                      outlined
-                      dense
-                      prepend-inner-icon="mdi-folder-network"
-                      :menu-props="{ offsetY: true, bottom: true, contentClass: 'elevation-4' }"
-                      @change="onSeleccionarRuta"
-                    >
-                      <template v-slot:item="{ item }">
-                        <v-list-item-content>
-                          <v-list-item-title class="font-weight-medium">
-                            {{ item.nombre }}
-                            <v-chip x-small :color="item.existe ? 'success' : 'grey'" text-color="white" class="ml-2">
-                              {{ item.existe ? 'Disponible' : 'No encontrado' }}
-                            </v-chip>
-                          </v-list-item-title>
-                          <v-list-item-subtitle class="text-caption text-secondary">
-                            {{ item.ruta }}
-                          </v-list-item-subtitle>
-                        </v-list-item-content>
-                      </template>
-                    </v-select>
+          <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
 
-                    <label class="text-caption font-weight-bold text-secondary mb-1 d-block">
-                      Ruta Absoluta de la Carpeta DATA:
-                    </label>
-                    <v-text-field
-                      v-model="rutaManual"
-                      outlined
-                      dense
-                      prepend-inner-icon="mdi-folder-open"
-                      placeholder="/ruta/al/respaldo/DATA"
-                      class="mb-3"
-                    ></v-text-field>
+          <v-chip
+            :color="vistaModal === 'ejecucion' ? 'primary' : 'grey lighten-2'"
+            :text-color="vistaModal === 'ejecucion' ? 'white' : 'grey darken-3'"
+            small
+            class="font-weight-bold"
+            :outlined="vistaModal !== 'ejecucion'"
+            :disabled="!ejecutandoFondo && !jobCompletado"
+          >
+            <v-icon left x-small>mdi-numeric-3-circle</v-icon>
+            3. Ejecución en Hilo Desacoplado
+          </v-chip>
+        </div>
 
-                    <div class="d-flex justify-end mt-2">
-                      <v-btn
-                        color="primary"
-                        large
-                        class="text-capitalize font-weight-bold rounded-pill px-6"
-                        :loading="escaneando"
-                        @click="escanearDirectorio"
-                      >
-                        <v-icon left>mdi-magnify-scan</v-icon>
-                        Escanear y Diagnosticar
-                      </v-btn>
-                    </div>
-                  </v-card>
-                </v-col>
-
-                <!-- Subir Archivo Comprimido .ZIP / .RAR -->
-                <v-col cols="12" md="5">
-                  <v-card outlined rounded="lg" class="pa-5 fill-height d-flex flex-column justify-space-between">
-                    <div>
-                      <div class="d-flex align-center mb-3">
-                        <v-avatar color="indigo lighten-5" size="36" class="mr-3">
-                          <v-icon color="indigo" small>mdi-cloud-upload-outline</v-icon>
-                        </v-avatar>
-                        <div>
-                          <h4 class="text-subtitle-1 font-weight-bold mb-0">Cargar Paquete de Respaldo</h4>
-                          <span class="text-caption text-secondary">Extrae un archivo .zip o .rar al servidor para su auditoría</span>
-                        </div>
-                      </div>
-
-                      <v-divider class="my-3"></v-divider>
-
-                      <label class="text-caption font-weight-bold text-secondary mb-1 d-block">
-                        Archivo de Respaldo (.ZIP / .RAR):
-                      </label>
-                      <v-file-input
-                        v-model="archivoSubida"
-                        outlined
-                        dense
-                        show-size
-                        accept=".zip,.rar,.tar,.gz"
-                        prepend-inner-icon="mdi-archive"
-                        prepend-icon=""
-                        placeholder="Seleccione archivo comprimido..."
-                        class="mb-2"
-                      ></v-file-input>
-
-                      <v-alert dense text color="info" class="text-caption mt-2 mb-0">
-                        <v-icon left small color="info">mdi-information</v-icon>
-                        Al subirlo, se descomprime automáticamente en <code>storage/app/respaldos_migracion/</code> y se autodiagnostica.
-                      </v-alert>
-                    </div>
-
-                    <div class="d-flex justify-end mt-4">
-                      <v-btn
-                        color="indigo darken-1"
-                        dark
-                        large
-                        class="text-capitalize font-weight-bold rounded-pill px-6"
-                        :disabled="!archivoSubida"
-                        :loading="subiendoArchivo"
-                        @click="subirRespaldo"
-                      >
-                        <v-icon left>mdi-upload</v-icon>
-                        Descomprimir y Analizar
-                      </v-btn>
-                    </div>
-                  </v-card>
-                </v-col>
-              </v-row>
-            </v-tab-item>
-
-            <!-- -------------------------------------------------------- -->
-            <!-- PASO 2: COMPARATIVA POR ESQUEMAS (AUDITORÍA)             -->
-            <!-- -------------------------------------------------------- -->
-            <v-tab-item>
-              <!-- Mini tarjetas por Esquema -->
-              <v-row dense class="mb-3">
-                <v-col cols="12" sm="6" md="2" v-for="(modInfo, modKey) in resumenModulos" :key="modKey">
-                  <v-card outlined rounded="lg" class="pa-3 text-center fill-height" :class="getModuloBorderClass(modKey)">
-                    <div class="text-caption text-uppercase font-weight-bold text-secondary mb-1">
-                      {{ modInfo.nombre }}
-                    </div>
-                    <div class="d-flex justify-space-between text-caption px-1">
-                      <span class="text-secondary">FoxPro:</span>
-                      <span class="font-weight-bold primary--text">{{ formatearNumero(modInfo.dbf) }}</span>
-                    </div>
-                    <div class="d-flex justify-space-between text-caption px-1">
-                      <span class="text-secondary">PostgreSQL:</span>
-                      <span class="font-weight-bold teal--text text--darken-2">{{ formatearNumero(modInfo.pg) }}</span>
-                    </div>
-                  </v-card>
-                </v-col>
-
-                <v-col cols="12" sm="6" md="2">
-                  <v-card outlined rounded="lg" class="pa-3 text-center fill-height bg-light">
-                    <div class="text-caption text-uppercase font-weight-bold text-secondary mb-1">Archivos DBF</div>
-                    <div class="text-h5 font-weight-bold primary--text">{{ totalDbfsEncontrados }}</div>
-                    <div class="text-caption text-secondary">detectados</div>
-                  </v-card>
-                </v-col>
-              </v-row>
-
-              <!-- Filtro de esquemas -->
-              <div class="d-flex align-center justify-space-between flex-wrap mb-3">
-                <div class="d-flex align-center flex-wrap gap-2">
-                  <span class="text-caption font-weight-bold text-secondary mr-2">FILTRAR POR ESQUEMA:</span>
-                  <v-chip-group v-model="filtroEsquema" mandatory active-class="primary--text font-weight-bold">
-                    <v-chip filter small value="todos">Todos ({{ tablasComparativa.length }})</v-chip>
-                    <v-chip filter small value="comercial">Comercial</v-chip>
-                    <v-chip filter small value="facturacion">Facturación</v-chip>
-                    <v-chip filter small value="contabilidad">Contabilidad</v-chip>
-                    <v-chip filter small value="almacen">Almacenes</v-chip>
-                    <v-chip filter small value="activos_fijos">Activos Fijos</v-chip>
-                  </v-chip-group>
+        <v-card-text class="pa-5" style="max-height: 72vh;">
+          <!-- ============================================================== -->
+          <!-- ETAPA 1: SELECCIÓN Y SUBIDA DE RESPALDO                        -->
+          <!-- ============================================================== -->
+          <div v-if="vistaModal === 'origen'">
+            <!-- SECCIÓN 1: SELECCIONAR RESPALDO -->
+            <v-card outlined rounded="lg" class="pa-4 mb-4">
+              <div class="d-flex align-center mb-2">
+                <v-avatar color="primary lighten-5" size="36" class="mr-3">
+                  <v-icon color="primary" small>mdi-cloud-upload-outline</v-icon>
+                </v-avatar>
+                <div>
+                  <h4 class="text-subtitle-1 font-weight-bold mb-0">1. Seleccionar Respaldo FoxPro (.ZIP)</h4>
+                  <span class="text-caption text-secondary">
+                    Seleccione el archivo comprimido (.zip) desde su equipo con la carpeta DATA o tablas .DBF
+                  </span>
                 </div>
-
-                <v-btn
-                  color="primary"
-                  small
-                  class="rounded-pill font-weight-bold text-capitalize"
-                  @click="pasoWizard = 2"
-                >
-                  Continuar al Asistente
-                  <v-icon right small>mdi-arrow-right</v-icon>
-                </v-btn>
               </div>
 
-              <!-- Tabla Comparativa -->
-              <v-data-table
-                :headers="headersComparativa"
-                :items="tablasFiltradas"
-                :items-per-page="20"
+              <v-file-input
+                v-model="archivoSubida"
+                outlined
                 dense
-                class="elevation-1 rounded-lg"
-              >
-                <template v-slot:item.label="{ item }">
-                  <div class="d-flex align-center py-1">
-                    <v-icon small :color="getModuloColor(item.modulo)" class="mr-2">{{ item.icono }}</v-icon>
-                    <div>
-                      <div class="font-weight-medium text-caption">{{ item.label }}</div>
-                      <div class="text-caption text-secondary font-monospace">
-                        {{ item.schema }}.{{ item.table }}
-                      </div>
-                    </div>
-                  </div>
-                </template>
+                show-size
+                clearable
+                accept=".zip,.rar,.tar,.gz"
+                prepend-icon=""
+                prepend-inner-icon="mdi-folder-zip-outline"
+                placeholder="Haga clic aquí para explorar y seleccionar su archivo de respaldo..."
+                class="mt-2"
+                :disabled="usarRutaLocal || subiendoArchivo"
+                hide-details="auto"
+              ></v-file-input>
 
-                <template v-slot:item.dbf_archivo="{ item }">
-                  <div class="d-flex align-center">
-                    <v-icon x-small :color="item.dbf_existe ? 'success' : 'grey'" class="mr-1">
-                      {{ item.dbf_existe ? 'mdi-file-check' : 'mdi-file-question' }}
-                    </v-icon>
-                    <span class="font-monospace text-caption">
-                      {{ item.dbf_archivo || 'No detectado' }}
+              <!-- Barra de progreso de subida por chunks -->
+              <div v-if="subiendoArchivo" class="mt-4 pa-3 bg-light rounded-lg border">
+                <div class="d-flex justify-space-between text-caption font-weight-bold mb-1">
+                  <span class="primary--text"><v-icon small left color="primary" class="spin-icon">mdi-loading</v-icon> {{ mensajeSubida }}</span>
+                  <span>{{ progresoSubida }}%</span>
+                </div>
+                <v-progress-linear
+                  :value="progresoSubida"
+                  color="primary"
+                  height="8"
+                  rounded
+                  striped
+                ></v-progress-linear>
+              </div>
+
+              <!-- Opción alternativa: Servidor Local -->
+              <div class="mt-3">
+                <v-checkbox
+                  v-model="usarRutaLocal"
+                  dense
+                  hide-details
+                  class="mt-0"
+                  :disabled="subiendoArchivo"
+                >
+                  <template v-slot:label>
+                    <span class="text-caption text-secondary font-weight-medium">
+                      O ingresar manualmente una ruta de carpeta local en el servidor
                     </span>
-                  </div>
-                </template>
+                  </template>
+                </v-checkbox>
 
-                <template v-slot:item.dbf_registros="{ item }">
-                  <span class="font-weight-bold font-monospace text-caption">
-                    {{ formatearNumero(item.dbf_registros) }}
+                <v-text-field
+                  v-if="usarRutaLocal"
+                  v-model="rutaManual"
+                  label="Ruta absoluta de la carpeta DATA en el servidor"
+                  outlined
+                  dense
+                  hide-details
+                  prepend-inner-icon="mdi-folder-outline"
+                  placeholder="/ruta/al/respaldo/DATA"
+                  class="mt-2"
+                ></v-text-field>
+              </div>
+            </v-card>
+
+            <!-- SECCIÓN 2: MODO DE OPERACIÓN -->
+            <v-card outlined rounded="lg" class="pa-4 mb-4">
+              <div class="d-flex align-center mb-3">
+                <v-avatar color="primary lighten-5" size="36" class="mr-3">
+                  <v-icon color="primary" small>mdi-tune-vertical</v-icon>
+                </v-avatar>
+                <div>
+                  <h4 class="text-subtitle-1 font-weight-bold mb-0">2. Modo de Operación</h4>
+                  <span class="text-caption text-secondary">
+                    Decida si desea hacer una prueba diagnóstica o sincronizar directamente
                   </span>
-                </template>
+                </div>
+              </div>
 
-                <template v-slot:item.pg_registros="{ item }">
-                  <span class="font-weight-bold font-monospace text-caption teal--text text--darken-2">
-                    {{ formatearNumero(item.pg_registros) }}
-                  </span>
-                </template>
-
-                <template v-slot:item.diferencia="{ item }">
-                  <div class="font-monospace text-caption font-weight-bold" :class="item.diferencia > 0 ? 'warning--text' : 'grey--text'">
-                    {{ formatearNumero(item.diferencia) }}
-                  </div>
-                </template>
-
-                <template v-slot:item.estado="{ item }">
-                  <v-chip
-                    x-small
-                    :color="getEstadoColor(item.estado)"
-                    text-color="white"
-                    class="font-weight-bold"
+              <v-row dense>
+                <v-col cols="12" sm="6">
+                  <v-card
+                    outlined
+                    rounded="lg"
+                    class="pa-3 cursor-pointer transition-all fill-height"
+                    :class="esSimulacion ? 'blue lighten-5 border-primary elevation-1' : 'bg-light'"
+                    @click="esSimulacion = true"
                   >
-                    {{ getEstadoTexto(item.estado) }}
-                  </v-chip>
-                </template>
-              </v-data-table>
-            </v-tab-item>
-
-            <!-- -------------------------------------------------------- -->
-            <!-- PASO 3: ASISTENTE Y EJECUCIÓN ASÍNCRONA                  -->
-            <!-- -------------------------------------------------------- -->
-            <v-tab-item>
-              <v-row>
-                <!-- Selección de Tablas / Módulos -->
-                <v-col cols="12" md="7">
-                  <v-card outlined rounded="lg" class="pa-4 fill-height">
-                    <div class="d-flex align-center justify-space-between mb-2">
-                      <h4 class="text-subtitle-1 font-weight-bold mb-0">Seleccione Tablas para Sincronizar</h4>
+                    <div class="d-flex align-start">
+                      <v-radio-group v-model="esSimulacion" hide-details class="ma-0 pa-0 mr-2 mt-1">
+                        <v-radio :value="true" color="primary"></v-radio>
+                      </v-radio-group>
                       <div>
-                        <v-btn text x-small color="primary" @click="seleccionarTodosModulos">Seleccionar Todo</v-btn>
-                        <v-btn text x-small color="grey" @click="deseleccionarTodosModulos">Limpiar</v-btn>
+                        <div class="font-weight-bold text-caption primary--text d-flex align-center">
+                          <v-icon left x-small color="primary">mdi-shield-check</v-icon>
+                          Simulación (Dry-Run)
+                        </div>
+                        <div class="text-caption text-secondary mt-1">
+                          Verifica consistencia y lee los archivos DBF sin modificar la base de datos PostgreSQL.
+                        </div>
                       </div>
                     </div>
-
-                    <v-divider class="my-2"></v-divider>
-
-                    <v-row dense style="max-height: 280px; overflow-y: auto;">
-                      <v-col cols="12" sm="6" v-for="t in tablasComparativa" :key="t.id">
-                        <v-checkbox
-                          v-model="modulosSeleccionados"
-                          :value="t.id"
-                          dense
-                          hide-details
-                          class="mt-1"
-                        >
-                          <template v-slot:label>
-                            <span class="text-caption font-weight-medium">{{ t.label }}</span>
-                            <span class="text-caption text-secondary font-monospace ml-1">({{ formatearNumero(t.dbf_registros) }})</span>
-                          </template>
-                        </v-checkbox>
-                      </v-col>
-                    </v-row>
                   </v-card>
                 </v-col>
 
-                <!-- Configuración y Botón de Inicio -->
-                <v-col cols="12" md="5">
-                  <v-card outlined rounded="lg" class="pa-4 fill-height d-flex flex-column justify-space-between">
-                    <div>
-                      <h4 class="text-subtitle-1 font-weight-bold mb-2">Parámetros de Ejecución</h4>
-                      <v-divider class="my-2"></v-divider>
-
-                      <!-- Switch Simulación -->
-                      <v-card outlined class="pa-3 mb-3" rounded="lg" :color="esSimulacion ? 'amber lighten-5' : 'green lighten-5'">
-                        <div class="d-flex align-center justify-space-between">
-                          <div>
-                            <div class="font-weight-bold text-caption d-flex align-center">
-                              <v-icon left x-small :color="esSimulacion ? 'warning' : 'success'">
-                                {{ esSimulacion ? 'mdi-shield-check' : 'mdi-database-edit' }}
-                              </v-icon>
-                              {{ esSimulacion ? 'Modo Simulación (Dry-Run)' : 'Modo Escritura Real' }}
-                            </div>
-                            <div class="text-caption text-secondary">
-                              {{ esSimulacion ? 'Verifica consistencia sin modificar la base de datos' : '⚠️ Inserta y sincroniza registros reales en PostgreSQL' }}
-                            </div>
-                          </div>
-                          <v-switch v-model="esSimulacion" :color="esSimulacion ? 'warning' : 'success'" hide-details dense></v-switch>
+                <v-col cols="12" sm="6">
+                  <v-card
+                    outlined
+                    rounded="lg"
+                    class="pa-3 cursor-pointer transition-all fill-height"
+                    :class="!esSimulacion ? 'green lighten-5 border-success elevation-1' : 'bg-light'"
+                    @click="esSimulacion = false"
+                  >
+                    <div class="d-flex align-start">
+                      <v-radio-group v-model="esSimulacion" hide-details class="ma-0 pa-0 mr-2 mt-1">
+                        <v-radio :value="false" color="success"></v-radio>
+                      </v-radio-group>
+                      <div>
+                        <div class="font-weight-bold text-caption success--text d-flex align-center">
+                          <v-icon left x-small color="success">mdi-database-import</v-icon>
+                          Migración Oficial (Real)
                         </div>
-                      </v-card>
-
-                      <!-- Límite de Prueba -->
-                      <label class="text-caption font-weight-bold text-secondary mb-1 d-block">Límite de Registros por Tabla:</label>
-                      <v-select
-                        v-model="limiteRegistros"
-                        :items="opcionesLimite"
-                        item-text="texto"
-                        item-value="valor"
-                        outlined
-                        dense
-                        class="mb-2"
-                      ></v-select>
-
-                      <v-alert dense text :color="esSimulacion ? 'warning' : 'info'" class="text-caption mb-3">
-                        <strong>{{ modulosSeleccionados.length }}</strong> módulos listos para procesar.
-                      </v-alert>
+                        <div class="text-caption text-secondary mt-1">
+                          Inserta y sincroniza los abonados, lecturas, facturas y deudas en PostgreSQL.
+                        </div>
+                      </div>
                     </div>
-
-                    <v-btn
-                      :color="esSimulacion ? 'warning' : 'success'"
-                      block
-                      large
-                      dark
-                      class="text-capitalize font-weight-bold rounded-pill"
-                      :loading="ejecutando"
-                      :disabled="modulosSeleccionados.length === 0"
-                      @click="ejecutarMigracionSecuencial"
-                    >
-                      <v-icon left>{{ esSimulacion ? 'mdi-play-circle-outline' : 'mdi-database-import' }}</v-icon>
-                      {{ esSimulacion ? 'Iniciar Simulación (Dry-Run)' : 'Iniciar Migración Oficial' }}
-                    </v-btn>
-
-                    <v-btn
-                      color="primary darken-1"
-                      outlined
-                      block
-                      class="text-capitalize font-weight-bold rounded-pill mt-2"
-                      :loading="vinculandoFacturas"
-                      :disabled="ejecutando"
-                      @click="vincularFacturasLecturas"
-                    >
-                      <v-icon left small>mdi-link-variant</v-icon>
-                      Vincular Facturas & Lecturas Manualmente
-                    </v-btn>
                   </v-card>
                 </v-col>
               </v-row>
+            </v-card>
 
-              <!-- Consola de Telemetría en Vivo -->
-              <v-card outlined rounded="lg" class="mt-3">
-                <v-card-title class="grey darken-4 white--text py-2 px-4 text-subtitle-2 d-flex justify-space-between flex-wrap">
-                  <div class="d-flex align-center flex-wrap gap-2">
-                    <v-icon left small color="green accent-3">mdi-console</v-icon>
-                    <span>Terminal de Telemetría en Tiempo Real</span>
-                    <v-chip v-if="ejecutando" x-small color="amber" class="ml-2 black--text font-weight-bold">
-                      {{ progresoMigracion }}% ({{ moduloActualMigracion }})
-                    </v-chip>
+            <!-- AVISO DE AISLAMIENTO DE SERVIDOR -->
+            <v-alert dense text color="info" class="text-caption mb-0" rounded="lg">
+              <div class="d-flex align-center">
+                <v-icon left small color="info">mdi-information</v-icon>
+                <span>
+                  <strong>Aislamiento de Servidor:</strong> Esta migración se ejecuta en un proceso de fondo desacoplado. Mientras se ejecuta, usted y los demás usuarios pueden seguir usando la caja, consultas y facturación del ERP normalmente y sin lentitud.
+                </span>
+              </div>
+            </v-alert>
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- ETAPA 2: AUDITORÍA VOLUMÉTRICA Y COMPARATIVA POR ESQUEMAS      -->
+          <!-- ============================================================== -->
+          <div v-else-if="vistaModal === 'comparativa'">
+            <!-- BANNER DE RESUMEN VOLUMÉTRICO GENERAL -->
+            <v-row dense class="mb-3">
+              <v-col cols="12" sm="6" md="3">
+                <v-card outlined rounded="lg" class="pa-3 text-center fill-height">
+                  <div class="text-caption text-uppercase font-weight-bold text-secondary">FoxPro (Origen)</div>
+                  <div class="text-h5 font-weight-black primary--text mt-1">{{ formatearNumero(totalRegistrosDbf) }}</div>
+                  <div class="text-caption text-secondary">Registros en DBF</div>
+                </v-card>
+              </v-col>
+
+              <v-col cols="12" sm="6" md="3">
+                <v-card outlined rounded="lg" class="pa-3 text-center fill-height">
+                  <div class="text-caption text-uppercase font-weight-bold text-secondary">PostgreSQL (Actual)</div>
+                  <div class="text-h5 font-weight-black success--text mt-1">{{ formatearNumero(totalRegistrosPg) }}</div>
+                  <div class="text-caption text-secondary">Registros en BD</div>
+                </v-card>
+              </v-col>
+
+              <v-col cols="12" sm="6" md="3">
+                <v-card outlined rounded="lg" class="pa-3 text-center fill-height" :class="totalFaltantePorMigrar > 0 ? 'amber lighten-5 border-warning' : 'green lighten-5 border-success'">
+                  <div class="text-caption text-uppercase font-weight-bold text-secondary">Faltan por Migrar</div>
+                  <div class="text-h5 font-weight-black warning--text text--darken-2 mt-1">{{ formatearNumero(totalFaltantePorMigrar) }}</div>
+                  <div class="text-caption text-secondary">Pendientes de sincronización</div>
+                </v-card>
+              </v-col>
+
+              <v-col cols="12" sm="6" md="3">
+                <v-card outlined rounded="lg" class="pa-3 text-center fill-height">
+                  <div class="text-caption text-uppercase font-weight-bold text-secondary">Tablas FoxPro</div>
+                  <div class="text-h5 font-weight-black teal--text text--darken-1 mt-1">{{ totalDbfsEncontrados }}</div>
+                  <div class="text-caption text-secondary">Archivos .DBF listos</div>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <!-- MINI TARJETAS POR ESQUEMA -->
+            <v-row dense class="mb-3">
+              <v-col cols="12" sm="6" md="2" v-for="(modInfo, modKey) in resumenModulos" :key="modKey">
+                <v-card outlined rounded="lg" class="pa-2 text-center fill-height" :class="getModuloBorderClass(modKey)">
+                  <div class="text-caption text-uppercase font-weight-bold text-secondary mb-1">
+                    {{ modInfo.nombre }}
                   </div>
-
-                  <div class="d-flex align-center">
-                    <v-btn
-                      v-if="ejecutando"
-                      color="red lighten-1"
-                      x-small
-                      dark
-                      class="mr-3 font-weight-bold text-capitalize"
-                      @click="detenerMigracion"
-                    >
-                      <v-icon x-small left>mdi-stop-circle</v-icon>
-                      Detener
-                    </v-btn>
-                    <div v-if="resultadoEjecucion" class="text-caption grey--text text--lighten-1">
-                      <span>⏱️ {{ resultadoEjecucion.tiempo_segundos }}s</span> | 
-                      <span>🧠 {{ resultadoEjecucion.memoria_pico }}</span>
-                    </div>
+                  <div class="d-flex justify-space-between text-caption px-1">
+                    <span class="text-secondary">FoxPro:</span>
+                    <span class="font-weight-bold primary--text">{{ formatearNumero(modInfo.dbf) }}</span>
                   </div>
-                </v-card-title>
-
-                <v-progress-linear
-                  v-if="ejecutando"
-                  :value="progresoMigracion"
-                  color="green accent-3"
-                  height="6"
-                  striped
-                ></v-progress-linear>
-
-                <div
-                  class="grey darken-4 pa-3 white--text font-monospace text-caption"
-                  style="height: 180px; overflow-y: auto; line-height: 1.6;"
-                  ref="terminalLogs"
-                >
-                  <div v-if="logsTerminal.length === 0" class="grey--text text--lighten-1 fst-italic">
-                    Esperando inicio... Seleccione los módulos y haga clic en Iniciar Migración.
+                  <div class="d-flex justify-space-between text-caption px-1">
+                    <span class="text-secondary">PostgreSQL:</span>
+                    <span class="font-weight-bold teal--text text--darken-2">{{ formatearNumero(modInfo.pg) }}</span>
                   </div>
-                  <div v-for="(log, idx) in logsTerminal" :key="idx" class="d-flex align-start mb-1">
-                    <span class="grey--text mr-2">[{{ log.hora }}]</span>
-                    <span :class="getLogColor(log.estado)" class="font-weight-bold mr-2">[{{ log.estado }}]</span>
-                    <span class="mr-2 grey--text">[{{ log.id }}]:</span>
-                    <span>{{ log.mensaje }}</span>
+                </v-card>
+              </v-col>
+
+              <v-col cols="12" sm="6" md="2">
+                <v-card outlined rounded="lg" class="pa-2 d-flex flex-column justify-center align-center fill-height bg-light">
+                  <span class="text-caption font-weight-bold text-secondary">Ruta Activa:</span>
+                  <span class="text-caption text-truncate font-monospace" style="max-width: 150px;" :title="rutaManual">{{ rutaManual }}</span>
+                  <v-btn text x-small color="primary" class="mt-1" @click="vistaModal = 'origen'">
+                    <v-icon left x-small>mdi-pencil</v-icon> Cambiar
+                  </v-btn>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <!-- FILTRO DE ESQUEMAS Y BOTONES DE SELECCIÓN -->
+            <div class="d-flex align-center justify-space-between flex-wrap mb-2">
+              <div class="d-flex align-center flex-wrap gap-2">
+                <span class="text-caption font-weight-bold text-secondary mr-1">ESQUEMA:</span>
+                <v-chip-group v-model="filtroEsquema" mandatory active-class="primary--text font-weight-bold">
+                  <v-chip filter small value="todos">Todos ({{ tablasComparativa.length }})</v-chip>
+                  <v-chip filter small value="comercial">Comercial</v-chip>
+                  <v-chip filter small value="facturacion">Facturación</v-chip>
+                  <v-chip filter small value="contabilidad">Contabilidad</v-chip>
+                  <v-chip filter small value="almacen">Almacenes</v-chip>
+                  <v-chip filter small value="activos_fijos">Activos Fijos</v-chip>
+                </v-chip-group>
+              </div>
+
+              <div>
+                <v-btn text x-small color="primary" class="font-weight-bold mr-1" @click="seleccionarTodosModulos">
+                  Seleccionar Todo ({{ tablasComparativa.filter(t => t.dbf_existe).length }})
+                </v-btn>
+                <v-btn text x-small color="grey darken-1" class="font-weight-bold" @click="deseleccionarTodosModulos">
+                  Deseleccionar
+                </v-btn>
+              </div>
+            </div>
+
+            <!-- TABLA COMPARATIVA AUDITADA -->
+            <v-data-table
+              :headers="headersComparativa"
+              :items="tablasFiltradas"
+              :items-per-page="15"
+              dense
+              class="elevation-1 rounded-lg mb-4"
+            >
+              <!-- Checkbox para seleccionar cada tabla -->
+              <template v-slot:item.label="{ item }">
+                <div class="d-flex align-center py-1">
+                  <v-checkbox
+                    v-model="modulosSeleccionados"
+                    :value="item.id"
+                    :disabled="!item.dbf_existe"
+                    dense
+                    hide-details
+                    class="ma-0 pa-0 mr-2"
+                  ></v-checkbox>
+                  <v-icon small :color="getModuloColor(item.modulo)" class="mr-2">{{ item.icono }}</v-icon>
+                  <div>
+                    <div class="font-weight-bold text-caption">{{ item.label }}</div>
+                    <div class="text-caption text-secondary font-monospace">{{ item.schema }}.{{ item.table }}</div>
                   </div>
                 </div>
-              </v-card>
-            </v-tab-item>
-          </v-tabs-items>
+              </template>
+
+              <!-- Archivo DBF -->
+              <template v-slot:item.dbf_archivo="{ item }">
+                <div class="d-flex align-center">
+                  <v-icon x-small :color="item.dbf_existe ? 'success' : 'grey'" class="mr-1">
+                    {{ item.dbf_existe ? 'mdi-file-check' : 'mdi-file-question' }}
+                  </v-icon>
+                  <span class="font-monospace text-caption">
+                    {{ item.dbf_archivo || 'No detectado' }}
+                  </span>
+                </div>
+              </template>
+
+              <!-- Registros FoxPro -->
+              <template v-slot:item.dbf_registros="{ item }">
+                <span class="font-weight-bold font-monospace text-caption primary--text">
+                  {{ formatearNumero(item.dbf_registros) }}
+                </span>
+              </template>
+
+              <!-- Registros PostgreSQL -->
+              <template v-slot:item.pg_registros="{ item }">
+                <span class="font-weight-bold font-monospace text-caption teal--text text--darken-2">
+                  {{ formatearNumero(item.pg_registros) }}
+                </span>
+              </template>
+
+              <!-- Faltan Migrar (Diferencia) -->
+              <template v-slot:item.diferencia="{ item }">
+                <div class="font-monospace text-caption font-weight-bold" :class="item.diferencia > 0 ? 'warning--text text--darken-2' : 'grey--text'">
+                  {{ formatearNumero(item.diferencia > 0 ? item.diferencia : 0) }}
+                </div>
+              </template>
+
+              <!-- Estado / Avance y Porcentaje -->
+              <template v-slot:item.estado="{ item }">
+                <div class="d-flex align-center justify-center gap-1" style="min-width: 140px;">
+                  <v-progress-linear
+                    :value="getPorcentajeTabla(item)"
+                    :color="getEstadoColor(item.estado)"
+                    height="6"
+                    rounded
+                    style="max-width: 60px;"
+                  ></v-progress-linear>
+                  <v-chip x-small :color="getEstadoColor(item.estado)" text-color="white" class="font-weight-bold ml-1">
+                    {{ getPorcentajeTabla(item) }}% · {{ getEstadoTexto(item.estado) }}
+                  </v-chip>
+                </div>
+              </template>
+            </v-data-table>
+
+            <!-- MODO DE MIGRACIÓN: SIMULACIÓN VS REAL -->
+            <v-card outlined rounded="lg" class="pa-3 mb-2" :color="esSimulacion ? 'amber lighten-5' : 'green lighten-5'">
+              <div class="d-flex align-center justify-space-between flex-wrap">
+                <div>
+                  <div class="font-weight-bold text-caption d-flex align-center">
+                    <v-icon left x-small :color="esSimulacion ? 'warning' : 'success'">
+                      {{ esSimulacion ? 'mdi-shield-check' : 'mdi-database-import' }}
+                    </v-icon>
+                    {{ esSimulacion ? 'Modo Simulación (Dry-Run)' : 'Modo Escritura Oficial (Real)' }}
+                  </div>
+                  <div class="text-caption text-secondary">
+                    {{ esSimulacion ? 'Verifica consistencia e integridad sin modificar las tablas en PostgreSQL' : '⚠️ Inserta y sincroniza datos reales en las tablas de PostgreSQL' }}
+                  </div>
+                </div>
+
+                <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
+                  <v-btn
+                    small
+                    :outlined="!esSimulacion"
+                    :color="esSimulacion ? 'warning darken-1' : 'grey'"
+                    class="text-capitalize font-weight-bold rounded-pill"
+                    @click="esSimulacion = true"
+                  >
+                    Simulación
+                  </v-btn>
+                  <v-btn
+                    small
+                    :outlined="esSimulacion"
+                    :color="!esSimulacion ? 'success' : 'grey'"
+                    class="text-capitalize font-weight-bold rounded-pill"
+                    @click="esSimulacion = false"
+                  >
+                    Escritura Real
+                  </v-btn>
+                </div>
+              </div>
+            </v-card>
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- ETAPA 3: MONITOREO EN SEGUNDO PLANO (DESACOPLADO)              -->
+          <!-- ============================================================== -->
+          <div v-else-if="vistaModal === 'ejecucion'">
+            <v-card
+              outlined
+              class="pa-4 mb-4"
+              rounded="lg"
+              :color="jobEstado === 'COMPLETADO' ? 'green lighten-5' : (jobEstado === 'CANCELADO' ? 'red lighten-5' : 'blue lighten-5')"
+            >
+              <div class="d-flex align-center justify-space-between flex-wrap">
+                <div class="d-flex align-center">
+                  <v-avatar
+                    :color="jobEstado === 'COMPLETADO' ? 'success' : (jobEstado === 'CANCELADO' ? 'error' : 'primary')"
+                    size="40"
+                    class="mr-3"
+                  >
+                    <v-icon color="white">
+                      {{ jobEstado === 'COMPLETADO' ? 'mdi-check-bold' : (jobEstado === 'CANCELADO' ? 'mdi-close-octagon' : 'mdi-cog-sync') }}
+                    </v-icon>
+                  </v-avatar>
+                  <div>
+                    <div class="font-weight-bold text-subtitle-1">
+                      {{ jobEstado === 'COMPLETADO' ? '¡Migración Finalizada!' : (jobEstado === 'CANCELADO' ? 'Migración Cancelada' : 'Migración en Ejecución...') }}
+                    </div>
+                    <div class="text-caption text-secondary">
+                      Módulo actual: <strong class="primary--text">{{ jobModuloActual || 'Iniciando subproceso...' }}</strong>
+                      <span v-if="jobActualId" class="ml-2 font-monospace">({{ jobActualId.substring(0, 8) }}...)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Botón Cancelar Inmediato (si está en ejecución) -->
+                <div v-if="ejecutandoFondo" class="mt-2 mt-sm-0">
+                  <v-btn
+                    color="error"
+                    large
+                    class="rounded-pill font-weight-bold text-capitalize elevation-2 px-5"
+                    :loading="cancelandoJob"
+                    @click="cancelarJobEnFondo"
+                  >
+                    <v-icon left>mdi-stop-circle</v-icon>
+                    Detener Inmediatamente
+                  </v-btn>
+                </div>
+              </div>
+
+              <!-- BARRA DE PROGRESO -->
+              <div class="mt-4">
+                <div class="d-flex justify-space-between text-caption font-weight-bold mb-1">
+                  <span>Progreso de sincronización</span>
+                  <span>{{ jobProgreso }}%</span>
+                </div>
+                <v-progress-linear
+                  :value="jobProgreso"
+                  :color="jobEstado === 'COMPLETADO' ? 'success' : (jobEstado === 'CANCELADO' ? 'error' : 'primary')"
+                  height="10"
+                  rounded
+                  :indeterminate="ejecutandoFondo && jobProgreso === 0"
+                  striped
+                ></v-progress-linear>
+              </div>
+            </v-card>
+
+            <!-- TERMINAL DE TELEMETRÍA EN VIVO -->
+            <v-card outlined rounded="lg" class="mb-4">
+              <v-card-title class="grey darken-4 white--text py-2 px-4 text-caption font-weight-bold d-flex justify-space-between">
+                <span><v-icon left x-small color="green accent-3">mdi-console</v-icon> Bitácora en Vivo del Subproceso</span>
+                <span class="text-caption grey--text">{{ jobLogs.length }} eventos registrados</span>
+              </v-card-title>
+              <div
+                class="grey darken-4 pa-3 white--text font-monospace text-caption"
+                style="height: 220px; overflow-y: auto; line-height: 1.6;"
+                ref="terminalFondoLogs"
+              >
+                <div v-if="jobLogs.length === 0" class="grey--text text--lighten-1 fst-italic">
+                  Lanzando subproceso en segundo plano...
+                </div>
+                <div v-for="(log, idx) in jobLogs" :key="idx" class="d-flex align-start mb-1">
+                  <span class="grey--text mr-2">[{{ log.hora }}]</span>
+                  <span :class="getLogColor(log.estado)" class="font-weight-bold mr-2">[{{ log.estado }}]</span>
+                  <span class="mr-2 grey--text">[{{ log.id }}]:</span>
+                  <span>{{ log.mensaje }}</span>
+                </div>
+              </div>
+            </v-card>
+          </div>
         </v-card-text>
 
-        <!-- PIE DEL MODAL -->
+        <!-- PIE DEL MODAL SEGÚN LA ETAPA -->
         <v-divider></v-divider>
-        <v-card-actions class="py-3 px-5 d-flex justify-space-between">
-          <v-btn
-            text
-            class="text-capitalize rounded-pill"
-            :disabled="pasoWizard === 0 || ejecutando"
-            @click="pasoWizard--"
-          >
-            <v-icon left small>mdi-arrow-left</v-icon>
-            Anterior
-          </v-btn>
-
+        <v-card-actions class="py-3 px-5 d-flex justify-space-between flex-wrap">
+          <!-- Botón Cerrar / Volver -->
           <div>
             <v-btn
+              v-if="vistaModal === 'comparativa'"
               text
               class="text-capitalize rounded-pill mr-2"
-              @click="modalNuevaMigracion = false"
+              @click="vistaModal = 'origen'"
             >
-              Cerrar
+              <v-icon left small>mdi-arrow-left</v-icon>
+              Cambiar Respaldo
             </v-btn>
 
             <v-btn
-              v-if="pasoWizard < 2"
-              color="primary"
-              class="text-capitalize rounded-pill font-weight-bold"
-              @click="pasoWizard++"
+              text
+              class="text-capitalize rounded-pill"
+              :disabled="cancelandoJob || subiendoArchivo"
+              @click="cerrarModalNuevaMigracion"
             >
-              Siguiente
+              {{ ejecutandoFondo ? 'Cerrar Ventana (sigue en segundo plano)' : 'Cerrar' }}
+            </v-btn>
+          </div>
+
+          <!-- Botón de Acción Principal -->
+          <div>
+            <!-- Si estamos en Etapa 1 (Origen) -->
+            <v-btn
+              v-if="vistaModal === 'origen'"
+              :color="esSimulacion ? 'primary' : 'success'"
+              class="text-capitalize rounded-pill font-weight-bold px-6 elevation-2"
+              large
+              :loading="subiendoArchivo || escaneando"
+              :disabled="(!archivoSubida && !usarRutaLocal) || (usarRutaLocal && !rutaManual)"
+              @click="procesarYAnalizarRespaldo"
+            >
+              <v-icon left>mdi-file-search-outline</v-icon>
+              Analizar Respaldo y Ver Qué Falta Migrar
               <v-icon right small>mdi-arrow-right</v-icon>
             </v-btn>
 
+            <!-- Si estamos en Etapa 2 (Comparativa) -->
             <v-btn
-              v-else
+              v-else-if="vistaModal === 'comparativa'"
+              :color="esSimulacion ? 'primary' : 'success'"
+              class="text-capitalize rounded-pill font-weight-bold px-6 elevation-2"
+              large
+              :loading="iniciandoJob"
+              :disabled="modulosSeleccionados.length === 0"
+              @click="iniciarMigracionEnFondo"
+            >
+              <v-icon left>{{ esSimulacion ? 'mdi-shield-check' : 'mdi-rocket-launch' }}</v-icon>
+              {{ esSimulacion ? `Iniciar Simulación en Fondo (${modulosSeleccionados.length} tablas)` : `Iniciar Migración Oficial en Fondo (${modulosSeleccionados.length} tablas)` }}
+            </v-btn>
+
+            <!-- Si estamos en Etapa 3 (Completado) -->
+            <v-btn
+              v-else-if="vistaModal === 'ejecucion' && jobCompletado"
               color="primary"
-              class="text-capitalize rounded-pill font-weight-bold"
-              :disabled="ejecutando"
-              @click="cerrarModalYRefrescar"
+              class="text-capitalize rounded-pill font-weight-bold px-5"
+              @click="cerrarModalNuevaMigracion"
             >
               <v-icon left small>mdi-check</v-icon>
               Finalizar y Ver Bitácora
@@ -940,7 +1022,19 @@ export default {
       modalNuevaMigracion: false,
       modalRollback: false,
       modalDetalleLog: false,
-      pasoWizard: 0,
+
+      // Ejecución Asíncrona en Segundo Plano
+      usarRutaLocal: false,
+      iniciandoJob: false,
+      ejecutandoFondo: false,
+      cancelandoJob: false,
+      jobCompletado: false,
+      jobActualId: null,
+      jobProgreso: 0,
+      jobEstado: 'INICIANDO',
+      jobModuloActual: '',
+      jobLogs: [],
+      timerPolling: null,
 
       // Historial & Bitácora
       logsHistorial: [],
@@ -973,23 +1067,24 @@ export default {
         { text: 'Acciones', value: 'acciones', sortable: false, align: 'end', width: '90px' },
       ],
 
-      // Parámetros de Migración
-      esSimulacion: true,
-      limiteRegistros: 0,
-      progresoMigracion: 0,
-      moduloActualMigracion: '',
-      archivoSubida: null,
-      vinculandoFacturas: false,
+      // Estado de navegación en el modal
+      vistaModal: 'origen', // 'origen' | 'comparativa' | 'ejecucion'
+      progresoSubida: 0,
+      mensajeSubida: '',
 
-      rutaSeleccionada: '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO/DATA_19_09_2026/DATA',
+      // Parámetros de Migración y Diagnóstico
+      esSimulacion: false,
+      archivoSubida: null,
+      usarRutaLocal: false,
       rutaManual: '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO/DATA_19_09_2026/DATA',
 
-      rutasPredefinidas: [],
+      // Tablas y Auditoría
       tablasComparativa: [],
+      filtroEsquema: 'todos',
+      modulosSeleccionados: [],
       totalDbfsEncontrados: 0,
       totalRegistrosDbf: 0,
       totalRegistrosPg: 0,
-
       resumenModulos: {
         comercial: { nombre: 'Comercial', dbf: 0, pg: 0 },
         facturacion: { nombre: 'Facturación', dbf: 0, pg: 0 },
@@ -997,35 +1092,14 @@ export default {
         almacen: { nombre: 'Almacenes', dbf: 0, pg: 0 },
         activos_fijos: { nombre: 'Activos Fijos', dbf: 0, pg: 0 },
       },
-
-      filtroEsquema: 'todos',
-      modulosSeleccionados: [
-        'estados_abonado', 'conceptos_ingresos',
-        'calles', 'zonas', 'tarifas', 'abonados', 'aportes_agua',
-        'aportes_alcantarillado', 'bajas_socios', 'convenios', 'recibos',
-        'facturas', 'lecturas', 'plan_cuentas', 'comprobantes', 'compras',
-        'materiales_almacen', 'rubros_activos', 'bienes_activos'
-      ],
-
-      opcionesLimite: [
-        { texto: 'Sin Límite (Migrar todo el respaldo)', valor: 0 },
-        { texto: 'Probar 50 registros', valor: 50 },
-        { texto: 'Probar 200 registros', valor: 200 },
-        { texto: 'Probar 1.000 registros', valor: 1000 },
-        { texto: 'Probar 5.000 registros', valor: 5000 },
-      ],
-
       headersComparativa: [
         { text: 'Módulo / Tabla', value: 'label', sortable: true },
         { text: 'Archivo FoxPro', value: 'dbf_archivo', sortable: true },
         { text: 'Registros FoxPro', value: 'dbf_registros', sortable: true, align: 'end' },
         { text: 'Registros PostgreSQL', value: 'pg_registros', sortable: true, align: 'end' },
-        { text: 'Diferencia', value: 'diferencia', sortable: true, align: 'end' },
-        { text: 'Estado', value: 'estado', sortable: true, align: 'center' },
+        { text: 'Faltan Migrar', value: 'diferencia', sortable: true, align: 'end' },
+        { text: 'Estado / Avance', value: 'estado', sortable: true, align: 'center' },
       ],
-
-      logsTerminal: [],
-      resultadoEjecucion: null,
 
       snackbar: {
         show: false,
@@ -1057,6 +1131,11 @@ export default {
       return this.tablasComparativa.filter(t => t.schema === this.filtroEsquema || t.modulo === this.filtroEsquema);
     },
 
+    totalFaltantePorMigrar() {
+      const faltante = this.totalRegistrosDbf - this.totalRegistrosPg;
+      return faltante > 0 ? faltante : 0;
+    },
+
     logDetallesFormateado() {
       if (!this.logSeleccionado || !this.logSeleccionado.detalles_json) {
         return 'Sin detalles adicionales.';
@@ -1074,8 +1153,10 @@ export default {
 
   mounted() {
     this.cargarHistorial();
-    this.cargarRutasPredefinidas();
-    this.escanearDirectorio();
+  },
+
+  beforeDestroy() {
+    this.detenerPollingJob();
   },
 
   methods: {
@@ -1102,17 +1183,6 @@ export default {
         });
     },
 
-    abrirModalNuevaMigracion() {
-      this.pasoWizard = 0;
-      this.modalNuevaMigracion = true;
-    },
-
-    cerrarModalYRefrescar() {
-      this.modalNuevaMigracion = false;
-      this.cargarHistorial();
-      this.escanearDirectorio();
-    },
-
     abrirDetalleLog(item) {
       this.logSeleccionado = item;
       this.modalDetalleLog = true;
@@ -1136,7 +1206,6 @@ export default {
           this.resultadoRollback = res.data;
           this.mostrarMensaje('Reversión completada con éxito', 'success', 'mdi-check-circle');
           this.cargarHistorial();
-          this.escanearDirectorio();
           setTimeout(() => {
             this.modalRollback = false;
           }, 1500);
@@ -1155,208 +1224,229 @@ export default {
     },
 
     // ==========================================
-    // ESCANEO Y SUBIDA DE RESPALDOS
+    // EJECUCIÓN EN SEGUNDO PLANO Y COMPARATIVA
     // ==========================================
-    cargarRutasPredefinidas() {
-      axios
-        .get('api/datos/migracion/rutas-predefinidas')
-        .then(res => {
-          if (res.data.rutas) {
-            this.rutasPredefinidas = res.data.rutas;
-            const activa = this.rutasPredefinidas.find(r => r.existe);
-            if (activa && !this.rutaManual) {
-              this.rutaSeleccionada = activa.ruta;
-              this.rutaManual = activa.ruta;
-            }
-          }
-        })
-        .catch(err => {
-          console.error('Error rutas predefinidas:', err);
-        });
-    },
-
-    onSeleccionarRuta(val) {
-      this.rutaManual = val;
-    },
-
-    escanearDirectorio() {
-      const ruta = this.rutaManual || this.rutaSeleccionada;
-      if (!ruta) return;
-
-      this.escaneando = true;
-      axios
-        .post('api/datos/migracion/escanear', { ruta })
-        .then(res => {
-          const d = res.data;
-          this.tablasComparativa = d.tablas || [];
-          this.totalDbfsEncontrados = d.total_dbfs_encontrados || 0;
-          this.totalRegistrosDbf = d.total_registros_dbf || 0;
-          this.totalRegistrosPg = d.total_registros_pg || 0;
-          this.resumenModulos = d.resumen_modulos || this.resumenModulos;
-        })
-        .catch(err => {
-          console.error('Error escaneando directorio:', err);
-        })
-        .finally(() => {
-          this.escaneando = false;
-        });
-    },
-
-    subirRespaldo() {
-      if (!this.archivoSubida) return;
-
-      this.subiendoArchivo = true;
-      const formData = new FormData();
-      formData.append('archivo', this.archivoSubida);
-
-      axios
-        .post('api/datos/migracion/subir-respaldo', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
-        .then(res => {
-          this.mostrarMensaje(res.data.message || 'Respaldo extraído con éxito.', 'success', 'mdi-check-circle');
-          if (res.data.ruta_extraida) {
-            this.rutaManual = res.data.ruta_extraida;
-            this.rutaSeleccionada = res.data.ruta_extraida;
-            this.cargarRutasPredefinidas();
-            this.escanearDirectorio();
-            this.pasoWizard = 1;
-          }
-        })
-        .catch(err => {
-          const msg = err.response?.data?.message || 'Error al subir el archivo.';
-          this.mostrarMensaje(msg, 'error', 'mdi-alert');
-        })
-        .finally(() => {
-          this.subiendoArchivo = false;
-        });
-    },
-
-    // ==========================================
-    // EJECUCIÓN ASÍNCRONA SECUENCIAL
-    // ==========================================
-    async ejecutarMigracionSecuencial() {
-      if (this.modulosSeleccionados.length === 0) {
-        this.mostrarMensaje('Debe seleccionar al menos una tabla.', 'warning', 'mdi-alert');
-        return;
+    abrirModalNuevaMigracion() {
+      this.modalNuevaMigracion = true;
+      if (this.ejecutandoFondo) {
+        this.vistaModal = 'ejecucion';
+      } else {
+        this.vistaModal = 'origen';
+        this.progresoSubida = 0;
+        this.mensajeSubida = '';
       }
+    },
 
-      this.ejecutando = true;
-      this.cancelarMigracion = false;
-      this.progresoMigracion = 0;
-      this.logsTerminal = [];
-      this.resultadoEjecucion = null;
+    async procesarYAnalizarRespaldo() {
+      if (!this.usarRutaLocal && this.archivoSubida) {
+        await this.subirArchivoEnChunks(this.archivoSubida);
+      } else {
+        await this.escanearDirectorio(this.rutaManual);
+      }
+    },
 
-      const ordenLogico = [
-        'estados_abonado', 'conceptos_ingresos',
-        'calles', 'zonas', 'tarifas', 'abonados', 'bajas_socios',
-        'aportes_agua', 'aportes_alcantarillado', 'convenios', 'recibos',
-        'facturas', 'lecturas', 'plan_cuentas', 'comprobantes', 'compras',
-        'materiales_almacen', 'rubros_activos', 'bienes_activos'
-      ];
+    async subirArchivoEnChunks(file) {
+      this.subiendoArchivo = true;
+      this.progresoSubida = 0;
+      this.mensajeSubida = 'Preparando archivo...';
 
-      // Ordenar respetando el orden lógico preferente, pero NUNCA descartar ningún módulo seleccionado
-      const seleccionadosOrdenados = [...this.modulosSeleccionados].sort((a, b) => {
-        const idxA = ordenLogico.indexOf(a);
-        const idxB = ordenLogico.indexOf(b);
-        const valA = idxA === -1 ? 999 : idxA;
-        const valB = idxB === -1 ? 999 : idxB;
-        return valA - valB;
-      });
-      const ruta = this.rutaManual || this.rutaSeleccionada;
-      const total = seleccionadosOrdenados.length;
-      let procesados = 0;
-      const inicioGlobal = Date.now();
+      const chunkSize = 1.5 * 1024 * 1024; // 1.5 MB por chunk (evita error 413)
+      const totalChunks = Math.ceil(file.size / chunkSize);
+      const fileId = 'up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
 
-      this.agregarLogTerminal('SISTEMA', 'INFO', `Iniciando migración secuencial (${total} módulos seleccionados)...`);
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, file.size);
+        const chunk = file.slice(start, end);
 
-      for (const modulo of seleccionadosOrdenados) {
-        if (this.cancelarMigracion) {
-          this.agregarLogTerminal('SISTEMA', 'ADVERTENCIA', 'Migración detenida por el usuario.');
-          break;
-        }
+        const formData = new FormData();
+        formData.append('chunk', chunk, file.name);
+        formData.append('chunk_index', i);
+        formData.append('total_chunks', totalChunks);
+        formData.append('file_id', fileId);
+        formData.append('file_name', file.name);
 
-        this.moduloActualMigracion = this.getLabelModulo(modulo);
-        this.agregarLogTerminal(modulo, 'PROCESANDO', `Procesando módulo ${modulo}...`);
+        const mbEnviado = (end / (1024 * 1024)).toFixed(1);
+        const mbTotal = (file.size / (1024 * 1024)).toFixed(1);
+        this.mensajeSubida = `Subiendo: ${mbEnviado} MB de ${mbTotal} MB (Fragmento ${i + 1}/${totalChunks})...`;
 
         try {
-          const res = await axios.post('api/datos/migracion/ejecutar', {
-            ruta,
-            modulos: [modulo],
-            es_simulacion: this.esSimulacion,
-            limite: this.limiteRegistros,
+          const res = await axios.post('api/datos/migracion/subir-chunk', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
           });
 
-          const data = res.data;
-          const logs = data.logs || [];
-          logs.forEach(l => {
-            this.agregarLogTerminal(l.id, l.estado, l.mensaje);
-          });
+          this.progresoSubida = Math.round(((i + 1) / totalChunks) * 100);
+
+          if (res.data.completado) {
+            this.mensajeSubida = '¡Archivo subido y extraído! Analizando tablas...';
+            this.rutaManual = res.data.ruta_extraida;
+            this.subiendoArchivo = false;
+            await this.escanearDirectorio(res.data.ruta_extraida);
+            return;
+          }
         } catch (err) {
-          const msg = err.response?.data?.message || err.message || 'Error de conexión';
-          this.agregarLogTerminal(modulo, 'ERROR', `Fallo al procesar: ${msg}`);
+          const msg = err.response?.data?.message || 'Error durante la subida del respaldo';
+          this.mostrarMensaje(msg, 'error', 'mdi-alert-circle');
+          this.subiendoArchivo = false;
+          return;
         }
-
-        procesados++;
-        this.progresoMigracion = Math.round((procesados / total) * 100);
       }
-
-      const duracionSeg = ((Date.now() - inicioGlobal) / 1000).toFixed(2);
-      this.resultadoEjecucion = {
-        tiempo_segundos: duracionSeg,
-        memoria_pico: 'OK',
-      };
-
-      this.agregarLogTerminal('SISTEMA', 'EXITO', `Operación finalizada en ${duracionSeg}s.`);
-      this.ejecutando = false;
-      this.mostrarMensaje('Operación completada.', 'success', 'mdi-check-decagram');
-
-      this.escanearDirectorio();
-      this.cargarHistorial();
     },
 
-    detenerMigracion() {
-      this.cancelarMigracion = true;
-      this.mostrarMensaje('Deteniendo después del módulo actual...', 'warning', 'mdi-stop');
-    },
-
-    agregarLogTerminal(id, estado, mensaje) {
-      const ahora = new Date().toTimeString().split(' ')[0];
-      this.logsTerminal.push({ id, estado, mensaje, hora: ahora });
-      this.$nextTick(() => {
-        const el = this.$refs.terminalLogs;
-        if (el) el.scrollTop = el.scrollHeight;
-      });
+    async escanearDirectorio(ruta) {
+      if (!ruta) return;
+      this.escaneando = true;
+      try {
+        const res = await axios.post('api/datos/migracion/escanear', { ruta });
+        const d = res.data;
+        this.tablasComparativa = d.tablas || [];
+        this.totalDbfsEncontrados = d.total_dbfs_encontrados || 0;
+        this.totalRegistrosDbf = d.total_registros_dbf || 0;
+        this.totalRegistrosPg = d.total_registros_pg || 0;
+        this.resumenModulos = d.resumen_modulos || this.resumenModulos;
+        this.modulosSeleccionados = this.tablasComparativa.filter(t => t.dbf_existe).map(t => t.id);
+        this.vistaModal = 'comparativa';
+      } catch (err) {
+        const msg = err.response?.data?.message || 'Error al analizar el directorio de datos.';
+        this.mostrarMensaje(msg, 'error', 'mdi-alert-circle');
+      } finally {
+        this.escaneando = false;
+      }
     },
 
     seleccionarTodosModulos() {
-      this.modulosSeleccionados = this.tablasComparativa.map(t => t.id);
+      this.modulosSeleccionados = this.tablasComparativa.filter(t => t.dbf_existe).map(t => t.id);
     },
 
     deseleccionarTodosModulos() {
       this.modulosSeleccionados = [];
     },
 
-    async vincularFacturasLecturas() {
-      this.vinculandoFacturas = true;
-      const ruta = this.rutaManual || this.rutaSeleccionada;
-      this.agregarLogTerminal('FACTURAS-LECTURAS', 'PROCESANDO', 'Iniciando vinculación de facturas con lecturas...');
+    getPorcentajeTabla(item) {
+      if (!item.dbf_registros || item.dbf_registros === 0) {
+        return item.pg_registros > 0 ? 100 : 0;
+      }
+      const pct = Math.round((item.pg_registros / item.dbf_registros) * 100);
+      return Math.min(pct, 100);
+    },
 
-      try {
-        const res = await axios.post('api/datos/migracion/vincular-facturas-lecturas', { ruta });
-        const data = res.data;
-        this.agregarLogTerminal('FACTURAS-LECTURAS', 'EXITO', data.message);
-        this.mostrarMensaje(data.message, 'success', 'mdi-check-decagram');
-        this.escanearDirectorio();
-      } catch (err) {
-        const msg = err.response?.data?.message || err.message || 'Error al vincular facturas';
-        this.agregarLogTerminal('FACTURAS-LECTURAS', 'ERROR', msg);
-        this.mostrarMensaje(msg, 'error', 'mdi-alert');
-      } finally {
-        this.vinculandoFacturas = false;
+    iniciarMigracionEnFondo() {
+      if (this.modulosSeleccionados.length === 0) {
+        this.mostrarMensaje('Debe seleccionar al menos una tabla para sincronizar.', 'warning', 'mdi-alert');
+        return;
+      }
+
+      this.iniciandoJob = true;
+      const formData = new FormData();
+      formData.append('ruta', this.rutaManual);
+      formData.append('es_simulacion', this.esSimulacion ? 1 : 0);
+      formData.append('limite', 0);
+      this.modulosSeleccionados.forEach(m => {
+        formData.append('modulos[]', m);
+      });
+
+      axios
+        .post('api/datos/migracion/iniciar-fondo', formData)
+        .then(res => {
+          this.jobActualId = res.data.job_id;
+          this.ejecutandoFondo = true;
+          this.jobCompletado = false;
+          this.jobProgreso = 0;
+          this.jobEstado = 'PROCESANDO';
+          this.jobModuloActual = 'Iniciando en segundo plano...';
+          this.jobLogs = [];
+          this.vistaModal = 'ejecucion';
+          this.mostrarMensaje('Migración iniciada en segundo plano.', 'success', 'mdi-rocket-launch');
+          this.iniciarPollingJob();
+        })
+        .catch(err => {
+          const msg = err.response?.data?.message || 'Error al iniciar migración en segundo plano';
+          this.mostrarMensaje(msg, 'error', 'mdi-alert-circle');
+        })
+        .finally(() => {
+          this.iniciandoJob = false;
+        });
+    },
+
+    iniciarPollingJob() {
+      this.detenerPollingJob();
+      this.timerPolling = setInterval(() => {
+        if (!this.jobActualId) {
+          this.detenerPollingJob();
+          return;
+        }
+
+        axios
+          .get(`api/datos/migracion/estado-job/${this.jobActualId}`)
+          .then(res => {
+            const data = res.data.data;
+            if (!data) return;
+
+            this.jobProgreso = data.progreso || 0;
+            this.jobEstado = data.estado || 'PROCESANDO';
+            this.jobModuloActual = data.modulo_actual || '';
+            this.jobLogs = data.logs || [];
+
+            this.$nextTick(() => {
+              const el = this.$refs.terminalFondoLogs;
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+
+            if (data.estado === 'COMPLETADO' || data.estado === 'CANCELADO') {
+              this.ejecutandoFondo = false;
+              this.jobCompletado = true;
+              this.detenerPollingJob();
+              this.cargarHistorial();
+            }
+          })
+          .catch(err => {
+            console.error('Error polling job:', err);
+          });
+      }, 1500);
+    },
+
+    detenerPollingJob() {
+      if (this.timerPolling) {
+        clearInterval(this.timerPolling);
+        this.timerPolling = null;
       }
     },
 
+    cancelarJobEnFondo() {
+      if (!this.jobActualId) return;
+      this.cancelandoJob = true;
+
+      axios
+        .post(`api/datos/migracion/cancelar-job/${this.jobActualId}`)
+        .then(() => {
+          this.mostrarMensaje('Proceso cancelado inmediatamente.', 'warning', 'mdi-stop');
+          this.jobEstado = 'CANCELADO';
+          this.ejecutandoFondo = false;
+          this.jobCompletado = true;
+          this.detenerPollingJob();
+          this.cargarHistorial();
+        })
+        .catch(err => {
+          const msg = err.response?.data?.message || 'Error al cancelar proceso';
+          this.mostrarMensaje(msg, 'error', 'mdi-alert-circle');
+        })
+        .finally(() => {
+          this.cancelandoJob = false;
+        });
+    },
+
+    cerrarModalNuevaMigracion() {
+      if (!this.ejecutandoFondo) {
+        this.modalNuevaMigracion = false;
+        this.jobCompletado = false;
+        this.jobActualId = null;
+        this.archivoSubida = null;
+        this.detenerPollingJob();
+      } else {
+        this.modalNuevaMigracion = false;
+        this.mostrarMensaje('La migración continúa en segundo plano. Puede abrirla o ver la bitácora.', 'info', 'mdi-information');
+      }
+    },
     // ==========================================
     // HELPERS VISUALES Y FORMATO
     // ==========================================
@@ -1586,5 +1676,13 @@ export default {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
 </style>

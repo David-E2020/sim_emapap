@@ -177,8 +177,13 @@ Route::group(['middleware' => ['jwt.auth']], function () {
     // Migrador y Comparador de Respaldos FoxPro (Módulo Datos)
     Route::group(['middleware' => ['check.permission:datos.migrador.ejecutar']], function () {
         Route::get('datos/migracion/rutas-predefinidas', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'rutasPredefinidas']);
+        Route::post('datos/migracion/explorar-servidor', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'explorarServidor']);
         Route::post('datos/migracion/escanear', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'escanear']);
         Route::post('datos/migracion/subir-respaldo', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'subirRespaldo']);
+        Route::post('datos/migracion/subir-chunk', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'subirChunk']);
+        Route::post('datos/migracion/iniciar-fondo', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'iniciarFondo']);
+        Route::get('datos/migracion/estado-job/{jobId}', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'estadoJob']);
+        Route::post('datos/migracion/cancelar-job/{jobId}', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'cancelarJob']);
         Route::post('datos/migracion/ejecutar', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'ejecutar']);
         Route::get('datos/migracion/historial', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'historial']);
         Route::post('datos/migracion/revertir', [\App\Http\Controllers\Datos\MigracionFoxProController::class, 'revertir']);

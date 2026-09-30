@@ -242,51 +242,268 @@ class MigracionFoxProController extends Controller
      */
     public function rutasPredefinidas(): JsonResponse
     {
-        $baseShared = '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO';
-        $rutas = [
-            [
-                'nombre' => 'Respaldo Oficial Activo (19/09/2026)',
-                'ruta' => "{$baseShared}/DATA_19_09_2026/DATA",
-                'descripcion' => 'Último respaldo extraído del servidor compartido con más de 1.6 millones de registros',
-                'existe' => file_exists("{$baseShared}/DATA_19_09_2026/DATA"),
-            ],
-            [
-                'nombre' => 'Respaldo Anterior (cr070923/DATA)',
-                'ruta' => "{$baseShared}/cr070923/DATA",
-                'descripcion' => 'Respaldo histórico previo',
-                'existe' => file_exists("{$baseShared}/cr070923/DATA"),
-            ],
-            [
-                'nombre' => 'Carpeta Raíz Compartida (SRV EMAPA COMPARTIDO/DATA)',
-                'ruta' => "{$baseShared}/DATA",
-                'descripcion' => 'Directorio DATA en la raíz compartida',
-                'existe' => file_exists("{$baseShared}/DATA"),
-            ],
+        $rutas = [];
+        $rutasRegistradas = [];
+
+        // 1. Variable de entorno opcional configurada en .env del servidor
+        $envPath = env('FOXPRO_BACKUP_PATH');
+        if (!empty($envPath) && file_exists($envPath)) {
+            $rutas[] = [
+                'nombre' => 'Respaldo Configurado en Servidor (.env)',
+                'ruta' => $envPath,
+                'descripcion' => 'Ruta oficial configurada en variable FOXPRO_BACKUP_PATH',
+                'existe' => true,
+            ];
+            $rutasRegistradas[realpath($envPath) ?: $envPath] = true;
+        }
+
+        // 2. Bases conocidas en desarrollo, servidor o almacenamiento montado
+        $posiblesBases = [
+            $envPath,
+            '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO',
+            base_path('SRV EMAPA COMPARTIDO'),
+            '/var/backups/foxpro',
+            '/mnt/respaldos',
+            '/mnt/srv_emapa',
+            '/srv/emapa/DATA',
         ];
 
-        // Buscar también carpetas extraídas en storage
+        foreach ($posiblesBases as $base) {
+            if (!$base || !file_exists($base)) {
+                continue;
+            }
+
+            // Si la base es directamente una carpeta de datos con DBFs
+            $real = realpath($base) ?: $base;
+            if (!isset($rutasRegistradas[$real])) {
+                $tieneDbf = $this->directorioTieneDbf($real);
+                if ($tieneDbf) {
+                    $rutas[] = [
+                        'nombre' => 'Directorio de Datos: ' . basename($base),
+                        'ruta' => $real,
+                        'descripcion' => "Carpeta con archivos DBF en {$base}",
+                        'existe' => true,
+                    ];
+                    $rutasRegistradas[$real] = true;
+                }
+            }
+
+            // Si contiene subdirectorio DATA
+            $subData = "{$base}/DATA";
+            if (file_exists($subData) && is_dir($subData)) {
+                $subReal = realpath($subData) ?: $subData;
+                if (!isset($rutasRegistradas[$subReal])) {
+                    $rutas[] = [
+                        'nombre' => 'Carpeta DATA (' . basename($base) . ')',
+                        'ruta' => $subReal,
+                        'descripcion' => "Subcarpeta DATA detectada en {$base}",
+                        'existe' => true,
+                    ];
+                    $rutasRegistradas[$subReal] = true;
+                }
+            }
+
+            // Subcarpetas de fecha o paquetes (ej. DATA_19_09_2026/DATA, cr070923/DATA)
+            $subdirs = @scandir($base) ?: [];
+            foreach ($subdirs as $sd) {
+                if ($sd === '.' || $sd === '..') {
+                    continue;
+                }
+                $targetData = "{$base}/{$sd}/DATA";
+                if (file_exists($targetData) && is_dir($targetData)) {
+                    $tReal = realpath($targetData) ?: $targetData;
+                    if (!isset($rutasRegistradas[$tReal])) {
+                        $rutas[] = [
+                            'nombre' => "Respaldo: {$sd}",
+                            'ruta' => $tReal,
+                            'descripcion' => "Respaldo detectado en {$sd}",
+                            'existe' => true,
+                        ];
+                        $rutasRegistradas[$tReal] = true;
+                    }
+                }
+            }
+        }
+
+        // 3. Buscar también carpetas extraídas en storage
         $subidasPath = storage_path('app/respaldos_migracion');
         if (file_exists($subidasPath)) {
-            $dirs = scandir($subidasPath);
+            $dirs = @scandir($subidasPath) ?: [];
             foreach ($dirs as $d) {
                 if ($d === '.' || $d === '..') {
                     continue;
                 }
                 $full = "{$subidasPath}/{$d}";
                 if (is_dir($full)) {
-                    $rutas[] = [
-                        'nombre' => "Subida en Servidor: {$d}",
-                        'ruta' => $full,
-                        'descripcion' => 'Archivo descomprimido por el usuario en esta sesión',
-                        'existe' => true,
-                    ];
+                    $fReal = realpath($full) ?: $full;
+                    if (!isset($rutasRegistradas[$fReal])) {
+                        $rutas[] = [
+                            'nombre' => "Subida en Servidor: {$d}",
+                            'ruta' => $fReal,
+                            'descripcion' => 'Archivo descomprimido en el servidor para auditoría',
+                            'existe' => true,
+                        ];
+                        $rutasRegistradas[$fReal] = true;
+                    }
                 }
             }
+        }
+
+        // Fallback si ninguna existe todavía
+        if (empty($rutas)) {
+            $rutas[] = [
+                'nombre' => 'Sin respaldos detectados por defecto',
+                'ruta' => storage_path('app/respaldos_migracion'),
+                'descripcion' => 'Suba un paquete .zip o use "Explorar Servidor" para seleccionar una carpeta',
+                'existe' => file_exists(storage_path('app/respaldos_migracion')),
+            ];
         }
 
         return response()->json([
             'status' => 'success',
             'rutas' => $rutas,
+        ]);
+    }
+
+    /**
+     * Verifica rápidamente si un directorio contiene archivos .dbf.
+     */
+    protected function directorioTieneDbf(string $path): bool
+    {
+        if (!is_dir($path) || !is_readable($path)) {
+            return false;
+        }
+        $archivos = @scandir($path) ?: [];
+        foreach ($archivos as $archivo) {
+            if (preg_match('/\.dbf$/i', $archivo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Explorador visual de directorios en el servidor.
+     */
+    public function explorarServidor(Request $request): JsonResponse
+    {
+        $rutaSolicitada = $request->input('ruta');
+
+        // Determinar punto de inicio por defecto
+        if (empty($rutaSolicitada)) {
+            $envPath = env('FOXPRO_BACKUP_PATH');
+            if (!empty($envPath) && file_exists($envPath)) {
+                $rutaSolicitada = is_dir($envPath) ? $envPath : dirname($envPath);
+            } elseif (file_exists('/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO')) {
+                $rutaSolicitada = '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO';
+            } elseif (file_exists(storage_path('app/respaldos_migracion'))) {
+                $rutaSolicitada = storage_path('app/respaldos_migracion');
+            } elseif (file_exists('/mnt')) {
+                $rutaSolicitada = '/mnt';
+            } else {
+                $rutaSolicitada = base_path();
+            }
+        }
+
+        $rutaReal = realpath($rutaSolicitada);
+        if (!$rutaReal || !is_dir($rutaReal)) {
+            $rutaReal = file_exists(storage_path('app/respaldos_migracion'))
+                ? storage_path('app/respaldos_migracion')
+                : base_path();
+        }
+
+        // Ruta padre
+        $parent = dirname($rutaReal);
+        $puedeSubir = ($parent !== $rutaReal && is_readable($parent));
+
+        $entries = @scandir($rutaReal) ?: [];
+        $directorios = [];
+        $archivosDbf = [];
+        $totalArchivos = 0;
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $fullPath = $rutaReal . DIRECTORY_SEPARATOR . $entry;
+
+            if (is_dir($fullPath)) {
+                $esLegible = is_readable($fullPath);
+                $dbfsAdentro = 0;
+                if ($esLegible) {
+                    $subFiles = @scandir($fullPath) ?: [];
+                    foreach ($subFiles as $sf) {
+                        if (preg_match('/\.dbf$/i', $sf)) {
+                            $dbfsAdentro++;
+                        }
+                    }
+                }
+
+                $directorios[] = [
+                    'nombre' => $entry,
+                    'ruta' => $fullPath,
+                    'es_legible' => $esLegible,
+                    'tiene_dbf' => $dbfsAdentro > 0,
+                    'conteo_dbf' => $dbfsAdentro,
+                ];
+            } else {
+                $totalArchivos++;
+                if (preg_match('/\.dbf$/i', $entry)) {
+                    $archivosDbf[] = $entry;
+                }
+            }
+        }
+
+        // Ordenar directorios: carpetas con DBF primero, luego alfabético
+        usort($directorios, function ($a, $b) {
+            if ($a['tiene_dbf'] !== $b['tiene_dbf']) {
+                return $b['tiene_dbf'] <=> $a['tiene_dbf'];
+            }
+            return strcasecmp($a['nombre'], $b['nombre']);
+        });
+
+        // Accesos directos rápidos
+        $accesosDirectos = [];
+        if (file_exists(storage_path('app/respaldos_migracion'))) {
+            $accesosDirectos[] = [
+                'etiqueta' => 'Storage Respaldos',
+                'ruta' => storage_path('app/respaldos_migracion'),
+                'icono' => 'mdi-cloud-download',
+            ];
+        }
+        if (file_exists('/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO')) {
+            $accesosDirectos[] = [
+                'etiqueta' => 'SRV EMAPA COMPARTIDO',
+                'ruta' => '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/SRV EMAPA COMPARTIDO',
+                'icono' => 'mdi-server-network',
+            ];
+        }
+        if (file_exists('/mnt') && is_readable('/mnt')) {
+            $accesosDirectos[] = [
+                'etiqueta' => '/mnt (Discos/Red)',
+                'ruta' => '/mnt',
+                'icono' => 'mdi-harddisk',
+            ];
+        }
+        $accesosDirectos[] = [
+            'etiqueta' => 'Raíz Proyecto',
+            'ruta' => base_path(),
+            'icono' => 'mdi-folder-home',
+        ];
+
+        return response()->json([
+            'status' => 'success',
+            'ruta_actual' => $rutaReal,
+            'ruta_padre' => $puedeSubir ? $parent : null,
+            'puede_subir' => $puedeSubir,
+            'directorios' => $directorios,
+            'total_directorios' => count($directorios),
+            'total_archivos' => $totalArchivos,
+            'total_dbfs' => count($archivosDbf),
+            'es_directorio_dbf' => count($archivosDbf) > 0,
+            'archivos_dbf_muestra' => array_slice($archivosDbf, 0, 10),
+            'accesos_directos' => $accesosDirectos,
         ]);
     }
 
@@ -508,6 +725,318 @@ class MigracionFoxProController extends Controller
             'status' => 'success',
             'message' => 'Archivo de respaldo descomprimido con éxito.',
             'ruta_extraida' => $finalPath,
+        ]);
+    }
+
+    /**
+     * Recibe fragmentos (chunks) de un archivo comprimido para evitar el error 413 (Content Too Large).
+     */
+    public function subirChunk(Request $request): JsonResponse
+    {
+        $request->validate([
+            'chunk' => 'required|file',
+            'chunk_index' => 'required|integer',
+            'total_chunks' => 'required|integer',
+            'file_id' => 'required|string|max:100',
+            'file_name' => 'required|string|max:255',
+        ]);
+
+        $chunk = $request->file('chunk');
+        $chunkIndex = (int) $request->input('chunk_index');
+        $totalChunks = (int) $request->input('total_chunks');
+        $fileId = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string) $request->input('file_id'));
+        $fileName = (string) $request->input('file_name');
+
+        $chunksDir = storage_path("app/temp_chunks/{$fileId}");
+        if (!file_exists($chunksDir)) {
+            mkdir($chunksDir, 0775, true);
+        }
+
+        // Mover fragmento con nombre indexado
+        $chunk->move($chunksDir, "chunk_{$chunkIndex}");
+
+        // Si es el último fragmento, ensamblar y descomprimir
+        if ($chunkIndex === $totalChunks - 1) {
+            $folderName = 'unpacked_' . date('Ymd_His') . '_' . Str::random(6);
+            $targetDir = storage_path("app/respaldos_migracion/{$folderName}");
+            if (!file_exists($targetDir)) {
+                mkdir($targetDir, 0775, true);
+            }
+
+            $assembledZip = "{$chunksDir}/assembled.zip";
+            $outHandle = fopen($assembledZip, 'wb');
+
+            for ($i = 0; $i < $totalChunks; $i++) {
+                $partPath = "{$chunksDir}/chunk_{$i}";
+                if (!file_exists($partPath)) {
+                    fclose($outHandle);
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => "Falta el fragmento {$i} del archivo.",
+                    ], 422);
+                }
+                $inHandle = fopen($partPath, 'rb');
+                while (!feof($inHandle)) {
+                    fwrite($outHandle, (string) fread($inHandle, 1048576));
+                }
+                fclose($inHandle);
+                @unlink($partPath);
+            }
+            fclose($outHandle);
+
+            // Descomprimir
+            $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if ($extension === 'zip') {
+                $zip = new ZipArchive();
+                if ($zip->open($assembledZip) === true) {
+                    $zip->extractTo($targetDir);
+                    $zip->close();
+                } else {
+                    $cmd7z = "7z x -y " . escapeshellarg($assembledZip) . " -o" . escapeshellarg($targetDir) . " 2>&1";
+                    exec($cmd7z, $out, $code);
+                    if ($code !== 0) {
+                        @unlink($assembledZip);
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'No se pudo descomprimir el archivo ZIP ensamblado.',
+                        ], 500);
+                    }
+                }
+            } else {
+                $cmd7z = "7z x -y " . escapeshellarg($assembledZip) . " -o" . escapeshellarg($targetDir) . " 2>&1";
+                exec($cmd7z, $out, $code);
+                if ($code !== 0) {
+                    @unlink($assembledZip);
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Error al descomprimir archivo.',
+                    ], 500);
+                }
+            }
+
+            @unlink($assembledZip);
+            @rmdir($chunksDir);
+
+            // Localizar directorio que contiene archivos .DBF (búsqueda recursiva para cualquier nivel de carpetas)
+            $rutaFinal = $targetDir;
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($targetDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::SELF_FIRST
+                );
+                foreach ($iterator as $item) {
+                    if ($item->isFile() && preg_match('/\.dbf$/i', $item->getFilename())) {
+                        $rutaFinal = $item->getPath();
+                        break;
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Error buscando DBFs recursivamente: " . $e->getMessage());
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'completado' => true,
+                'ruta_extraida' => $rutaFinal,
+                'message' => 'Archivo subido y extraído exitosamente.',
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'completado' => false,
+            'chunk_index' => $chunkIndex,
+        ]);
+    }
+
+    /**
+     * Inicia una migración en un hilo/proceso independiente en segundo plano sin bloquear el servidor web.
+     */
+    public function iniciarFondo(Request $request): JsonResponse
+    {
+        $rutaFinal = $request->input('ruta');
+
+        // Si se subió un archivo ZIP en esta misma petición
+        if ($request->hasFile('archivo')) {
+            $request->validate([
+                'archivo' => 'required|file|max:512000',
+            ]);
+
+            $archivo = $request->file('archivo');
+            $extension = strtolower($archivo->getClientOriginalExtension());
+
+            if (!in_array($extension, ['zip', 'rar', 'gz', 'tar'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'El formato del archivo debe ser .zip o comprimido estándar.',
+                ], 422);
+            }
+
+            $folderName = 'unpacked_' . date('Ymd_His') . '_' . Str::random(6);
+            $targetDir = storage_path("app/respaldos_migracion/{$folderName}");
+
+            if (!file_exists($targetDir)) {
+                mkdir($targetDir, 0775, true);
+            }
+
+            $tmpPath = $archivo->getRealPath();
+            if ($extension === 'zip') {
+                $zip = new ZipArchive();
+                if ($zip->open($tmpPath) === true) {
+                    $zip->extractTo($targetDir);
+                    $zip->close();
+                } else {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'No se pudo descomprimir el archivo ZIP.',
+                    ], 500);
+                }
+            } else {
+                $cmd = "unrar x -o+ " . escapeshellarg($tmpPath) . " " . escapeshellarg($targetDir) . " 2>&1";
+                exec($cmd, $output, $returnCode);
+                if ($returnCode !== 0) {
+                    $cmd7z = "7z x -y " . escapeshellarg($tmpPath) . " -o" . escapeshellarg($targetDir) . " 2>&1";
+                    exec($cmd7z, $output2, $returnCode2);
+                    if ($returnCode2 !== 0) {
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Error al descomprimir archivo. Use formato .ZIP preferentemente.',
+                        ], 500);
+                    }
+                }
+            }
+
+            // Localizar directorio que contiene archivos .DBF
+            $rutaFinal = $targetDir;
+            $scan = @scandir($targetDir) ?: [];
+            foreach ($scan as $s) {
+                if ($s === '.' || $s === '..') continue;
+                if (is_dir("{$targetDir}/{$s}")) {
+                    $subFiles = @scandir("{$targetDir}/{$s}") ?: [];
+                    $hasDbf = false;
+                    foreach ($subFiles as $sf) {
+                        if (preg_match('/\.dbf$/i', $sf)) {
+                            $hasDbf = true;
+                            break;
+                        }
+                    }
+                    if ($hasDbf) {
+                        $rutaFinal = "{$targetDir}/{$s}";
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (empty($rutaFinal) || !file_exists($rutaFinal) || !is_dir($rutaFinal)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => "La carpeta de respaldo no existe o no es válida: {$rutaFinal}",
+            ], 422);
+        }
+
+        $jobId = (string) Str::uuid();
+        $jobsDir = storage_path('app/migracion_jobs');
+        if (!file_exists($jobsDir)) {
+            mkdir($jobsDir, 0775, true);
+        }
+
+        $esSimulacion = filter_var($request->input('es_simulacion', false), FILTER_VALIDATE_BOOLEAN);
+        $limite = (int) $request->input('limite', 0);
+        $modulos = $request->input('modulos', []);
+
+        $config = [
+            'job_id' => $jobId,
+            'ruta' => $rutaFinal,
+            'es_simulacion' => $esSimulacion,
+            'limite' => $limite,
+            'modulos' => !empty($modulos) ? (array) $modulos : null,
+            'estado' => 'EN_COLA',
+            'progreso' => 0,
+            'modulo_actual' => 'Iniciando hilo en segundo plano...',
+            'logs' => [
+                [
+                    'hora' => Carbon::now()->format('H:i:s'),
+                    'id' => 'SISTEMA',
+                    'estado' => 'INFO',
+                    'mensaje' => 'Respaldo recibido. Lanzando proceso en segundo plano...',
+                ],
+            ],
+            'iniciado_en' => Carbon::now()->toDateTimeString(),
+        ];
+
+        file_put_contents("{$jobsDir}/{$jobId}.json", json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        // Lanzar proceso desacoplado de la petición web
+        $phpBinary = PHP_BINARY ?: 'php';
+        $artisan = base_path('artisan');
+        $logOutput = storage_path("logs/migracion_{$jobId}.log");
+        $command = "{$phpBinary} {$artisan} datos:migrar-segundo-plano {$jobId} > {$logOutput} 2>&1 &";
+        exec($command);
+
+        return response()->json([
+            'status' => 'success',
+            'job_id' => $jobId,
+            'ruta' => $rutaFinal,
+            'message' => 'Migración iniciada en segundo plano.',
+        ]);
+    }
+
+    /**
+     * Consulta el estado del job en segundo plano (muy rápido y ligero).
+     */
+    public function estadoJob(string $jobId): JsonResponse
+    {
+        $jobFile = storage_path("app/migracion_jobs/{$jobId}.json");
+        if (!file_exists($jobFile)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Job no encontrado.',
+            ], 404);
+        }
+
+        $data = json_decode((string) file_get_contents($jobFile), true) ?: [];
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Cancela inmediatamente el job en segundo plano.
+     */
+    public function cancelarJob(string $jobId): JsonResponse
+    {
+        $jobFile = storage_path("app/migracion_jobs/{$jobId}.json");
+        $cancelFile = storage_path("app/migracion_jobs/{$jobId}.cancel");
+
+        touch($cancelFile);
+
+        if (file_exists($jobFile)) {
+            $data = json_decode((string) file_get_contents($jobFile), true) ?: [];
+            $pid = !empty($data['pid']) ? (int) $data['pid'] : null;
+
+            if ($pid && $pid > 0) {
+                // Detener el proceso del sistema operativo de inmediato (SIGTERM y forzar SIGKILL)
+                exec("kill -15 {$pid} 2>&1");
+                exec("kill -9 {$pid} 2>&1");
+            }
+
+            $data['estado'] = 'CANCELADO';
+            $data['modulo_actual'] = 'Cancelado';
+            $data['logs'][] = [
+                'hora' => Carbon::now()->format('H:i:s'),
+                'id' => 'SISTEMA',
+                'estado' => 'CANCELADO',
+                'mensaje' => 'Migración cancelada inmediatamente por el usuario.',
+            ];
+            file_put_contents($jobFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Proceso cancelado exitosamente.',
         ]);
     }
 
