@@ -224,14 +224,16 @@ router.beforeEach((to, from, next) => {
   const isPublic = PUBLIC_ROUTE_NAMES.includes(to.name) || (to.meta && to.meta.requiresAuth === false);
   const isLoggedIn = store.getters['auth/isLoggedIn'] || !!localStorage.getItem('token');
 
-  // 1. Si no está autenticado y la ruta requiere autenticación -> Redirigir al Login
+  // 1. Si no está autenticado y la ruta requiere autenticación -> Redirigir al Login limpio (sin ?redirect=%2Fdashboard innecesario)
   if (!isLoggedIn && !isPublic) {
-    next({ name: 'pages-login', query: { redirect: to.fullPath } });
+    const isGeneric = to.fullPath === '/' || to.fullPath === '/dashboard' || to.name === 'dashboard';
+    const query = (!isGeneric && to.fullPath && to.fullPath !== '/login') ? { redirect: to.fullPath } : {};
+    next({ path: '/login', query });
     return;
   }
 
   // 2. Si ya está logueado e intenta ir a la página de login -> Redirigir al Dashboard
-  if (isLoggedIn && to.name === 'pages-login') {
+  if (isLoggedIn && (to.path === '/login' || to.name === 'pages-login')) {
     next({ name: 'dashboard' });
     return;
   }

@@ -291,8 +291,13 @@ export default {
         .dispatch('auth/login', { usr_usuario, password })
         .then(res => {
           this.loaderLogin = false
-          const route_ = res.data.rute_home || 'dashboard'
-          this.$router.push({ name: route_ })
+          const redirect = this.$route.query.redirect
+          if (redirect && redirect !== '/login' && redirect !== '/pages/login') {
+            this.$router.push(redirect)
+          } else {
+            const route_ = res.data.rute_home || 'dashboard'
+            this.$router.push({ name: route_ })
+          }
         })
         .catch(err => {
           this.loaderLogin = false
