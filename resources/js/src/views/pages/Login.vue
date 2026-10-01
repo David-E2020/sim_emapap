@@ -24,6 +24,85 @@
               <span class="status-text">Servidor Central Conectado</span>
             </div>
 
+            <!-- ALERTA INFORMATIVA INSTITUCIONAL (Usuario sin rol / Cuenta inactiva / Error contextual) -->
+            <v-expand-transition>
+              <div
+                v-if="accountAlert.show"
+                class="account-alert-banner mb-4"
+                :class="accountAlert.type"
+              >
+                <div class="d-flex align-start">
+                  <v-avatar
+                    size="36"
+                    :color="accountAlert.type === 'warning' ? (isDarkMode ? '#382e18' : '#fef3c7') : (isDarkMode ? '#381818' : '#fee2e2')"
+                    class="me-3 flex-shrink-0"
+                  >
+                    <v-icon
+                      :color="accountAlert.type === 'warning' ? '#f59e0b' : '#ef4444'"
+                      size="20"
+                    >
+                      {{ accountAlert.icon }}
+                    </v-icon>
+                  </v-avatar>
+
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-center justify-space-between">
+                      <h4 class="alert-title font-weight-bold">
+                        {{ accountAlert.title }}
+                      </h4>
+                      <button
+                        type="button"
+                        class="alert-close-btn ms-2"
+                        @click="accountAlert.show = false"
+                        title="Cerrar aviso"
+                        aria-label="Cerrar aviso"
+                      >
+                        <v-icon size="16" :color="isDarkMode ? '#8c8a84' : '#6b6962'">{{ icons.mdiClose }}</v-icon>
+                      </button>
+                    </div>
+
+                    <p class="alert-message mt-1 mb-2">
+                      {{ accountAlert.message }}
+                    </p>
+
+                    <!-- Guía paso a paso cuando el usuario no tiene rol asignado -->
+                    <div v-if="accountAlert.code === 'ACCOUNT_NO_ROLES'" class="alert-guide-box pa-2 rounded-lg mb-2">
+                      <div class="guide-item d-flex align-center text-caption mb-1">
+                        <v-icon x-small color="success" class="me-1">{{ icons.mdiCheckCircle }}</v-icon>
+                        <span>Usuario y contraseña válidos y verificados en el sistema.</span>
+                      </div>
+                      <div class="guide-item d-flex align-center text-caption mb-1">
+                        <v-icon x-small color="#f59e0b" class="me-1">{{ icons.mdiInformation }}</v-icon>
+                        <span>Pendiente: Asignación de rol de trabajo (ej. Ventanilla, Catastro, Facturación).</span>
+                      </div>
+                      <div class="guide-item d-flex align-center text-caption">
+                        <v-icon x-small color="#0284c7" class="me-1">{{ icons.mdiAccountCog }}</v-icon>
+                        <span>Acción: Solicite la habilitación de su perfil a la Administración de EMAPAP.</span>
+                      </div>
+                    </div>
+
+                    <div class="d-flex align-center flex-wrap mt-2">
+                      <button
+                        type="button"
+                        class="alert-action-btn"
+                        @click="showHelpDialog = true"
+                      >
+                        <v-icon size="14" class="me-1">{{ icons.mdiHeadset }}</v-icon>
+                        <span>Ver Contacto de Soporte</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="alert-action-dismiss ms-2"
+                        @click="accountAlert.show = false"
+                      >
+                        Entendido
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </v-expand-transition>
+
             <!-- Login Form -->
             <form @submit.prevent="login" class="claude-form" autocomplete="on">
               <!-- Field: Usuario -->
@@ -226,6 +305,15 @@ import {
   mdiClose,
   mdiWeatherNight,
   mdiWeatherSunny,
+  mdiAccountClockOutline,
+  mdiShieldAlertOutline,
+  mdiAccountCancelOutline,
+  mdiAlertCircleOutline,
+  mdiCheckCircle,
+  mdiInformation,
+  mdiAccountCog,
+  mdiHeadset,
+  mdiWifiOff,
 } from '@mdi/js'
 
 export default {
@@ -237,6 +325,15 @@ export default {
     focusedField: null,
     loaderLogin: false,
     showHelpDialog: false,
+    accountAlert: {
+      show: false,
+      code: '',
+      type: 'warning',
+      title: '',
+      message: '',
+      userName: '',
+      icon: null,
+    },
     snackbar: {
       status: false,
       text: '',
@@ -252,6 +349,15 @@ export default {
       mdiClose,
       mdiWeatherNight,
       mdiWeatherSunny,
+      mdiAccountClockOutline,
+      mdiShieldAlertOutline,
+      mdiAccountCancelOutline,
+      mdiAlertCircleOutline,
+      mdiCheckCircle,
+      mdiInformation,
+      mdiAccountCog,
+      mdiHeadset,
+      mdiWifiOff,
     },
   }),
   computed: {
@@ -275,14 +381,19 @@ export default {
     },
     login() {
       if (!this.usr_usuario.trim() || !this.password) {
-        this.snackbar = {
-          status: true,
-          text: 'Por favor, ingrese usuario y contraseña.',
-          color: 'error',
+        this.accountAlert = {
+          show: true,
+          code: 'MISSING_FIELDS',
+          type: 'error',
+          title: 'Datos Incompletos',
+          message: 'Por favor, ingrese su usuario institucional y contraseña.',
+          userName: '',
+          icon: this.icons.mdiAlertCircleOutline,
         }
         return
       }
 
+      this.accountAlert.show = false
       this.loaderLogin = true
       const usr_usuario = this.usr_usuario.trim()
       const password = this.password
@@ -301,23 +412,74 @@ export default {
         })
         .catch(err => {
           this.loaderLogin = false
-          if (err.response && err.response.status === 429) {
-            this.snackbar = {
-              status: true,
-              text: 'Demasiados intentos de acceso. Por favor, espere un momento antes de reintentar.',
-              color: 'error',
+          const resp = err.response
+          const data = resp ? resp.data : null
+
+          if (resp && resp.status === 403) {
+            const isNoRoles = data?.code === 'ACCOUNT_NO_ROLES' || (data?.message && (data.message.includes('rol') || data.message.includes('permisos')))
+            const isInactive = data?.code === 'ACCOUNT_SUSPENDED' || (data?.message && (data.message.includes('inactiva') || data.message.includes('suspendida')))
+
+            if (isNoRoles) {
+              const nombre = data?.user?.nombre || this.usr_usuario.trim()
+              this.accountAlert = {
+                show: true,
+                code: 'ACCOUNT_NO_ROLES',
+                type: 'warning',
+                title: data?.title || 'Cuenta pendiente de asignación de rol',
+                message: `Estimado(a) funcionario(a) ${nombre}: su cuenta institucional ha sido creada exitosamente pero aún no cuenta con un rol operativo asignado (p. ej. Ventanilla, Catastro, Facturación, etc.). Por favor, comuníquese con el Administrador del Sistema de EMAPAP para habilitar sus accesos.`,
+                userName: nombre,
+                icon: this.icons.mdiAccountClockOutline,
+              }
+            } else if (isInactive) {
+              this.accountAlert = {
+                show: true,
+                code: 'ACCOUNT_SUSPENDED',
+                type: 'error',
+                title: data?.title || 'Cuenta institucional inactiva',
+                message: data?.message || 'Su cuenta institucional se encuentra inactiva o suspendida. Para reactivar su acceso, comuníquese con la Administración de EMAPAP.',
+                userName: this.usr_usuario.trim(),
+                icon: this.icons.mdiAccountCancelOutline,
+              }
+            } else {
+              this.accountAlert = {
+                show: true,
+                code: 'FORBIDDEN',
+                type: 'warning',
+                title: 'Acceso Restringido',
+                message: data?.message || 'No cuenta con autorización para acceder al sistema.',
+                userName: '',
+                icon: this.icons.mdiShieldAlertOutline,
+              }
             }
-          } else if (err.response && err.response.data && err.response.data.message) {
-            this.snackbar = {
-              status: true,
-              text: typeof err.response.data.message === 'string' ? err.response.data.message : 'Error al verificar credenciales.',
-              color: 'error',
+          } else if (resp && resp.status === 401) {
+            this.accountAlert = {
+              show: true,
+              code: 'UNAUTHORIZED',
+              type: 'error',
+              title: 'Credenciales Incorrectas',
+              message: 'El usuario o la contraseña ingresados no coinciden con nuestros registros. Verifique sus datos e intente nuevamente.',
+              userName: '',
+              icon: this.icons.mdiAlertCircleOutline,
+            }
+          } else if (resp && resp.status === 429) {
+            this.accountAlert = {
+              show: true,
+              code: 'RATE_LIMIT',
+              type: 'error',
+              title: 'Límite de Intentos Excedido',
+              message: 'Ha realizado demasiados intentos en poco tiempo. Por seguridad, espere un momento antes de volver a intentar.',
+              userName: '',
+              icon: this.icons.mdiAlertCircleOutline,
             }
           } else {
-            this.snackbar = {
-              status: true,
-              text: 'Credenciales inválidas o error de conexión con el servidor.',
-              color: 'error',
+            this.accountAlert = {
+              show: true,
+              code: 'NETWORK_ERROR',
+              type: 'error',
+              title: 'Error de Comunicación',
+              message: 'No se pudo conectar con el servidor institucional. Verifique su red o intente nuevamente.',
+              userName: '',
+              icon: this.icons.mdiWifiOff,
             }
           }
         })
@@ -932,6 +1094,149 @@ export default {
     .snackbar-text {
       font-size: 13px;
     }
+  }
+}
+
+/* Alerta Institucional Contextual */
+.account-alert-banner {
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  transition: all 0.2s ease;
+
+  &.warning {
+    background-color: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    color: #b45309;
+
+    .alert-title {
+      color: #b45309;
+    }
+    .alert-message {
+      color: #92400e;
+    }
+  }
+
+  &.error {
+    background-color: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    color: #b91c1c;
+
+    .alert-title {
+      color: #b91c1c;
+    }
+    .alert-message {
+      color: #991b1b;
+    }
+  }
+}
+
+.is-dark {
+  .account-alert-banner {
+    &.warning {
+      background-color: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+
+      .alert-title {
+        color: #fbbf24;
+      }
+      .alert-message {
+        color: #fde68a;
+      }
+    }
+
+    &.error {
+      background-color: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+
+      .alert-title {
+        color: #f87171;
+      }
+      .alert-message {
+        color: #fca5a5;
+      }
+    }
+  }
+}
+
+.alert-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.alert-message {
+  font-size: 0.83rem;
+  line-height: 1.45;
+  margin: 4px 0 0 0;
+}
+
+.alert-close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.alert-guide-box {
+  background-color: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+
+  .guide-item {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: inherit;
+    opacity: 0.95;
+  }
+}
+
+.is-dark .alert-guide-box {
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.alert-action-btn {
+  display: inline-flex;
+  align-items: center;
+  background-color: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.38);
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    background-color: rgba(245, 158, 11, 0.25);
+    transform: translateY(-1px);
+  }
+}
+
+.alert-action-dismiss {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+  opacity: 0.8;
+  text-decoration: underline;
+
+  &:hover {
+    opacity: 1;
   }
 }
 </style>

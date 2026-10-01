@@ -96,6 +96,11 @@ window.axios.interceptors.response.use(
                 break;
 
             case 403:
+                // Si la petición proviene de autenticación (/api/login), la pantalla de login
+                // gestiona su propio mensaje contextual institucional, sin toasts flotantes.
+                if (error.config && error.config.url && (error.config.url.includes('login') || error.config.url.includes('/api/login'))) {
+                    break;
+                }
                 if (izi) {
                     izi.warning({
                         title: 'Acceso Restringido',

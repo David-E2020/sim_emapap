@@ -109,6 +109,12 @@ axios.interceptors.response.use(
           }
         });
       } else if (error.response.status === 403) {
+        // Si la petición proviene de autenticación (/api/login), la pantalla de login
+        // gestiona su propio mensaje contextual institucional, sin toasts flotantes.
+        if (error.config && error.config.url && (error.config.url.includes('login') || error.config.url.includes('/api/login'))) {
+          return Promise.reject(error);
+        }
+
         const msg = (error.response.data && error.response.data.message) || 'No dispone de los privilegios o rol necesarios para realizar esta acción.';
         const isAccessRevoked = msg.includes('inactiva') || msg.includes('sin acceso') || msg.includes('no cuenta con roles') || msg.includes('revocado') || msg.includes('no tiene ningún rol');
 

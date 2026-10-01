@@ -51,6 +51,74 @@ class AuthTest extends TestCase
     }
 
     /**
+     * Test de inicio de sesión de usuario recién creado sin roles asignados.
+     * Debe retornar 403 con código ACCOUNT_NO_ROLES y mensaje estructurado e informativo.
+     */
+    public function test_login_bloqueado_para_usuario_sin_roles(): void
+    {
+        $usuario = User::create([
+            'name' => 'Personal Nuevo Test',
+            'email' => 'personal.nuevo@emapa.com',
+            'usr_usuario' => 'test_sin_roles',
+            'password' => bcrypt('password123'),
+            'usr_estado' => 'A',
+        ]);
+
+        try {
+            $response = $this->postJson('/api/login', [
+                'usr_usuario' => 'test_sin_roles',
+                'password' => 'password123',
+            ]);
+
+            $response->assertStatus(403)
+                ->assertJson([
+                    'status' => 'error',
+                    'code' => 'ACCOUNT_NO_ROLES',
+                    'title' => 'Cuenta pendiente de asignación de rol',
+                    'user' => [
+                        'nombre' => 'Personal Nuevo Test',
+                        'usuario' => 'test_sin_roles',
+                    ],
+                ]);
+
+            $this->assertStringContainsString('rol operativo asignado', $response->json('message'));
+        } finally {
+            $usuario->forceDelete();
+        }
+    }
+
+    /**
+     * Test de inicio de sesión de usuario institucional inactivo/suspendido.
+     * Debe retornar 403 con código ACCOUNT_SUSPENDED.
+     */
+    public function test_login_bloqueado_para_usuario_inactivo(): void
+    {
+        $usuario = User::create([
+            'name' => 'Personal Suspendido Test',
+            'email' => 'personal.suspendido@emapa.com',
+            'usr_usuario' => 'test_suspendido',
+            'password' => bcrypt('password123'),
+            'usr_estado' => 'I',
+        ]);
+
+        try {
+            $response = $this->postJson('/api/login', [
+                'usr_usuario' => 'test_suspendido',
+                'password' => 'password123',
+            ]);
+
+            $response->assertStatus(403)
+                ->assertJson([
+                    'status' => 'error',
+                    'code' => 'ACCOUNT_SUSPENDED',
+                    'title' => 'Cuenta institucional inactiva',
+                ]);
+        } finally {
+            $usuario->forceDelete();
+        }
+    }
+
+    /**
      * Test de cierre de sesión exitoso (JWT invalidation).
      */
     public function test_logout_exitoso(): void

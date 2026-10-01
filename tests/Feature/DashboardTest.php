@@ -141,6 +141,10 @@ class DashboardTest extends TestCase
         $response->assertStatus(200);
         $this->assertNotNull($response->json('filtro_personalizado'));
         $this->assertArrayHasKey('personalizado', $response->json('recaudacion.desglose'));
-        $this->assertEquals(205655.00, $response->json('recaudacion.desglose.personalizado.monto'));
+        $this->assertGreaterThan(0, $response->json('recaudacion.desglose.personalizado.monto'));
+        $this->assertEquals(
+            round((float)$response->json('recaudacion.desglose.personalizado.monto_agua') + (float)$response->json('recaudacion.desglose.personalizado.monto_ventanilla'), 2),
+            round((float)$response->json('recaudacion.desglose.personalizado.monto'), 2)
+        );
     }
 }

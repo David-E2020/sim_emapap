@@ -80,7 +80,13 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Su cuenta institucional se encuentra inactiva o suspendida. Contacte con Administración.',
+                'code' => 'ACCOUNT_SUSPENDED',
+                'title' => 'Cuenta institucional inactiva',
+                'message' => 'Su cuenta institucional se encuentra inactiva o suspendida. Para reactivar su acceso, comuníquese con la Administración de EMAPAP.',
+                'user' => [
+                    'nombre' => $user->name ?? $user->usr_usuario,
+                    'usuario' => $user->usr_usuario,
+                ],
             ], Response::HTTP_FORBIDDEN);
         }
 
@@ -100,7 +106,13 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Su cuenta no cuenta con un rol ni permisos asignados para acceder al sistema. Contacte con Administración.',
+                'code' => 'ACCOUNT_NO_ROLES',
+                'title' => 'Cuenta pendiente de asignación de rol',
+                'message' => 'Su cuenta institucional ha sido creada exitosamente pero aún no cuenta con un rol operativo asignado (p. ej. Ventanilla, Catastro, Facturación, etc.). Por favor, comuníquese con el Administrador del Sistema de EMAPAP para habilitar sus accesos.',
+                'user' => [
+                    'nombre' => $user->name ?? $user->usr_usuario,
+                    'usuario' => $user->usr_usuario,
+                ],
             ], Response::HTTP_FORBIDDEN);
         }
 
