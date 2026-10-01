@@ -69,7 +69,7 @@
         <v-col cols="12" sm="4" md="2">
           <v-select
             v-model="filtroEstado"
-            :items="['TODOS', 'VALIDADA', 'ANULADA', 'OBSERVADA', 'CONTINGENCIA']"
+            :items="['TODOS', 'VALIDADA', 'ANULADA', 'OBSERVADA', 'CONTINGENCIA', 'DUPLICADAS']"
             label="Estado Fiscal"
             dense
             outlined
@@ -201,6 +201,42 @@
           </v-menu>
         </div>
       </div>
+
+      <!-- ALERTA / INDICADOR DE INTEGRIDAD FISCAL Y CUFS ÚNICOS -->
+      <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-2" style="border-top: 1px dashed #e0e0e0;">
+        <div class="d-flex align-center flex-wrap gap-2">
+          <v-chip
+            v-if="auditoriaCuf.cufs_duplicados === 0"
+            small
+            color="green lighten-5"
+            class="font-weight-medium text-caption green--text text--darken-3"
+            outlined
+          >
+            <v-icon left x-small color="green darken-2">mdi-shield-check</v-icon>
+            Integridad SIAT: 100% CUFs Únicos (0 facturas duplicadas)
+          </v-chip>
+
+          <v-chip
+            v-else
+            small
+            color="red lighten-5"
+            class="font-weight-bold text-caption red--text text--darken-3"
+            outlined
+            @click="filtrarDuplicadas"
+          >
+            <v-icon left x-small color="red darken-2">mdi-alert-octagon</v-icon>
+            Alerta Fiscal: {{ auditoriaCuf.cufs_duplicados }} CUF(s) Duplicado(s) detectado(s) — Ver Duplicadas
+          </v-chip>
+        </div>
+
+        <div v-if="filtroEstado === 'DUPLICADAS'" class="text-caption red--text font-weight-bold d-flex align-center mt-1 mt-sm-0">
+          <v-icon x-small color="red" class="mr-1">mdi-filter-variant</v-icon>
+          Mostrando únicamente facturas con CUFs duplicados
+          <v-btn x-small text color="primary" class="ml-2 font-weight-bold" @click="filtroEstado = 'TODOS'; cargarFacturas()">
+            Quitar filtro
+          </v-btn>
+        </div>
+      </div>
     </v-card>
 
     <!-- TABLA DE FACTURAS -->
@@ -216,7 +252,17 @@
       >
         <!-- N° Factura -->
         <template v-slot:item.numero_factura="{ item }">
-          <span class="font-weight-bold text-primary">N° {{ item.numero_factura }}</span>
+          <div class="d-flex align-center flex-wrap">
+            <span class="font-weight-bold text-primary">N° {{ item.numero_factura }}</span>
+            <v-tooltip v-if="item.es_cuf_duplicado" bottom color="error">
+              <template v-slot:activator="{ on, attrs }">
+                <v-chip v-bind="attrs" v-on="on" x-small color="error" class="ml-1 font-weight-bold">
+                  <v-icon x-small left>mdi-alert</v-icon> DUPLICADA
+                </v-chip>
+              </template>
+              <span>Alerta: Este CUF se repite en más de un registro fiscal</span>
+            </v-tooltip>
+          </div>
         </template>
 
         <!-- Fecha Emisión -->
@@ -642,6 +688,11 @@ export default {
         color: 'success',
         icon: 'mdi-check-circle',
       },
+      auditoriaCuf: {
+        cufs_duplicados: 0,
+        integro: true,
+        ejemplos: [],
+      },
     };
   },
   computed: {
@@ -693,11 +744,18 @@ export default {
         const res = await window.axios.get('/api/facturacion/facturas', { params });
         this.facturas = res.data.data;
         this.totalFacturas = res.data.total;
+        if (res.data.auditoria_cuf) {
+          this.auditoriaCuf = res.data.auditoria_cuf;
+        }
       } catch (e) {
         console.error('Error al cargar facturas', e);
       } finally {
         this.cargando = false;
       }
+    },
+    filtrarDuplicadas() {
+      this.filtroEstado = 'DUPLICADAS';
+      this.cargarFacturas();
     },
     alLimpiarBusqueda() {
       this.busqueda = '';
@@ -866,8 +924,14 @@ export default {
     },
     formatearFecha(fechaStr) {
       if (!fechaStr) return '-';
+      const partes = String(fechaStr).replace('T', ' ').split(' ');
+      if (partes.length === 2 && partes[0].includes('-')) {
+        const [y, m, d] = partes[0].split('-');
+        const hora = partes[1].slice(0, 8);
+        return `${d}/${m}/${y} ${hora}`;
+      }
       const f = new Date(fechaStr);
-      return f.toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' });
+      return isNaN(f.getTime()) ? fechaStr : f.toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'medium' });
     },
     colorEstado(estado) {
       switch (estado) {

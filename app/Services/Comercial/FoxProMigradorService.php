@@ -15,6 +15,7 @@ use App\Models\Comercial\Zona;
 use App\Models\Facturacion\Factura;
 use App\Models\Facturacion\SiatSucursal;
 use App\Models\Parametrica;
+use App\Services\Facturacion\CufService;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -870,13 +871,19 @@ class FoxProMigradorService
             ]
         );
 
+        $cufService = app(CufService::class);
         $abonadosMap = Abonado::pluck('id', 'codigo')->toArray();
         $insertados = 0;
         $totalRecords = 0;
+        $cufsVistos = [];
+        $duplicadosDetectados = 0;
 
         $chunkHandler = function (array $chunk, int $procesados, int $total) use (
             &$insertados,
             &$totalRecords,
+            &$cufsVistos,
+            &$duplicadosDetectados,
+            $cufService,
             $dryRun,
             $sucursal,
             $abonadosMap,
@@ -906,6 +913,15 @@ class FoxProMigradorService
                     $esSiat = false;
                 }
 
+                // Registro de alerta informativa si se detecta un posible CUF repetido (sin omitir ni eliminar nada)
+                if ($esSiat && isset($cufsVistos[$cufFinal])) {
+                    $duplicadosDetectados++;
+                    Log::info("Migración FoxPro: Alerta informativa - posible CUF repetido en ventas.DBF (Factura N° {$facturaNum}, CUF: {$cufFinal})");
+                }
+                if ($esSiat) {
+                    $cufsVistos[$cufFinal] = true;
+                }
+
                 $socio = trim($r['SOCIO'] ?? '');
                 $idAbonado = null;
                 if (!empty($socio)) {
@@ -913,9 +929,17 @@ class FoxProMigradorService
                     $idAbonado = $abonadosMap[$codigoPad] ?? null;
                 }
 
-                $fechaEmision = (!empty($fechaStr) && strlen($fechaStr) === 8)
-                    ? Carbon::createFromFormat('Ymd', $fechaStr)->startOfDay()
-                    : $ahora;
+                // Extraer fecha y hora real desde el CUF si es factura SIAT oficial
+                $fechaEmision = null;
+                if ($esSiat) {
+                    $fechaEmision = $cufService->extraerFechaHoraDesdeCuf($cufFinal);
+                }
+
+                if (!$fechaEmision) {
+                    $fechaEmision = (!empty($fechaStr) && strlen($fechaStr) === 8)
+                        ? Carbon::createFromFormat('Ymd', $fechaStr)->startOfDay()
+                        : $ahora;
+                }
 
                 $montoTotal = (float) ($r['IMPORTE'] ?? 0.00);
                 $excento = (float) ($r['EXCENTO'] ?? 0.00);
@@ -981,6 +1005,7 @@ class FoxProMigradorService
             'dry_run' => $dryRun,
             'total_en_dbf' => $totalRecords,
             'facturas_migradas' => $insertados,
+            'cufs_posibles_duplicados_alertas' => $duplicadosDetectados,
         ];
     }
 

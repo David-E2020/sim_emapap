@@ -108,4 +108,97 @@ class CufService
 
         return "{$hex}{$codigoControl}";
     }
+
+    /**
+     * Convierte una cadena Hexadecimal a número decimal arbitrario
+     * sin desbordamiento de enteros (operación inversa exacta a dec2hex).
+     */
+    public function hex2dec(string $hex): string
+    {
+        $hex = strtoupper(trim($hex));
+        $chars = str_split($hex);
+        $sum = [];
+        while (count($chars) > 0) {
+            $s = hexdec(array_shift($chars));
+            for ($i = 0; $s || $i < count($sum); $i++) {
+                $s += (($sum[$i] ?? 0) * 16);
+                $sum[$i] = $s % 10;
+                $s = (int) (($s - $sum[$i]) / 10);
+            }
+        }
+        $dec = '';
+        while (count($sum) > 0) {
+            $dec .= (string) array_pop($sum);
+        }
+        return $dec ?: '0';
+    }
+
+    /**
+     * Decodifica un CUF oficial del SIN y extrae sus campos estructurados.
+     * Retorna null si la cadena no corresponde a un formato de CUF convertible.
+     */
+    public function decodificarCuf(string $cuf): ?array
+    {
+        $cuf = trim($cuf);
+        if (strlen($cuf) < 42) {
+            return null;
+        }
+
+        // Los primeros 42 caracteres hexadecimales corresponden a los 54 dígitos decimales
+        $subHex = substr($cuf, 0, 42);
+        $dec = $this->hex2dec($subHex);
+        $dec54 = str_pad($dec, 54, '0', STR_PAD_LEFT);
+
+        $nit = substr($dec54, 0, 13);
+        $rawFecha = substr($dec54, 13, 17); // YYYYMMDDHHmmssSSS
+        $sucursal = (int) substr($dec54, 30, 4);
+        $modalidad = (int) substr($dec54, 34, 1);
+        $tipoEmision = (int) substr($dec54, 35, 1);
+        $tipoFactura = (int) substr($dec54, 36, 1);
+        $documentoSector = (int) substr($dec54, 37, 2);
+        $numeroFactura = (int) substr($dec54, 39, 10);
+        $puntoVenta = (int) substr($dec54, 49, 4);
+        $modulo11 = (int) substr($dec54, 53, 1);
+        $codigoControl = substr($cuf, 42);
+
+        $fechaCarbon = null;
+        if (strlen($rawFecha) === 17 && is_numeric($rawFecha)) {
+            $y = (int) substr($rawFecha, 0, 4);
+            $m = (int) substr($rawFecha, 4, 2);
+            $d = (int) substr($rawFecha, 6, 2);
+            $h = (int) substr($rawFecha, 8, 2);
+            $i = (int) substr($rawFecha, 10, 2);
+            $s = (int) substr($rawFecha, 12, 2);
+
+            if ($y >= 2020 && $m >= 1 && $m <= 12 && $d >= 1 && $d <= 31 && $h <= 23 && $i <= 59 && $s <= 59) {
+                $fechaCarbon = \Carbon\Carbon::create($y, $m, $d, $h, $i, $s);
+            }
+        }
+
+        return [
+            'nit' => ltrim($nit, '0'),
+            'nit_padded' => $nit,
+            'fecha_emision' => $fechaCarbon,
+            'fecha_hora_raw' => $rawFecha,
+            'sucursal' => $sucursal,
+            'modalidad' => $modalidad,
+            'tipo_emision' => $tipoEmision,
+            'tipo_factura' => $tipoFactura,
+            'documento_sector' => $documentoSector,
+            'numero_factura' => $numeroFactura,
+            'punto_venta' => $puntoVenta,
+            'modulo11' => $modulo11,
+            'codigo_control' => $codigoControl,
+        ];
+    }
+
+    /**
+     * Extrae de forma directa la fecha y hora exacta de emisión contenida en el CUF.
+     */
+    public function extraerFechaHoraDesdeCuf(string $cuf): ?\Carbon\Carbon
+    {
+        $decoded = $this->decodificarCuf($cuf);
+        return $decoded['fecha_emision'] ?? null;
+    }
 }
+

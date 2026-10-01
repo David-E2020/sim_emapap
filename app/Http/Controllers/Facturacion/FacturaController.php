@@ -24,6 +24,7 @@ use App\Mail\Facturacion\FacturaEmitidaMail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -93,7 +94,17 @@ class FacturaController extends Controller
             });
         }
 
-        if (!empty($estado) && $estado !== 'TODOS') {
+        if (!empty($estado) && $estado === 'DUPLICADAS') {
+            $query->whereIn('cuf', function ($sub) {
+                $sub->select('cuf')
+                    ->from('facturacion.facturas')
+                    ->whereNotNull('cuf')
+                    ->whereRaw("cuf NOT LIKE 'SFV%'")
+                    ->whereRaw('LENGTH(cuf) >= 42')
+                    ->groupBy('cuf')
+                    ->havingRaw('COUNT(*) > 1');
+            });
+        } elseif (!empty($estado) && $estado !== 'TODOS') {
             $query->where('estado_factura', $estado);
         }
 
@@ -116,19 +127,50 @@ class FacturaController extends Controller
     }
 
     /**
-     * Listado paginado de facturas con filtros de búsqueda.
+     * Listado paginado de facturas con filtros de búsqueda y auditoría de integridad fiscal.
      */
     public function index(Request $request): JsonResponse
     {
         $perPage = (int) $request->input('per_page', 15);
         $paginator = $this->aplicarFiltrosFacturas($request)->paginate($perPage);
 
+        // Auditoría preventiva de duplicidad en CUFs (con caché de 5 minutos para alto rendimiento)
+        $auditoriaCuf = Cache::remember('siat_auditoria_cufs_duplicados', 300, function () {
+            $dups = DB::table('facturacion.facturas')
+                ->select('cuf', DB::raw('COUNT(*) as cantidad'))
+                ->whereNotNull('cuf')
+                ->whereRaw("cuf NOT LIKE 'SFV%'")
+                ->whereRaw('LENGTH(cuf) >= 42')
+                ->groupBy('cuf')
+                ->havingRaw('COUNT(*) > 1')
+                ->get();
+
+            return [
+                'total_cufs_duplicados' => $dups->count(),
+                'ejemplos' => $dups->take(5)->values()->all(),
+                'integro' => $dups->isEmpty(),
+            ];
+        });
+
+        // Detectar si en la página actual algún CUF se repite en el lote visible
+        $items = $paginator->items();
+        $cufsEnPagina = [];
+        foreach ($items as $item) {
+            if (!empty($item->cuf) && !str_starts_with((string) $item->cuf, 'SFV')) {
+                $cufsEnPagina[$item->cuf] = ($cufsEnPagina[$item->cuf] ?? 0) + 1;
+            }
+        }
+        foreach ($items as $item) {
+            $item->es_cuf_duplicado = (!empty($item->cuf) && ($cufsEnPagina[$item->cuf] ?? 0) > 1);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $paginator->items(),
+            'data' => $items,
             'total' => $paginator->total(),
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
+            'auditoria_cuf' => $auditoriaCuf,
         ], Response::HTTP_OK);
     }
 

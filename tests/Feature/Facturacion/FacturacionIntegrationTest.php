@@ -23,8 +23,14 @@ class FacturacionIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::first() ?? User::factory()->create();
-        $this->token = JWTAuth::fromUser($this->user);
+        $this->user = User::where('email', 'admin@emapa.gob.bo')->first() ?: User::first();
+        if ($this->user) {
+            $rolAdmin = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Administrador General', 'guard_name' => 'api']);
+            if (!$this->user->hasRole('Administrador General')) {
+                $this->user->assignRole($rolAdmin);
+            }
+            $this->token = JWTAuth::fromUser($this->user);
+        }
     }
 
     private function authHeaders(): array
