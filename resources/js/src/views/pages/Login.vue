@@ -140,10 +140,10 @@
             loop
             muted
             playsinline
+            preload="metadata"
             poster="/images/logo-ciclo-poster.jpg"
           >
             <source src="/images/logo-ciclo.mp4" type="video/mp4" />
-            <source src="/images/logo%20ciclo.mp4" type="video/mp4" />
           </video>
         </div>
       </section>

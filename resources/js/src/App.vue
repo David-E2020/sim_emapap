@@ -104,18 +104,9 @@ export default {
     if (savedDark !== null) {
       this.$vuetify.theme.dark = savedDark === 'true';
     }
-    axios.defaults.headers.common['Authorization'] = 'Bearer '+this.getToken;
-    axios.interceptors.response.use(undefined,(err) => {
-    return new Promise( (resolve, reject) => {
-        if (err.response.status === 401) {
-        // if you ever get an unauthorized, logout the user
-        this.$store.dispatch('auth/logout')
-        .then(() => this.$router.push('/pages/login'))
-        // you can also redirect to /login if needed !
-        }
-        throw err;
-    });
-    });
+    if (this.getToken) {
+      axios.defaults.headers.common['Authorization'] = 'Bearer ' + this.getToken;
+    }
   }
   
 }

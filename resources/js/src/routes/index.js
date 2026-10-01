@@ -1,10 +1,14 @@
 import Vue from 'vue';
 import Router from 'vue-router';
+import LoginPage from '@/views/pages/Login.vue';
 
 export const routes = [
   {
     path: '/',
-    redirect: '/dashboard',
+    redirect: () => {
+      const isLoggedIn = !!localStorage.getItem('token');
+      return isLoggedIn ? '/dashboard' : '/login';
+    },
   },
   {
     path: '/dashboard',
@@ -497,13 +501,15 @@ export const routes = [
     },
   },
 
-  // PAGES
+  // PAGES (Autenticación directa en /login con compatibilidad para /pages/login)
   {
-    path: '/pages/login',
+    path: '/login',
+    alias: '/pages/login',
     name: 'pages-login',
-    component: () => import('@/views/pages/Login.vue'),
+    component: LoginPage,
     meta: {
       layout: 'blank',
+      requiresAuth: false,
     },
   },
   {

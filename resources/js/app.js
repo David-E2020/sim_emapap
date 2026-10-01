@@ -25,6 +25,13 @@ const router = new VueRouter({
     routes:routes
 });
 
+// Autorecuperación inteligente: Si un chunk falla por despliegue nuevo o caché vieja, recargar limpiamente
+router.onError(error => {
+  if (/Loading( chunk)? (\d+ )?failed/i.test(error.message) || error.name === 'ChunkLoadError') {
+    window.location.reload();
+  }
+});
+
 const store = new Vuex.Store({
   state:{
      siatEnLinea:false,
