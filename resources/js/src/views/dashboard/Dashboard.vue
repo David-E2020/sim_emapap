@@ -52,7 +52,7 @@
 
           <v-chip small color="primary" outlined class="font-weight-medium mr-2 my-1">
             <v-icon left x-small color="primary">mdi-calendar-month-outline</v-icon>
-            Período Activo: {{ periodoActualSeleccionado.periodo || '09/2026' }}
+            Período Activo: {{ periodoActivoTexto }}
           </v-chip>
 
           <v-btn
@@ -100,7 +100,7 @@
               text
               class="px-2 font-weight-bold"
               color="primary"
-              :disabled="indicePeriodoHistorico >= periodosCompletos.length - 1"
+              :disabled="periodosCompletos.length === 0 || indicePeriodoHistorico >= periodosCompletos.length - 1"
               @click="retrocederMes"
               title="Retroceder al mes anterior consecutivo"
             >
@@ -118,11 +118,18 @@
                   v-on="on"
                 >
                   <v-icon left x-small color="white">mdi-calendar-month</v-icon>
-                  <span>{{ periodoActualSeleccionado.periodo }} · {{ periodoActualSeleccionado.nombre_mes }}</span>
+                  <span>{{ selectorMesTexto }}</span>
                   <v-icon right x-small color="white">mdi-menu-down</v-icon>
                 </v-chip>
               </template>
               <v-list dense class="py-0">
+                <v-list-item v-if="periodosCompletos.length === 0" dense>
+                  <v-list-item-content>
+                    <v-list-item-title class="text-caption text-secondary">
+                      Sin períodos históricos liquidados aún
+                    </v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
                 <v-list-item
                   v-for="(p, idx) in periodosCompletos"
                   :key="p.id"
@@ -147,7 +154,7 @@
               text
               class="px-2 font-weight-bold"
               color="primary"
-              :disabled="indicePeriodoHistorico <= 0"
+              :disabled="periodosCompletos.length === 0 || indicePeriodoHistorico <= 0"
               @click="avanzarMes"
               title="Avanzar al mes posterior"
             >
@@ -336,7 +343,7 @@
               @click="filtroRecaudacion = 'periodo'"
               title="Recaudación del mes seleccionado"
             >
-              M: Bs {{ formatearCompacto(periodoActualSeleccionado.recaudacion.monto) }}
+              M: Bs {{ formatearCompacto(periodoActualSeleccionado.recaudacion ? periodoActualSeleccionado.recaudacion.monto : 0) }}
             </span>
             <span
               class="quick-tag cursor-pointer font-weight-bold primary--text"
@@ -429,7 +436,7 @@
               @click="filtroSocios = 'periodo'"
               title="Nuevos socios en mes seleccionado"
             >
-              M: +{{ periodoActualSeleccionado.socios_nuevos }}
+              M: +{{ periodoActualSeleccionado.socios_nuevos || 0 }}
             </span>
             <span
               class="quick-tag cursor-pointer font-weight-bold primary--text"
@@ -636,7 +643,7 @@
               @click="filtroFacturacion = 'periodo'"
               title="Facturas emitidas en mes seleccionado"
             >
-              M: {{ formatearCompacto(periodoActualSeleccionado.facturacion.cantidad) }}
+              M: {{ formatearCompacto(periodoActualSeleccionado.facturacion ? periodoActualSeleccionado.facturacion.cantidad : 0) }}
             </span>
             <span
               class="quick-tag cursor-pointer font-weight-bold primary--text"
@@ -1023,14 +1030,14 @@ export default {
 
       // Rango de fecha personalizado
       filtroRango: {
-        fecha_desde: '2026-09-01',
-        fecha_hasta: '2026-09-30',
+        fecha_desde: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+        fecha_hasta: new Date().toISOString().slice(0, 10),
       },
 
       // Controles de Consumo (Mes X o Año X)
       consumoModo: 'mes', // 'mes' | 'anio'
       consumoPeriodoId: null,
-      consumoGestion: 2026,
+      consumoGestion: new Date().getFullYear(),
 
       metricas: {
         servidor: {
@@ -1123,6 +1130,20 @@ export default {
     anioActual() {
       return this.metricas.periodo_actual?.gestion || new Date().getFullYear() || 2026
     },
+    periodoActivoTexto() {
+      if (this.periodosCompletos.length > 0) {
+        return this.periodoActualSeleccionado.periodo
+      }
+      return this.metricas.periodo_actual && this.metricas.periodo_actual.nombre
+        ? this.metricas.periodo_actual.nombre
+        : 'Sin Período Activo'
+    },
+    selectorMesTexto() {
+      if (this.periodosCompletos.length > 0) {
+        return this.periodoActualSeleccionado.periodo + ' · ' + this.periodoActualSeleccionado.nombre_mes
+      }
+      return 'Sin períodos registrados'
+    },
     periodosCompletos() {
       return this.metricas.periodos_completos || []
     },
@@ -1131,31 +1152,36 @@ export default {
       if (periodos.length > 0 && this.indicePeriodoHistorico >= 0 && this.indicePeriodoHistorico < periodos.length) {
         return periodos[this.indicePeriodoHistorico]
       }
-      return periodos[0] || {
+      if (periodos.length > 0) {
+        return periodos[0]
+      }
+      return {
         id: null,
-        periodo: '09/2026',
-        nombre_mes: 'Septiembre 2026',
+        periodo: this.metricas.periodo_actual?.nombre && this.metricas.periodo_actual?.nombre !== 'Sin Período Activo'
+          ? this.metricas.periodo_actual.nombre
+          : 'Sin Período',
+        nombre_mes: 'Sin período activo',
         recaudacion: {
-          monto: 205655,
-          cantidad: 7996,
-          monto_agua: 169356,
-          facturas_agua: 7960,
-          monto_ventanilla: 36299,
-          recibos_ventanilla: 36,
-          label: 'Período 09/2026 (Septiembre 2026)',
+          monto: 0,
+          cantidad: 0,
+          monto_agua: 0,
+          facturas_agua: 0,
+          monto_ventanilla: 0,
+          recibos_ventanilla: 0,
+          label: 'Sin Período Activo',
         },
-        socios_nuevos: 14,
+        socios_nuevos: 0,
         consumo: {
-          total_m3: 33206,
-          total_lecturas: 5578,
-          total_facturado: 68082.59,
-          label: '09/2026 (Septiembre)',
+          total_m3: 0,
+          total_lecturas: 0,
+          total_facturado: 0,
+          label: 'Sin lecturas',
         },
         facturacion: {
-          cantidad: 7960,
-          monto: 169356,
-          credito_fiscal: 169356,
-          label: 'Período 09/2026 (Septiembre)',
+          cantidad: 0,
+          monto: 0,
+          credito_fiscal: 0,
+          label: 'Sin facturas',
         },
       }
     },
@@ -1510,6 +1536,9 @@ export default {
     },
     labelFiltro(tipo) {
       if (tipo === 'periodo') {
+        if (this.periodosCompletos.length === 0) {
+          return 'Sin Período Activo'
+        }
         return `Período ${this.periodoActualSeleccionado.periodo} (${this.periodoActualSeleccionado.nombre_mes})`
       }
       if (tipo === 'personalizado') {
@@ -1518,7 +1547,7 @@ export default {
       const map = {
         hoy: 'Hoy (Día)',
         semana: 'Esta Semana',
-        mes: `Este Mes (${this.periodoActualSeleccionado.periodo})`,
+        mes: this.periodosCompletos.length > 0 ? `Este Mes (${this.periodoActualSeleccionado.periodo})` : 'Este Mes',
         anio: 'Gestión ' + this.anioActual,
         total: 'Histórico Total',
       }
