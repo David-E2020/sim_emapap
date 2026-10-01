@@ -188,11 +188,8 @@ export default {
             this.showSnackbar('Contraseña actualizada correctamente', 'success');
             setTimeout(() => {
               this.$store.dispatch('auth/logout')
-                .then(() => {
-                  this.$router.push('/pages/login');
-                })
-                .catch(() => {
-                  this.$router.push('/pages/login');
+                .finally(() => {
+                  this.$router.push('/login');
                 });
             }, 1800);
           } else {

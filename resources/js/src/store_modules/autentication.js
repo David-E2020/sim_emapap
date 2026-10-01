@@ -68,7 +68,7 @@ export const autentication = {
                 }
 
                 // Invalidar token JWT en blacklist del servidor antes de destruir sesión local
-                axios.post('api/logout')
+                axios.post('/api/logout')
                     .then(() => clearLocalSession())
                     .catch(() => clearLocalSession())
             })

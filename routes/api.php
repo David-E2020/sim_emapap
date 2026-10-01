@@ -61,11 +61,11 @@ use Illuminate\Support\Facades\Route;
 
 // Rutas Públicas (Protegidas con Throttling: 60 intentos por minuto anti-fuerza bruta)
 Route::post('login', [AuthController::class, 'login'])->middleware('throttle:60,1');
+Route::post('logout', [AuthController::class, 'logout']);
 
 // Rutas Autenticadas (JWT)
 Route::group(['middleware' => ['jwt.auth']], function () {
 
-    Route::post('logout', [AuthController::class, 'logout']);
     Route::post('update_user_password', [RolUserController::class, 'update_user_password']);
 
     // Dashboard Operativo y Métricas Globales (Requiere rol activo o Super Admin)

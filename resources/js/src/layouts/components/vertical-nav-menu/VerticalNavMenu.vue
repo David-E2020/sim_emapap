@@ -129,9 +129,9 @@ export default {
           timeout: 5000,
         });
       }
-      this.$store.dispatch('auth/logout').then(() => {
-        if (this.$router.currentRoute.name !== 'pages-login') {
-          this.$router.push({ name: 'pages-login' });
+      this.$store.dispatch('auth/logout').finally(() => {
+        if (this.$router.currentRoute.path !== '/login') {
+          this.$router.push('/login');
         }
       });
     },

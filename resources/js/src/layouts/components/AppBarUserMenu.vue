@@ -84,15 +84,12 @@ export default {
     },
 
     btnSalirSistema() {
-      
-      var data = {};
-      axios
-        .post('api/logout', data)
-        .then(response => {
-          localStorage.clear();
-          this.$router.push('/pages/login')
-        })
-        .catch(error => {})
+      this.$store.dispatch('auth/logout')
+        .finally(() => {
+          if (this.$router.currentRoute.path !== '/login') {
+            this.$router.push('/login');
+          }
+        });
     },
   },
 }

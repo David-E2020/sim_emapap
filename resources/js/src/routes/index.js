@@ -501,16 +501,19 @@ export const routes = [
     },
   },
 
-  // PAGES (Autenticación directa en /login con compatibilidad para /pages/login)
+  // Autenticación principal en /login y redirección limpia permanente para /pages/login
   {
     path: '/login',
-    alias: '/pages/login',
     name: 'pages-login',
     component: LoginPage,
     meta: {
       layout: 'blank',
       requiresAuth: false,
     },
+  },
+  {
+    path: '/pages/login',
+    redirect: '/login',
   },
   {
     path: '/pages/register',

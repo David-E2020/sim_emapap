@@ -15,6 +15,10 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 
+  <!-- Preload crítico para inicio inmediato de scripts -->
+  <link rel="preload" href="{{ mix('js/app.js') }}?v={{ file_exists(public_path('js/app.js')) ? filemtime(public_path('js/app.js')) : time() }}" as="script">
+  <link rel="preload" href="/images/logo-ciclo-poster.jpg" as="image">
+
   <script src="{{ mix('js/app.js') }}?v={{ file_exists(public_path('js/app.js')) ? filemtime(public_path('js/app.js')) : time() }}" defer></script>
 </head>
 

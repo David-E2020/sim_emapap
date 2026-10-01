@@ -103,9 +103,9 @@ axios.interceptors.response.use(
   error => {
     if (error && error.response) {
       if (error.response.status === 401) {
-        store.dispatch('auth/logout').then(() => {
-          if (router.currentRoute.name !== 'pages-login') {
-            router.push({ name: 'pages-login' });
+        store.dispatch('auth/logout').finally(() => {
+          if (router.currentRoute.path !== '/login') {
+            router.push('/login');
           }
         });
       } else if (error.response.status === 403) {
@@ -121,9 +121,9 @@ axios.interceptors.response.use(
               timeout: 6000,
             });
           }
-          store.dispatch('auth/logout').then(() => {
-            if (router.currentRoute.name !== 'pages-login') {
-              router.push({ name: 'pages-login' });
+          store.dispatch('auth/logout').finally(() => {
+            if (router.currentRoute.path !== '/login') {
+              router.push('/login');
             }
           });
         } else {

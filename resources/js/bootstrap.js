@@ -88,9 +88,9 @@ window.axios.interceptors.response.use(
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 localStorage.removeItem('permissions');
-                if (window.location.pathname !== '/pages/login' && window.location.pathname !== '/login') {
+                if (window.location.pathname !== '/login') {
                     setTimeout(() => {
-                        window.location.href = '/pages/login';
+                        window.location.href = '/login';
                     }, 1000);
                 }
                 break;

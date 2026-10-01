@@ -152,7 +152,10 @@ class AuthController extends Controller
 
         try {
             if ($token) {
-                JWTAuth::invalidate(JWTAuth::getToken());
+                $jwtToken = JWTAuth::getToken();
+                if ($jwtToken) {
+                    JWTAuth::invalidate($jwtToken);
+                }
             }
 
             if ($user) {
@@ -162,18 +165,13 @@ class AuthController extends Controller
                     userId: $user->id
                 );
             }
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Sesión cerrada correctamente.',
-            ], Response::HTTP_OK);
-        } catch (JWTException $e) {
-            Log::error('Error al invalidar token JWT en logout', ['exception' => $e->getMessage()]);
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Fallo al cerrar sesión, intente nuevamente.',
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (\Throwable $e) {
+            Log::info('Aviso en logout (token expirado o ya invalidado): ' . $e->getMessage());
         }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Sesión cerrada correctamente.',
+        ], Response::HTTP_OK);
     }
 }
