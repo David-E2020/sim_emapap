@@ -13,7 +13,15 @@
           </div>
         </div>
 
-        <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
+        <div class="d-flex align-center gap-2 mt-2 mt-sm-0 flex-wrap">
+          <v-btn
+            outlined
+            color="indigo darken-2"
+            class="text-capitalize font-weight-medium rounded-pill elevation-1"
+            to="/facturacion/libro-ventas"
+          >
+            <v-icon left small>mdi-scale-balance</v-icon> Libro de Ventas / Cotejo SIN
+          </v-btn>
           <v-btn
             outlined
             color="primary"

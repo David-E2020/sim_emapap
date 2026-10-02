@@ -20,6 +20,8 @@ class ReporteFacturacionController extends Controller
      */
     public function libroVentas(Request $request): JsonResponse
     {
+        @ini_set('memory_limit', '512M');
+
         if ($request->filled('mes') && $request->filled('gestion')) {
             $fechaDesde = Carbon::create((int) $request->input('gestion'), (int) $request->input('mes'), 1)->startOfMonth()->format('Y-m-d');
             $fechaHasta = Carbon::create((int) $request->input('gestion'), (int) $request->input('mes'), 1)->endOfMonth()->format('Y-m-d');
@@ -69,7 +71,8 @@ class ReporteFacturacionController extends Controller
             COUNT(CASE WHEN estado_factura IN ('RECHAZADA', 'OBSERVADA') THEN 1 END) as cantidad_rechazadas,
             COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total ELSE 0 END), 0) as total_facturado,
             COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_descuento ELSE 0 END), 0) as total_descuento,
-            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total_sujeto_iva ELSE 0 END), 0) as total_base_debito_fiscal
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total_sujeto_iva ELSE 0 END), 0) as total_base_debito_fiscal,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN ROUND((monto_total_sujeto_iva * 0.13)::numeric, 2) ELSE 0 END), 0) as total_debito_fiscal
         ")->first();
 
         $totalRegistros = (int) ($metricas->total_registros ?? 0);
@@ -80,13 +83,30 @@ class ReporteFacturacionController extends Controller
         $totalFacturado = (float) ($metricas->total_facturado ?? 0);
         $totalDescuento = (float) ($metricas->total_descuento ?? 0);
         $totalBaseDebito = (float) ($metricas->total_base_debito_fiscal ?? 0);
-        $debitoFiscal = round($totalBaseDebito * 0.13, 2);
+        $debitoFiscal = (float) ($metricas->total_debito_fiscal ?? 0);
 
-        // Limitamos la lista para respuesta JSON evitando desbordamiento de memoria en meses con miles de facturas
+        // Selección optimizada de columnas necesarias para la grilla del libro de ventas
+        $limite = (int) $request->input('limite', 10000);
         $facturas = (clone $query)
-            ->with(['cliente:id,nombre_razon_social,numero_documento,complemento', 'sucursal:id,nombre,codigo_sucursal', 'puntoVenta:id,nombre,codigo_punto_venta'])
+            ->select([
+                'id',
+                'id_sucursal',
+                'id_punto_venta',
+                'numero_factura',
+                'cuf',
+                'fecha_emision',
+                'nombre_razon_social',
+                'numero_documento',
+                'complemento',
+                'tipo_emision',
+                'monto_total',
+                'monto_descuento',
+                'monto_total_sujeto_iva',
+                'estado_factura',
+                'representacion_grafica_qr',
+            ])
             ->orderBy('numero_factura', 'asc')
-            ->limit(2000)
+            ->limit($limite)
             ->get();
 
         return response()->json([
@@ -205,8 +225,9 @@ class ReporteFacturacionController extends Controller
                 
                 $totalVenta = $esAnulada ? 0.00 : (float) $f->monto_total;
                 $descuento = $esAnulada ? 0.00 : (float) $f->monto_descuento;
-                $subtotal = $totalVenta;
                 $baseFiscal = $esAnulada ? 0.00 : (float) $f->monto_total_sujeto_iva;
+                $tasas = $esAnulada ? 0.00 : max(0.00, round($totalVenta - $baseFiscal - $descuento, 2));
+                $subtotal = $esAnulada ? 0.00 : max(0.00, round($totalVenta - $tasas, 2));
                 $debitoFiscal = round($baseFiscal * 0.13, 2);
 
                 if ($esAnulada) {
@@ -230,7 +251,7 @@ class ReporteFacturacionController extends Controller
                     '0.00', // ICE
                     '0.00', // IEHD
                     '0.00', // IPJ
-                    '0.00', // Tasas
+                    number_format($tasas, 2, '.', ''), // Tasas
                     '0.00', // Otros no sujetos
                     '0.00', // Exentas
                     '0.00', // Tasa Cero

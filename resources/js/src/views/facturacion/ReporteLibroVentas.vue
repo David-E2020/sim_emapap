@@ -17,6 +17,16 @@
 
         <div class="d-flex align-center gap-2 my-1 flex-wrap">
           <v-btn
+            color="indigo darken-2"
+            dark
+            small
+            class="white--text font-weight-bold rounded-pill elevation-2"
+            @click="abrirDialogoConciliador"
+          >
+            <v-icon left small>mdi-scale-balance</v-icon> Cotejador SIN (Excel)
+          </v-btn>
+
+          <v-btn
             color="primary"
             dark
             outlined
@@ -26,6 +36,7 @@
           >
             <v-icon left small>mdi-printer</v-icon> Imprimir Libro
           </v-btn>
+
           <v-btn
             color="success darken-1"
             dark
@@ -50,6 +61,8 @@
             <v-btn small value="semana" class="text-capitalize">Esta Semana</v-btn>
             <v-btn small value="mes" class="text-capitalize">Este Mes</v-btn>
             <v-btn small value="mes_anterior" class="text-capitalize">Mes Anterior</v-btn>
+            <v-btn small value="agosto_2026" class="text-capitalize font-weight-bold primary--text">Agosto 2026</v-btn>
+            <v-btn small value="septiembre_2026" class="text-capitalize font-weight-bold primary--text">Septiembre 2026</v-btn>
             <v-btn small value="personalizado" class="text-capitalize">Personalizado</v-btn>
           </v-btn-toggle>
         </div>
@@ -295,6 +308,12 @@
           <span class="font-weight-bold">Bs {{ formatoMoneda(item.monto_total) }}</span>
         </template>
 
+        <template v-slot:item.monto_total_sujeto_iva="{ item }">
+          <span class="font-weight-medium success--text text--darken-2">
+            Bs {{ item.estado_factura === 'ANULADA' ? '0.00' : formatoMoneda(item.monto_total_sujeto_iva) }}
+          </span>
+        </template>
+
         <template v-slot:item.debito_fiscal="{ item }">
           <span class="font-weight-bold info--text">
             Bs {{ item.estado_factura === 'ANULADA' ? '0.00' : formatoMoneda(item.monto_total_sujeto_iva * 0.13) }}
@@ -338,6 +357,7 @@
           <tr class="grey lighten-3 font-weight-black" v-if="facturas.length > 0">
             <td colspan="6" class="text-right text-uppercase">TOTALES DEL PERÍODO:</td>
             <td class="text-right primary--text font-weight-black">Bs {{ formatoMoneda(resumen.total_facturado) }}</td>
+            <td class="text-right success--text text--darken-2 font-weight-black">Bs {{ formatoMoneda(resumen.total_base_debito_fiscal) }}</td>
             <td class="text-right info--text font-weight-black">Bs {{ formatoMoneda(resumen.debito_fiscal_iva) }}</td>
             <td colspan="2" class="text-center font-weight-black text-caption">
               <span class="success--text font-weight-bold">{{ resumen.cantidad_validas || 0 }} Válidas</span> |
@@ -348,6 +368,638 @@
         </template>
       </v-data-table>
     </v-card>
+
+    <!-- =============================================================== -->
+    <!-- DIÁLOGO / MODAL COTEJADOR Y CONCILIADOR TRIBUTARIO SIAT vs SISTEMA -->
+    <!-- =============================================================== -->
+    <v-dialog v-model="dialogoConciliador" max-width="1250px" persistent scrollable>
+      <v-card class="dialog-conciliador" rounded="lg">
+        <!-- BARRA DE TÍTULO -->
+        <v-card-title class="indigo darken-3 text-white py-3 px-4 d-flex justify-space-between align-center">
+          <div class="d-flex align-center">
+            <v-avatar color="white" size="38" class="mr-3">
+              <v-icon color="indigo darken-3">mdi-scale-balance</v-icon>
+            </v-avatar>
+            <div>
+              <div class="text-h6 font-weight-bold text-white mb-0">Cotejador y Conciliador Tributario SIAT vs Sistema</div>
+              <div class="text-caption text-indigo-lighten-4">
+                Auditoría tributaria automática entre el Registro de Ventas (RCV) de Impuestos Nacionales y SIM-EMAPAP
+              </div>
+            </div>
+          </div>
+          <v-btn icon dark @click="cerrarDialogoConciliador">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pa-4 bg-grey-lighten-4">
+          <!-- SECCIÓN 1: SELECCIÓN DE ARCHIVO DEL SIN Y RANGO DE FECHAS -->
+          <v-card outlined class="mb-4 pa-4 white" rounded="lg">
+            <div class="d-flex justify-space-between align-center mb-2 flex-wrap">
+              <div class="text-subtitle-2 font-weight-bold indigo--text text--darken-3">
+                <v-icon small color="indigo darken-3">mdi-file-excel</v-icon> 1. Seleccionar Reporte Oficial del SIN (Excel RCV)
+              </div>
+              <div class="text-caption text-secondary">
+                <v-icon x-small color="grey darken-1">mdi-calendar-range</v-icon> Rango de fechas personalizable o autodetectable
+              </div>
+            </div>
+
+            <v-row dense align="center">
+              <v-col cols="12" md="5">
+                <v-file-input
+                  v-model="archivoSinUpload"
+                  label="Cargar archivo Excel del SIN (.xlsx, .xls)"
+                  prepend-icon="mdi-paperclip"
+                  outlined
+                  dense
+                  hide-details
+                  show-size
+                  accept=".xlsx, .xls, .csv"
+                  placeholder="Seleccione el archivo Excel descargado del SIAT..."
+                  @change="resultadoConciliacion = null"
+                ></v-file-input>
+              </v-col>
+
+              <v-col cols="12" sm="6" md="2">
+                <v-text-field
+                  v-model="filtroCotejoFechaDesde"
+                  label="Fecha Desde (A)"
+                  type="date"
+                  outlined
+                  dense
+                  hide-details
+                  clearable
+                  placeholder="AAAA-MM-DD"
+                  hint="Opcional"
+                  persistent-hint
+                ></v-text-field>
+              </v-col>
+
+              <v-col cols="12" sm="6" md="2">
+                <v-text-field
+                  v-model="filtroCotejoFechaHasta"
+                  label="Fecha Hasta (B)"
+                  type="date"
+                  outlined
+                  dense
+                  hide-details
+                  clearable
+                  placeholder="AAAA-MM-DD"
+                  hint="Opcional"
+                  persistent-hint
+                ></v-text-field>
+              </v-col>
+
+              <v-col cols="12" md="3">
+                <v-btn
+                  color="indigo darken-2"
+                  dark
+                  block
+                  class="font-weight-bold rounded-pill elevation-1"
+                  :loading="cargandoCotejo"
+                  :disabled="!archivoSinUpload"
+                  @click="ejecutarCotejo"
+                >
+                  <v-icon left small>mdi-file-find</v-icon> Ejecutar Cotejo Fiscal
+                </v-btn>
+              </v-col>
+            </v-row>
+            <div class="text-caption text-secondary mt-2 d-flex align-center">
+              <v-icon x-small color="info" class="mr-1">mdi-information-outline</v-icon>
+              <span>
+                <strong>Modo inteligente:</strong> Si ingresas <em>Fecha Desde (A)</em> y <em>Fecha Hasta (B)</em>, el cotejo se filtrará a ese rango. Si las dejas en blanco, el sistema autodetectará automáticamente el rango de fechas que contenga el reporte Excel descargado.
+              </span>
+            </div>
+          </v-card>
+
+          <!-- SECCIÓN 2: RESULTADOS DE LA AUDITORÍA Y COTEJO -->
+          <div v-if="resultadoConciliacion">
+            <!-- BANNER DE RESUMEN TRIBUTARIO -->
+            <v-alert
+              border="left"
+              colored-border
+              :color="(resultadoConciliacion.kpis.resumen_cotejo.validas_faltantes > 0 || resultadoConciliacion.kpis.resumen_cotejo.anuladas_faltantes > 0) ? 'warning' : 'success'"
+              elevation="1"
+              class="mb-4 white"
+            >
+              <div class="d-flex justify-space-between align-center flex-wrap gap-2">
+                <div>
+                  <h3 class="text-subtitle-1 font-weight-bold mb-1">
+                    <v-icon left :color="(resultadoConciliacion.kpis.resumen_cotejo.validas_faltantes > 0 || resultadoConciliacion.kpis.resumen_cotejo.anuladas_faltantes > 0) ? 'warning darken-2' : 'success'">
+                      {{ (resultadoConciliacion.kpis.resumen_cotejo.validas_faltantes > 0 || resultadoConciliacion.kpis.resumen_cotejo.anuladas_faltantes > 0) ? 'mdi-alert-circle' : 'mdi-check-decagram' }}
+                    </v-icon>
+                    Período Fiscal Analizado: {{ formatearFecha(resultadoConciliacion.periodo.desde) }} al {{ formatearFecha(resultadoConciliacion.periodo.hasta) }}
+                  </h3>
+                  <div class="text-caption text-secondary">
+                    Archivo: <strong>{{ resultadoConciliacion.archivo }}</strong> | Coincidencia en Válidas:
+                    <strong :class="resultadoConciliacion.kpis.resumen_cotejo.coincidencia_validas_pct === 100 ? 'success--text' : 'warning--text text--darken-2'" class="font-weight-bold">
+                      {{ resultadoConciliacion.kpis.resumen_cotejo.coincidencia_validas_pct }}%
+                    </strong> | Coincidencia Global:
+                    <strong :class="resultadoConciliacion.kpis.resumen_cotejo.porcentaje_coincidencia === 100 ? 'success--text' : 'primary--text'">
+                      {{ resultadoConciliacion.kpis.resumen_cotejo.porcentaje_coincidencia }}%
+                    </strong>
+                  </div>
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                  <v-chip color="success" text-color="white" small class="font-weight-bold">
+                    <v-icon left x-small>mdi-check</v-icon> {{ resultadoConciliacion.kpis.resumen_cotejo.coincidentes_exactas }} Coincidentes
+                  </v-chip>
+                  <v-chip color="error" text-color="white" small class="font-weight-bold" v-if="resultadoConciliacion.kpis.resumen_cotejo.validas_faltantes > 0">
+                    <v-icon left x-small>mdi-alert</v-icon> {{ resultadoConciliacion.kpis.resumen_cotejo.validas_faltantes }} Válidas ausentes
+                  </v-chip>
+                  <v-chip color="warning darken-1" text-color="white" small class="font-weight-bold" v-if="resultadoConciliacion.kpis.resumen_cotejo.anuladas_faltantes > 0">
+                    <v-icon left x-small>mdi-alert-circle-outline</v-icon> {{ resultadoConciliacion.kpis.resumen_cotejo.anuladas_faltantes }} Anuladas ausentes
+                  </v-chip>
+                  <v-chip color="info" text-color="white" small class="font-weight-bold" v-if="resultadoConciliacion.kpis.resumen_cotejo.diferencias_ley1886 > 0">
+                    <v-icon left x-small>mdi-account-supervisor</v-icon> {{ resultadoConciliacion.kpis.resumen_cotejo.diferencias_ley1886 }} Descuentos Ley 1886
+                  </v-chip>
+                </div>
+              </div>
+            </v-alert>
+
+            <!-- TARJETAS COMPARATIVAS KPIS SIN vs SISTEMA -->
+            <v-row dense class="mb-4">
+              <!-- KPI REGISTROS -->
+              <v-col cols="12" sm="6" md="3">
+                <v-card class="pa-3 text-center erp-card-elevated white" rounded="lg">
+                  <div class="text-caption text-secondary font-weight-bold text-uppercase">Total Facturas</div>
+                  <div class="d-flex justify-space-around align-center mt-2">
+                    <div>
+                      <div class="text-caption text-secondary">Reporte SIN</div>
+                      <div class="text-h5 font-weight-bold indigo--text">{{ resultadoConciliacion.kpis.sin.total_registros }}</div>
+                    </div>
+                    <v-divider vertical class="mx-2"></v-divider>
+                    <div>
+                      <div class="text-caption text-secondary">SIM-EMAPAP</div>
+                      <div class="text-h5 font-weight-bold teal--text">{{ resultadoConciliacion.kpis.sistema.total_registros }}</div>
+                    </div>
+                  </div>
+                  <div class="text-caption error--text font-weight-bold mt-1" v-if="resultadoConciliacion.kpis.sin.total_registros !== resultadoConciliacion.kpis.sistema.total_registros">
+                    Diferencia: {{ Math.abs(resultadoConciliacion.kpis.sin.total_registros - resultadoConciliacion.kpis.sistema.total_registros) }} facturas
+                  </div>
+                  <div class="text-caption text-secondary font-weight-bold mt-1" v-else-if="resultadoConciliacion.kpis.sin.total_registros === 0">
+                    Sin facturas en este rango
+                  </div>
+                  <div class="text-caption success--text font-weight-bold mt-1" v-else>
+                    ¡Registros 100% Cuadrados!
+                  </div>
+                </v-card>
+              </v-col>
+
+              <!-- KPI FACTURAS VÁLIDAS -->
+              <v-col cols="12" sm="6" md="3">
+                <v-card class="pa-3 text-center erp-card-elevated white" rounded="lg">
+                  <div class="text-caption text-secondary font-weight-bold text-uppercase">Facturas Válidas</div>
+                  <div class="d-flex justify-space-around align-center mt-2">
+                    <div>
+                      <div class="text-caption text-secondary">En SIN</div>
+                      <div class="text-h5 font-weight-bold success--text">{{ resultadoConciliacion.kpis.sin.total_validas }}</div>
+                    </div>
+                    <v-divider vertical class="mx-2"></v-divider>
+                    <div>
+                      <div class="text-caption text-secondary">En Sistema</div>
+                      <div class="text-h5 font-weight-bold" :class="resultadoConciliacion.kpis.sistema.total_validas > 0 ? 'success--text' : 'grey--text'">
+                        {{ resultadoConciliacion.kpis.sistema.total_validas }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="text-caption text-secondary font-weight-bold mt-1" v-if="resultadoConciliacion.kpis.sin.total_validas === 0 && resultadoConciliacion.kpis.sistema.total_validas === 0">
+                    Sin válidas en este rango
+                  </div>
+                  <div class="text-caption font-weight-bold mt-1" v-else :class="resultadoConciliacion.kpis.resumen_cotejo.coincidencia_validas_pct === 100 ? 'success--text' : 'warning--text text--darken-2'">
+                    <v-icon x-small :color="resultadoConciliacion.kpis.resumen_cotejo.coincidencia_validas_pct === 100 ? 'success' : 'warning'">
+                      {{ resultadoConciliacion.kpis.resumen_cotejo.coincidencia_validas_pct === 100 ? 'mdi-check-circle' : 'mdi-alert' }}
+                    </v-icon>
+                    {{ resultadoConciliacion.kpis.resumen_cotejo.coincidencia_validas_pct }}% Coincidencia en Válidas
+                  </div>
+                </v-card>
+              </v-col>
+
+              <!-- KPI TOTAL FACTURADO -->
+              <v-col cols="12" sm="6" md="3">
+                <v-card class="pa-3 text-center erp-card-elevated white" rounded="lg">
+                  <div class="text-caption text-secondary font-weight-bold text-uppercase">Total Ventas Válidas</div>
+                  <div class="d-flex justify-space-around align-center mt-2">
+                    <div>
+                      <div class="text-caption text-secondary">SIN (Oficial)</div>
+                      <div class="text-h6 font-weight-bold primary--text">Bs {{ formatoMoneda(resultadoConciliacion.kpis.sin.total_facturado) }}</div>
+                      <div class="text-caption text-secondary" style="font-size: 11px !important;">
+                        Excel: Bs {{ formatoMoneda(resultadoConciliacion.kpis.sin.total_excel_bruto) }}
+                        <v-tooltip bottom>
+                          <template v-slot:activator="{ on, attrs }">
+                            <v-icon x-small color="grey" v-bind="attrs" v-on="on">mdi-information-outline</v-icon>
+                          </template>
+                          <span>La suma de la columna H en Excel incluye Bs 1.727,30 de 72 facturas anuladas que no tienen validez fiscal.</span>
+                        </v-tooltip>
+                      </div>
+                    </div>
+                    <v-divider vertical class="mx-2"></v-divider>
+                    <div>
+                      <div class="text-caption text-secondary">Sistema (Neto)</div>
+                      <div class="text-h6 font-weight-bold secondary--text">Bs {{ formatoMoneda(resultadoConciliacion.kpis.sistema.total_facturado) }}</div>
+                    </div>
+                  </div>
+                  <div class="text-caption text-secondary mt-1" v-if="resultadoConciliacion.kpis.sistema.total_registros === 0">
+                    Base de datos sin registros
+                  </div>
+                  <div class="text-caption text-secondary mt-1" v-else-if="resultadoConciliacion.kpis.resumen_cotejo.diferencias_ley1886 > 0">
+                    Diferencia de Bs {{ formatoMoneda(resultadoConciliacion.kpis.sin.total_facturado - resultadoConciliacion.kpis.sistema.total_facturado) }} por Ley 1886
+                  </div>
+                  <div class="text-caption success--text font-weight-bold mt-1" v-else>
+                    Montos facturados coincidentes
+                  </div>
+                </v-card>
+              </v-col>
+
+              <!-- KPI DÉBITO FISCAL -->
+              <v-col cols="12" sm="6" md="3">
+                <v-card class="pa-3 text-center erp-card-elevated white" rounded="lg">
+                  <div class="text-caption text-secondary font-weight-bold text-uppercase">Débito Fiscal IVA (13%)</div>
+                  <div class="d-flex justify-space-around align-center mt-2">
+                    <div>
+                      <div class="text-caption text-secondary">SIN RCV</div>
+                      <div class="text-h6 font-weight-bold info--text">Bs {{ formatoMoneda(resultadoConciliacion.kpis.sin.total_debito_fiscal) }}</div>
+                      <div class="text-caption text-secondary" style="font-size: 11px !important;">
+                        Excel: Bs {{ formatoMoneda(resultadoConciliacion.kpis.sin.total_excel_debito_fiscal) }}
+                        <v-tooltip bottom>
+                          <template v-slot:activator="{ on, attrs }">
+                            <v-icon x-small color="grey" v-bind="attrs" v-on="on">mdi-information-outline</v-icon>
+                          </template>
+                          <span>La suma de la columna T en Excel incluye Bs 213,46 de facturas anuladas; tributariamente en Form. 200 el débito es Bs 11.453,09.</span>
+                        </v-tooltip>
+                      </div>
+                    </div>
+                    <v-divider vertical class="mx-2"></v-divider>
+                    <div>
+                      <div class="text-caption text-secondary">Sistema</div>
+                      <div class="text-h6 font-weight-bold info--text">Bs {{ formatoMoneda(resultadoConciliacion.kpis.sistema.total_debito_fiscal) }}</div>
+                    </div>
+                  </div>
+                  <div class="text-caption font-weight-bold mt-1" :class="resultadoConciliacion.kpis.sin.total_debito_fiscal === resultadoConciliacion.kpis.sistema.total_debito_fiscal && resultadoConciliacion.kpis.sistema.total_debito_fiscal > 0 ? 'success--text' : (resultadoConciliacion.kpis.sistema.total_debito_fiscal === 0 ? 'warning--text text--darken-2' : 'warning--text text--darken-2')">
+                    <v-icon x-small :color="resultadoConciliacion.kpis.sin.total_debito_fiscal === resultadoConciliacion.kpis.sistema.total_debito_fiscal && resultadoConciliacion.kpis.sistema.total_debito_fiscal > 0 ? 'success' : 'warning'">
+                      {{ resultadoConciliacion.kpis.sin.total_debito_fiscal === resultadoConciliacion.kpis.sistema.total_debito_fiscal && resultadoConciliacion.kpis.sistema.total_debito_fiscal > 0 ? 'mdi-check-circle' : 'mdi-alert' }}
+                    </v-icon>
+                    <span v-if="resultadoConciliacion.kpis.sin.total_debito_fiscal === resultadoConciliacion.kpis.sistema.total_debito_fiscal && resultadoConciliacion.kpis.sistema.total_debito_fiscal > 0">
+                      Base Imponible Idéntica
+                    </span>
+                    <span v-else-if="resultadoConciliacion.kpis.sistema.total_debito_fiscal === 0">
+                      Débito Fiscal Sistema: Bs 0.00
+                    </span>
+                    <span v-else>
+                      Diferencia: Bs {{ formatoMoneda(Math.abs(resultadoConciliacion.kpis.sin.total_debito_fiscal - resultadoConciliacion.kpis.sistema.total_debito_fiscal)) }}
+                    </span>
+                  </div>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <!-- EXPLICACIÓN TÉCNICA DINÁMICA DEL DIAGNÓSTICO -->
+            <v-alert
+              dense
+              outlined
+              :color="resultadoConciliacion.kpis.diagnostico ? (resultadoConciliacion.kpis.diagnostico.color || 'indigo') : 'indigo'"
+              class="mb-4 white text-caption"
+              rounded="lg"
+            >
+              <div class="font-weight-bold mb-1" :class="(resultadoConciliacion.kpis.diagnostico ? (resultadoConciliacion.kpis.diagnostico.color || 'indigo') : 'indigo') + '--text'">
+                <v-icon small :color="resultadoConciliacion.kpis.diagnostico ? (resultadoConciliacion.kpis.diagnostico.color || 'indigo') : 'indigo'">
+                  {{ (resultadoConciliacion.kpis.diagnostico && resultadoConciliacion.kpis.diagnostico.color === 'error') ? 'mdi-alert-octagon' : ((resultadoConciliacion.kpis.diagnostico && resultadoConciliacion.kpis.diagnostico.color === 'warning') ? 'mdi-alert-circle' : 'mdi-information') }}
+                </v-icon>
+                {{ resultadoConciliacion.kpis.diagnostico ? resultadoConciliacion.kpis.diagnostico.titulo : 'Diagnóstico Fiscal' }}
+              </div>
+              <p class="mb-1 text-secondary">
+                {{ resultadoConciliacion.kpis.diagnostico ? resultadoConciliacion.kpis.diagnostico.descripcion : '' }}
+              </p>
+              <div class="mb-2 text-caption text-secondary" v-if="resultadoConciliacion.kpis.diagnostico && resultadoConciliacion.kpis.diagnostico.nota_excel">
+                <v-icon x-small color="grey darken-1">mdi-help-circle-outline</v-icon>
+                <em>{{ resultadoConciliacion.kpis.diagnostico.nota_excel }}</em>
+              </div>
+              <div class="font-weight-medium text-caption" :class="(resultadoConciliacion.kpis.diagnostico ? (resultadoConciliacion.kpis.diagnostico.color || 'indigo') : 'indigo') + '--text'">
+                <strong>Acción sugerida:</strong> {{ resultadoConciliacion.kpis.diagnostico ? resultadoConciliacion.kpis.diagnostico.accion_sugerida : '' }}
+              </div>
+            </v-alert>
+
+            <!-- PESTAÑAS DE DETALLE DE FACTURAS -->
+            <v-card outlined class="white" rounded="lg">
+              <v-tabs v-model="tabCotejo" color="indigo darken-3" dense>
+                <!-- Pestaña Válidas Faltantes (si existen) -->
+                <v-tab class="text-capitalize font-weight-bold" v-if="resultadoConciliacion.detalles.validas_faltantes && resultadoConciliacion.detalles.validas_faltantes.length > 0">
+                  <v-badge
+                    :content="resultadoConciliacion.detalles.validas_faltantes.length.toString()"
+                    :value="resultadoConciliacion.detalles.validas_faltantes.length"
+                    color="error"
+                    inline
+                  >
+                    Válidas en SIN ausentes en Sistema
+                  </v-badge>
+                </v-tab>
+                <v-tab class="text-capitalize font-weight-bold">
+                  <v-badge
+                    :content="resultadoConciliacion.detalles.anuladas_faltantes.length.toString()"
+                    :value="resultadoConciliacion.detalles.anuladas_faltantes.length"
+                    color="warning darken-2"
+                    inline
+                  >
+                    Anuladas en SIN ausentes en Sistema
+                  </v-badge>
+                </v-tab>
+                <v-tab class="text-capitalize font-weight-bold">
+                  <v-badge
+                    :content="resultadoConciliacion.detalles.diferencias_ley1886.length.toString()"
+                    :value="resultadoConciliacion.detalles.diferencias_ley1886.length"
+                    color="info"
+                    inline
+                  >
+                    Descuentos Ley 1886 (Neto vs Bruto)
+                  </v-badge>
+                </v-tab>
+                <v-tab class="text-capitalize font-weight-bold">
+                  Coincidentes Exactas ({{ resultadoConciliacion.kpis.resumen_cotejo.coincidentes_exactas }})
+                </v-tab>
+              </v-tabs>
+
+              <v-divider></v-divider>
+
+              <v-tabs-items v-model="tabCotejo">
+                <!-- TAB VÁLIDAS FALTANTES (SI APLICA) -->
+                <v-tab-item v-if="resultadoConciliacion.detalles.validas_faltantes && resultadoConciliacion.detalles.validas_faltantes.length > 0">
+                  <div class="pa-3">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <div class="text-caption font-weight-bold text-secondary">
+                        Facturas válidas emitidas en el SIN que no existen en el sistema (requieren importación):
+                      </div>
+                      <v-btn
+                        color="primary"
+                        small
+                        dark
+                        class="font-weight-bold rounded-pill elevation-1"
+                        :loading="cargandoSincronizacion"
+                        @click="confirmarSincronizacion"
+                      >
+                        <v-icon left small>mdi-cloud-download</v-icon> Importar Facturas del SIN
+                      </v-btn>
+                    </div>
+
+                    <v-data-table
+                      :headers="headersValidasFaltantes"
+                      :items="resultadoConciliacion.detalles.validas_faltantes"
+                      dense
+                      :items-per-page="10"
+                      class="elevation-0"
+                    >
+                      <template v-slot:item.numero_factura="{ item }">
+                        <span class="font-weight-bold primary--text">#{{ item.numero_factura }}</span>
+                      </template>
+                      <template v-slot:item.monto_total="{ item }">
+                        <span class="font-weight-bold">Bs {{ formatoMoneda(item.monto_total) }}</span>
+                      </template>
+                      <template v-slot:item.debito_fiscal="{ item }">
+                        <span class="font-weight-bold info--text">Bs {{ formatoMoneda(item.debito_fiscal) }}</span>
+                      </template>
+                      <template v-slot:item.cuf_sin="{ item }">
+                        <span class="text-caption font-mono text-truncate d-inline-block" style="max-width: 140px;" :title="item.cuf_sin">
+                          {{ item.cuf_sin }}
+                        </span>
+                      </template>
+                    </v-data-table>
+                  </div>
+                </v-tab-item>
+
+                <!-- TAB 1: ANULADAS FALTANTES -->
+                <v-tab-item>
+                  <div class="pa-3">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <div class="text-caption font-weight-bold text-secondary">
+                        Listado de facturas anuladas oficiales emitidas en el SIN que no figuraban en el archivo FoxPro de origen:
+                      </div>
+                      <v-btn
+                        v-if="resultadoConciliacion.detalles.anuladas_faltantes.length > 0"
+                        color="success darken-1"
+                        small
+                        dark
+                        class="font-weight-bold rounded-pill elevation-1"
+                        :loading="cargandoSincronizacion"
+                        @click="confirmarSincronizacion"
+                      >
+                        <v-icon left small>mdi-cloud-sync</v-icon> Sincronizar y Regularizar Estados con el SIN
+                      </v-btn>
+                    </div>
+
+                    <v-data-table
+                      :headers="headersAnuladas"
+                      :items="resultadoConciliacion.detalles.anuladas_faltantes"
+                      dense
+                      :items-per-page="10"
+                      class="elevation-0"
+                      no-data-text="No hay facturas anuladas pendientes de sincronizar. ¡Todo está en orden!"
+                    >
+                      <template v-slot:item.numero_factura="{ item }">
+                        <span class="font-weight-bold primary--text">#{{ item.numero_factura }}</span>
+                      </template>
+                      <template v-slot:item.monto_total="{ item }">
+                        <span class="font-weight-bold">Bs {{ formatoMoneda(item.monto_total) }}</span>
+                      </template>
+                      <template v-slot:item.cuf_sin="{ item }">
+                        <span class="text-caption font-mono text-truncate d-inline-block" style="max-width: 140px;" :title="item.cuf_sin">
+                          {{ item.cuf_sin }}
+                        </span>
+                      </template>
+                      <template v-slot:item.explicacion="{ item }">
+                        <div class="d-flex align-center">
+                          <v-chip x-small color="info" text-color="white" class="mr-1 font-weight-bold" v-if="item.tiene_reemision_valida">
+                            Reemitida
+                          </v-chip>
+                          <span class="text-caption">{{ item.explicacion }}</span>
+                        </div>
+                      </template>
+                    </v-data-table>
+                  </div>
+                </v-tab-item>
+
+                <!-- TAB 2: LEY 1886 -->
+                <v-tab-item>
+                  <div class="pa-3">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <div class="text-caption font-weight-bold text-secondary">
+                        Facturas con beneficio de adulto mayor (50% de descuento) donde FoxPro grabó el importe neto:
+                      </div>
+                      <v-btn
+                        v-if="resultadoConciliacion.detalles.diferencias_ley1886.length > 0"
+                        color="success darken-1"
+                        small
+                        dark
+                        class="font-weight-bold rounded-pill elevation-1"
+                        :loading="cargandoSincronizacion"
+                        @click="confirmarSincronizacion"
+                      >
+                        <v-icon left small>mdi-check-all</v-icon> Regularizar Desglose Bruto/Neto
+                      </v-btn>
+                    </div>
+
+                    <v-data-table
+                      :headers="headersLey1886"
+                      :items="resultadoConciliacion.detalles.diferencias_ley1886"
+                      dense
+                      :items-per-page="10"
+                      class="elevation-0"
+                    >
+                      <template v-slot:item.numero_factura="{ item }">
+                        <span class="font-weight-bold primary--text">#{{ item.numero_factura }}</span>
+                      </template>
+                      <template v-slot:item.monto_sin_bruto="{ item }">
+                        <span class="font-weight-bold success--text">Bs {{ formatoMoneda(item.monto_sin_bruto) }}</span>
+                      </template>
+                      <template v-slot:item.descuento_sin="{ item }">
+                        <span class="font-weight-bold warning--text text--darken-2">Bs {{ formatoMoneda(item.descuento_sin) }}</span>
+                      </template>
+                      <template v-slot:item.base_debito_sin="{ item }">
+                        <span class="font-weight-bold info--text">Bs {{ formatoMoneda(item.base_debito_sin) }}</span>
+                      </template>
+                      <template v-slot:item.monto_sistema="{ item }">
+                        <span class="font-weight-bold secondary--text">Bs {{ formatoMoneda(item.monto_sistema) }}</span>
+                      </template>
+                    </v-data-table>
+                  </div>
+                </v-tab-item>
+
+                <!-- TAB 3: COINCIDENTES -->
+                <v-tab-item>
+                  <div class="pa-3">
+                    <div class="text-caption font-weight-bold text-secondary mb-2">
+                      Muestra de facturas con validación idéntica entre el SIN y SIM-EMAPAP:
+                    </div>
+
+                    <v-data-table
+                      :headers="headersCoincidentes"
+                      :items="resultadoConciliacion.detalles.coincidentes_muestra"
+                      dense
+                      :items-per-page="10"
+                      class="elevation-0"
+                    >
+                      <template v-slot:item.numero_factura="{ item }">
+                        <span class="font-weight-bold primary--text">#{{ item.numero_factura }}</span>
+                      </template>
+                      <template v-slot:item.monto_total="{ item }">
+                        <span class="font-weight-bold">Bs {{ formatoMoneda(item.monto_total) }}</span>
+                      </template>
+                      <template v-slot:item.debito_fiscal="{ item }">
+                        <span class="font-weight-bold info--text">Bs {{ formatoMoneda(item.debito_fiscal) }}</span>
+                      </template>
+                      <template v-slot:item.estado="{ item }">
+                        <v-chip x-small color="success" text-color="white" class="font-weight-bold">
+                          <v-icon left x-small>mdi-check</v-icon> {{ item.estado_sin }}
+                        </v-chip>
+                      </template>
+                    </v-data-table>
+                  </div>
+                </v-tab-item>
+              </v-tabs-items>
+            </v-card>
+          </div>
+
+          <!-- ESTADO INICIAL: ESPERANDO ARCHIVO -->
+          <v-card outlined class="pa-10 text-center white my-2" rounded="lg" v-else>
+            <v-avatar color="indigo lighten-5" size="80" class="mb-3">
+              <v-icon size="44" color="indigo darken-2">mdi-file-upload-outline</v-icon>
+            </v-avatar>
+            <h3 class="text-subtitle-1 font-weight-bold grey--text text--darken-3 mb-1">
+              Esperando archivo Excel del SIN
+            </h3>
+            <p class="text-caption text-secondary mb-3 mx-auto" style="max-width: 520px;">
+              Haga clic en <strong>"Cargar archivo Excel del SIN"</strong> para seleccionar su archivo oficial en formato <code>.xlsx</code> o <code>.xls</code> descargado del portal SIAT, y luego presione <strong>"Ejecutar Cotejo Fiscal"</strong>.
+            </p>
+            <div class="d-inline-flex align-center text-caption text-secondary grey lighten-4 px-3 py-1 rounded-pill">
+              <v-icon x-small color="success" class="mr-1">mdi-shield-check</v-icon>
+              Auditoría segura: La comparación no altera la base de datos hasta que decida sincronizar.
+            </div>
+          </v-card>
+        </v-card-text>
+
+        <!-- ACCIONES DEL MODAL -->
+        <v-divider></v-divider>
+        <v-card-actions class="pa-3 d-flex justify-space-between align-center">
+          <div class="text-caption text-secondary">
+            EMAPAP Patacamaya — Módulo de Conciliación Tributaria SIAT
+          </div>
+
+          <div class="d-flex gap-2">
+            <v-btn
+              v-if="resultadoConciliacion && ((resultadoConciliacion.detalles.validas_faltantes && resultadoConciliacion.detalles.validas_faltantes.length > 0) || resultadoConciliacion.detalles.anuladas_faltantes.length > 0 || resultadoConciliacion.detalles.diferencias_ley1886.length > 0)"
+              color="success darken-1"
+              dark
+              class="font-weight-bold rounded-pill elevation-2"
+              :loading="cargandoSincronizacion"
+              @click="confirmarSincronizacion"
+            >
+              <v-icon left small>mdi-cloud-sync</v-icon>
+              {{ (resultadoConciliacion.detalles.validas_faltantes && resultadoConciliacion.detalles.validas_faltantes.length > 0) ? 'Importar Facturas Oficiales del SIN (' + resultadoConciliacion.kpis.sin.total_registros + ')' : 'Sincronizar y Regularizar con el SIN' }}
+            </v-btn>
+
+            <v-btn
+              outlined
+              color="secondary"
+              class="font-weight-bold rounded-pill"
+              @click="cerrarDialogoConciliador"
+            >
+              Cerrar
+            </v-btn>
+          </div>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- CONFIRMACIÓN DE SINCRONIZACIÓN -->
+    <v-dialog v-model="dialogoConfirmarSync" max-width="580px" persistent>
+      <v-card rounded="lg" v-if="resultadoConciliacion">
+        <v-card-title class="success darken-1 text-white py-3 px-4">
+          <v-icon left color="white">mdi-shield-check</v-icon> Confirmar Regularización Fiscal SIN
+        </v-card-title>
+        <v-card-text class="pa-4 text-body-2">
+          <p class="mb-2">
+            Esta acción sincronizará los registros de facturación de SIM-EMAPAP con el reporte oficial del Servicio de Impuestos Nacionales (SIN):
+          </p>
+          <ul class="mb-3">
+            <li class="mb-1" v-if="resultadoConciliacion.detalles.validas_faltantes && resultadoConciliacion.detalles.validas_faltantes.length > 0">
+              <strong>Importar {{ resultadoConciliacion.detalles.validas_faltantes.length }} facturas válidas del SIN:</strong>
+              Se insertarán como facturas válidas oficiales con sus respectivos CUF y montos.
+            </li>
+            <li class="mb-1" v-if="resultadoConciliacion.detalles.anuladas_faltantes && resultadoConciliacion.detalles.anuladas_faltantes.length > 0">
+              <strong>Importar {{ resultadoConciliacion.detalles.anuladas_faltantes.length }} facturas anuladas oficiales:</strong>
+              Se registrarán con su CUF original del SIAT y base imponible Bs 0.00 para cuadrar el Libro de Ventas.
+            </li>
+            <li class="mb-1" v-if="resultadoConciliacion.detalles.diferencias_ley1886 && resultadoConciliacion.detalles.diferencias_ley1886.length > 0">
+              <strong>Ajustar {{ resultadoConciliacion.detalles.diferencias_ley1886.length }} facturas Ley 1886:</strong>
+              Se actualizará el desglose de importe bruto y descuento según la normativa RND del SIN.
+            </li>
+          </ul>
+          <p class="text-caption text-secondary mb-0">
+            Esta operación es 100% segura, reversible y no modifica los cobros netos realizados en ventanilla.
+          </p>
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-3 justify-end gap-2">
+          <v-btn text color="secondary" @click="dialogoConfirmarSync = false">Cancelar</v-btn>
+          <v-btn
+            color="success darken-1"
+            dark
+            class="font-weight-bold rounded-pill px-4"
+            :loading="cargandoSincronizacion"
+            @click="ejecutarSincronizacion"
+          >
+            Confirmar e Importar
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- NOTIFICACIONES TOAST (SNACKBAR) -->
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="4000" top right>
+      {{ snackbar.text }}
+      <template v-slot:action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="snackbar.show = false">Cerrar</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
@@ -403,10 +1055,70 @@ export default {
         { text: 'Modalidad', value: 'tipo_emision', align: 'center', width: '130px' },
         { text: 'CUF (Autorización)', value: 'cuf', width: '170px' },
         { text: 'Total Venta', value: 'monto_total', align: 'end', width: '110px' },
+        { text: 'Base Sujeta IVA', value: 'monto_total_sujeto_iva', align: 'end', width: '125px' },
         { text: 'Débito Fiscal (13%)', value: 'debito_fiscal', align: 'end', width: '130px' },
         { text: 'Estado SIN', value: 'estado_factura', align: 'center', width: '135px' },
         { text: 'SIAT', value: 'acciones', align: 'center', sortable: false, width: '70px' },
       ],
+
+      // MODAL DE CONCILIACIÓN
+      dialogoConciliador: false,
+      cargandoCotejo: false,
+      cargandoSincronizacion: false,
+      dialogoConfirmarSync: false,
+      archivoSinUpload: null,
+      archivoServidorSeleccionado: null,
+      archivoDetectado: null,
+      resultadoConciliacion: null,
+      tabCotejo: 0,
+      filtroCotejoFechaDesde: '',
+      filtroCotejoFechaHasta: '',
+
+      headersValidasFaltantes: [
+        { text: 'N° Factura', value: 'numero_factura', align: 'center', width: '90px' },
+        { text: 'Fecha y Hora', value: 'fecha', width: '130px' },
+        { text: 'NIT / C.I.', value: 'nit', width: '100px' },
+        { text: 'Cliente', value: 'cliente' },
+        { text: 'CUF del SIN', value: 'cuf_sin', width: '160px' },
+        { text: 'Total Venta', value: 'monto_total', align: 'end', width: '100px' },
+        { text: 'Débito Fiscal', value: 'debito_fiscal', align: 'end', width: '100px' },
+      ],
+
+      headersAnuladas: [
+        { text: 'N° Factura', value: 'numero_factura', align: 'center', width: '90px' },
+        { text: 'Fecha y Hora', value: 'fecha', width: '110px' },
+        { text: 'NIT / C.I.', value: 'nit', width: '90px' },
+        { text: 'Cliente', value: 'cliente' },
+        { text: 'CUF del SIN', value: 'cuf_sin', width: '160px' },
+        { text: 'Total Venta', value: 'monto_total', align: 'end', width: '100px' },
+        { text: 'Diagnóstico Reemisión', value: 'explicacion' },
+      ],
+
+      headersLey1886: [
+        { text: 'N° Factura', value: 'numero_factura', align: 'center', width: '90px' },
+        { text: 'Fecha', value: 'fecha', width: '100px' },
+        { text: 'Cliente (Tercera Edad)', value: 'cliente' },
+        { text: 'Total SIN (Bruto)', value: 'monto_sin_bruto', align: 'end', width: '110px' },
+        { text: 'Descuento Ley 1886', value: 'descuento_sin', align: 'end', width: '120px' },
+        { text: 'Base Débito Fiscal', value: 'base_debito_sin', align: 'end', width: '120px' },
+        { text: 'Monto en Sistema (Neto)', value: 'monto_sistema', align: 'end', width: '130px' },
+      ],
+
+      headersCoincidentes: [
+        { text: 'N° Factura', value: 'numero_factura', align: 'center', width: '90px' },
+        { text: 'Fecha', value: 'fecha', width: '100px' },
+        { text: 'NIT / C.I.', value: 'nit', width: '90px' },
+        { text: 'Cliente', value: 'cliente' },
+        { text: 'Total Venta', value: 'monto_total', align: 'end', width: '110px' },
+        { text: 'Débito Fiscal', value: 'debito_fiscal', align: 'end', width: '110px' },
+        { text: 'Estado Fiscal', value: 'estado', align: 'center', width: '100px' },
+      ],
+
+      snackbar: {
+        show: false,
+        text: '',
+        color: 'success',
+      },
     };
   },
   mounted() {
@@ -438,6 +1150,12 @@ export default {
         const finMesAnt = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
         this.filtros.fecha_desde = format(iniMesAnt);
         this.filtros.fecha_hasta = format(finMesAnt);
+      } else if (val === 'agosto_2026') {
+        this.filtros.fecha_desde = '2026-08-01';
+        this.filtros.fecha_hasta = '2026-08-31';
+      } else if (val === 'septiembre_2026') {
+        this.filtros.fecha_desde = '2026-09-01';
+        this.filtros.fecha_hasta = '2026-09-30';
       }
       if (val !== 'personalizado') {
         this.consultarReporte();
@@ -452,7 +1170,7 @@ export default {
     async consultarReporte() {
       this.cargando = true;
       try {
-        const params = { ...this.filtros };
+        const params = { ...this.filtros, limite: 10000 };
         const res = await axios.get('/api/facturacion/reportes/libro-ventas', { params });
         if (res.data && res.data.success) {
           this.facturas = res.data.data;
@@ -506,6 +1224,116 @@ export default {
       window.print();
     },
 
+    // MÉTODOS DEL COTEJADOR TRIBUTARIO
+    abrirDialogoConciliador() {
+      this.dialogoConciliador = true;
+      this.resultadoConciliacion = null;
+      this.archivoSinUpload = null;
+      this.archivoServidorSeleccionado = null;
+    },
+
+    cerrarDialogoConciliador() {
+      this.dialogoConciliador = false;
+      this.resultadoConciliacion = null;
+      this.archivoSinUpload = null;
+      this.archivoServidorSeleccionado = null;
+      this.filtroCotejoFechaDesde = '';
+      this.filtroCotejoFechaHasta = '';
+    },
+
+    async ejecutarCotejo() {
+      if (!this.archivoSinUpload) {
+        this.mostrarNotificacion('Por favor seleccione un archivo Excel del SIN primero.', 'warning');
+        return;
+      }
+
+      this.cargandoCotejo = true;
+      try {
+        const formData = new FormData();
+        formData.append('archivo', this.archivoSinUpload);
+        if (this.filtroCotejoFechaDesde) {
+          formData.append('fecha_desde', this.filtroCotejoFechaDesde);
+        }
+        if (this.filtroCotejoFechaHasta) {
+          formData.append('fecha_hasta', this.filtroCotejoFechaHasta);
+        }
+
+        const res = await axios.post('/api/facturacion/reportes/libro-ventas/conciliar-sin', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        if (res && res.data && res.data.success) {
+          this.resultadoConciliacion = res.data;
+          this.mostrarNotificacion('Cotejo tributario realizado con éxito', 'success');
+        } else {
+          this.mostrarNotificacion(res?.data?.message || 'Error al cotejar archivo', 'error');
+        }
+      } catch (err) {
+        console.error('Error al cotejar archivo SIN:', err);
+        this.mostrarNotificacion(err.response?.data?.message || 'Ocurrió un error al procesar el archivo Excel', 'error');
+      } finally {
+        this.cargandoCotejo = false;
+      }
+    },
+
+    confirmarSincronizacion() {
+      this.dialogoConfirmarSync = true;
+    },
+
+    async ejecutarSincronizacion() {
+      this.cargandoSincronizacion = true;
+      try {
+        let res;
+        if (this.archivoSinUpload) {
+          const formData = new FormData();
+          formData.append('archivo', this.archivoSinUpload);
+          formData.append('importar_validas', '1');
+          formData.append('importar_anuladas', '1');
+          formData.append('regularizar_ley1886', '1');
+          if (this.filtroCotejoFechaDesde) {
+            formData.append('fecha_desde', this.filtroCotejoFechaDesde);
+          }
+          if (this.filtroCotejoFechaHasta) {
+            formData.append('fecha_hasta', this.filtroCotejoFechaHasta);
+          }
+          res = await axios.post('/api/facturacion/reportes/libro-ventas/sincronizar-sin', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        } else {
+          res = await axios.post('/api/facturacion/reportes/libro-ventas/sincronizar-sin', {
+            ruta_archivo: this.archivoServidorSeleccionado,
+            importar_validas: true,
+            importar_anuladas: true,
+            regularizar_ley1886: true,
+            fecha_desde: this.filtroCotejoFechaDesde || null,
+            fecha_hasta: this.filtroCotejoFechaHasta || null,
+          });
+        }
+
+        if (res && res.data && res.data.success) {
+          this.dialogoConfirmarSync = false;
+          this.mostrarNotificacion(res.data.mensaje, 'success');
+          // Actualizar cotejo para reflejar la sincronización
+          await this.ejecutarCotejo();
+          // Recargar la tabla principal
+          await this.consultarReporte();
+        } else {
+          this.mostrarNotificacion(res?.data?.message || 'Error en la sincronización', 'error');
+        }
+      } catch (err) {
+        console.error('Error al sincronizar con SIN:', err);
+        this.mostrarNotificacion(err.response?.data?.message || 'Error al regularizar datos con el SIN', 'error');
+      } finally {
+        this.cargandoSincronizacion = false;
+      }
+    },
+
+    mostrarNotificacion(texto, color = 'success') {
+      this.snackbar.text = texto;
+      this.snackbar.color = color;
+      this.snackbar.show = true;
+    },
+
     formatoMoneda(val) {
       if (!val) return '0.00';
       return parseFloat(val).toLocaleString('es-BO', {
@@ -522,6 +1350,12 @@ export default {
 
     formatearFecha(val) {
       if (!val) return '';
+      if (typeof val === 'string' && val.includes('-')) {
+        const partes = val.split('T')[0].split('-');
+        if (partes.length === 3) {
+          return `${parseInt(partes[2], 10)}/${parseInt(partes[1], 10)}/${partes[0]}`;
+        }
+      }
       const d = new Date(val);
       return d.toLocaleDateString('es-BO');
     },
@@ -606,6 +1440,7 @@ export default {
     copiarTexto(txt) {
       if (!txt) return;
       navigator.clipboard.writeText(txt);
+      this.mostrarNotificacion('CUF copiado al portapapeles', 'info');
     },
   },
 };
@@ -638,5 +1473,9 @@ export default {
 .theme--dark .erp-card-elevated {
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.35);
+}
+.dialog-conciliador {
+  border-radius: 12px;
+  overflow: hidden;
 }
 </style>

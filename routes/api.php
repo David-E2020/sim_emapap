@@ -36,6 +36,7 @@ use App\Http\Controllers\Rrhh\ReporteRrhhController;
 use App\Http\Controllers\Facturacion\ClienteFacturaController;
 use App\Http\Controllers\Facturacion\EventoSignificativoController;
 use App\Http\Controllers\Facturacion\FacturaController;
+use App\Http\Controllers\Facturacion\ConciliacionTributariaController;
 use App\Http\Controllers\Facturacion\FacturacionCucuGatewayController;
 use App\Http\Controllers\Facturacion\ReporteFacturacionController;
 use App\Http\Controllers\Facturacion\SiatCodigoController;
@@ -470,6 +471,11 @@ Route::group(['middleware' => ['jwt.auth']], function () {
             Route::get('reportes/libro-ventas', [ReporteFacturacionController::class, 'libroVentas']);
             Route::get('reportes/libro-ventas/csv', [ReporteFacturacionController::class, 'exportarCsvLibroVentas']);
             Route::get('reportes/ventas-mensuales', [ReporteFacturacionController::class, 'ventasMensuales']);
+
+            // Cotejador y Conciliador Tributario SIN vs SIM-EMAPAP
+            Route::get('reportes/libro-ventas/archivos-sin', [ConciliacionTributariaController::class, 'archivosDisponibles']);
+            Route::post('reportes/libro-ventas/conciliar-sin', [ConciliacionTributariaController::class, 'conciliar']);
+            Route::post('reportes/libro-ventas/sincronizar-sin', [ConciliacionTributariaController::class, 'sincronizar']);
         });
     });
 
@@ -490,6 +496,13 @@ Route::group(['middleware' => ['jwt.auth']], function () {
 
         // Ciclos y Lecturas
         Route::group(['middleware' => ['check.permission:comercial.periodos.administrar|comercial.lecturas.registrar']], function () {
+            // Exportación masiva de historial de lecturas y abonados en segundo plano (debe ir antes de {id})
+            Route::get('periodos/exportar-historico/periodos-disponibles', [\App\Http\Controllers\Comercial\ExportarHistoricoLecturasController::class, 'periodosDisponibles']);
+            Route::post('periodos/exportar-historico/iniciar', [\App\Http\Controllers\Comercial\ExportarHistoricoLecturasController::class, 'iniciar']);
+            Route::get('periodos/exportar-historico/{jobId}/estado', [\App\Http\Controllers\Comercial\ExportarHistoricoLecturasController::class, 'estado']);
+            Route::get('periodos/exportar-historico/{jobId}/descargar', [\App\Http\Controllers\Comercial\ExportarHistoricoLecturasController::class, 'descargar']);
+            Route::post('periodos/exportar-historico/{jobId}/cancelar', [\App\Http\Controllers\Comercial\ExportarHistoricoLecturasController::class, 'cancelar']);
+
             Route::get('periodos', [LecturaController::class, 'indexPeriodos']);
             Route::post('periodos/abrir', [LecturaController::class, 'abrirPeriodo']);
             Route::put('periodos/{id}', [LecturaController::class, 'actualizarPeriodo']);
