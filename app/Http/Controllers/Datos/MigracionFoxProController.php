@@ -629,6 +629,64 @@ class MigracionFoxProController extends Controller
             }
         }
 
+        // Detección inteligente de fecha de corte del respaldo vs fecha máxima en PostgreSQL
+        $fechaCorteRespaldo = $this->detectarFechaCorteRespaldo($ruta, $files);
+        $fechaMaxDb = null;
+        try {
+            $fechaMaxFacturas = DB::table('facturacion.facturas')->max('fecha_emision');
+            $fechaMaxDb = $fechaMaxFacturas ? Carbon::parse($fechaMaxFacturas)->format('Y-m-d') : null;
+        } catch (\Throwable $e) {}
+
+        $auditoriaFechas = [
+            'fecha_respaldo' => $fechaCorteRespaldo,
+            'fecha_db' => $fechaMaxDb,
+            'estado' => 'INDETERMINADO',
+            'mensaje' => 'No se pudo determinar la fecha exacta de corte del respaldo.',
+            'color' => 'info',
+        ];
+
+        if ($fechaCorteRespaldo) {
+            $fRespaldoFmt = Carbon::parse($fechaCorteRespaldo)->format('d/m/Y');
+            if ($fechaMaxDb) {
+                $fDbFmt = Carbon::parse($fechaMaxDb)->format('d/m/Y');
+                if ($fechaCorteRespaldo > $fechaMaxDb) {
+                    $dias = Carbon::parse($fechaMaxDb)->diffInDays(Carbon::parse($fechaCorteRespaldo));
+                    $auditoriaFechas = [
+                        'fecha_respaldo' => $fechaCorteRespaldo,
+                        'fecha_db' => $fechaMaxDb,
+                        'estado' => 'MAS_RECIENTE',
+                        'mensaje' => "El respaldo seleccionado tiene fecha de corte al {$fRespaldoFmt} (+{$dias} días respecto a PostgreSQL que está al {$fDbFmt}). Contiene movimientos más recientes listos para sincronizar.",
+                        'color' => 'success',
+                    ];
+                } elseif ($fechaCorteRespaldo < $fechaMaxDb) {
+                    $dias = Carbon::parse($fechaCorteRespaldo)->diffInDays(Carbon::parse($fechaMaxDb));
+                    $auditoriaFechas = [
+                        'fecha_respaldo' => $fechaCorteRespaldo,
+                        'fecha_db' => $fechaMaxDb,
+                        'estado' => 'ANTERIOR',
+                        'mensaje' => "Atención: El respaldo seleccionado es anterior ({$fRespaldoFmt}) a los datos ya existentes en PostgreSQL ({$fDbFmt}, -{$dias} días). Este archivo no contiene movimientos nuevos.",
+                        'color' => 'warning',
+                    ];
+                } else {
+                    $auditoriaFechas = [
+                        'fecha_respaldo' => $fechaCorteRespaldo,
+                        'fecha_db' => $fechaMaxDb,
+                        'estado' => 'IGUAL',
+                        'mensaje' => "La fecha de corte del respaldo ({$fRespaldoFmt}) coincide exactamente con la fecha de la base de datos.",
+                        'color' => 'info',
+                    ];
+                }
+            } else {
+                $auditoriaFechas = [
+                    'fecha_respaldo' => $fechaCorteRespaldo,
+                    'fecha_db' => null,
+                    'estado' => 'BASE_VACIA',
+                    'mensaje' => "La base de datos PostgreSQL está vacía. El respaldo seleccionado tiene fecha de corte al {$fRespaldoFmt}.",
+                    'color' => 'info',
+                ];
+            }
+        }
+
         return response()->json([
             'status' => 'success',
             'ruta_escaneada' => $ruta,
@@ -637,6 +695,7 @@ class MigracionFoxProController extends Controller
             'total_registros_pg' => $totalRegistrosPg,
             'tablas' => $items,
             'resumen_modulos' => $modulosResumen,
+            'auditoria_fechas' => $auditoriaFechas,
         ]);
     }
 
@@ -1571,5 +1630,86 @@ class MigracionFoxProController extends Controller
             'total_con_factura' => $totalConFactura,
             'tiempo_segundos' => $segundos,
         ]);
+    }
+
+    /**
+     * Detecta la fecha máxima de movimiento en el respaldo FoxPro analizado.
+     */
+    protected function detectarFechaCorteRespaldo(string $ruta, array $files): ?string
+    {
+        $candidatos = ['ventas.dbf', 'recibos.dbf', 'diariotr.dbf'];
+        foreach ($candidatos as $cand) {
+            $archivoReal = null;
+            foreach ($files as $f) {
+                if (strcasecmp($f, $cand) === 0) {
+                    $archivoReal = "{$ruta}/{$f}";
+                    break;
+                }
+            }
+            if ($archivoReal && file_exists($archivoReal)) {
+                $fecha = $this->extraerFechaMaximaDbf($archivoReal);
+                if ($fecha) {
+                    return $fecha;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Lee la fecha más reciente de un archivo DBF en formato YYYYMMDD de forma ultrarrápida.
+     */
+    protected function extraerFechaMaximaDbf(string $path): ?string
+    {
+        try {
+            $fp = @fopen($path, 'rb');
+            if (!$fp) {
+                return null;
+            }
+            $header = fread($fp, 32);
+            if (strlen($header) < 32) {
+                fclose($fp);
+                return null;
+            }
+            $numRecords = unpack('V', substr($header, 4, 4))[1];
+            $headerLen = unpack('v', substr($header, 8, 2))[1];
+            $recordLen = unpack('v', substr($header, 10, 2))[1];
+
+            $fieldsRaw = fread($fp, $headerLen - 32);
+            $fechaOffset = null;
+            $fechaLen = 8;
+            $offset = 1;
+            for ($i = 0; $i < strlen($fieldsRaw) - 32; $i += 32) {
+                $fieldName = trim(substr($fieldsRaw, $i, 11));
+                $len = ord(substr($fieldsRaw, $i + 16, 1));
+                if (strtoupper($fieldName) === 'FECHA') {
+                    $fechaOffset = $offset;
+                    $fechaLen = $len;
+                    break;
+                }
+                $offset += $len;
+            }
+
+            if ($fechaOffset === null) {
+                fclose($fp);
+                return null;
+            }
+
+            $maxFecha = null;
+            $startRec = max(0, $numRecords - 100);
+            for ($r = $numRecords - 1; $r >= $startRec; $r--) {
+                fseek($fp, $headerLen + ($r * $recordLen) + $fechaOffset);
+                $rawFecha = trim(fread($fp, $fechaLen));
+                if (strlen($rawFecha) === 8 && is_numeric($rawFecha)) {
+                    if ($maxFecha === null || $rawFecha > $maxFecha) {
+                        $maxFecha = $rawFecha;
+                    }
+                }
+            }
+            fclose($fp);
+            return $maxFecha ? Carbon::createFromFormat('Ymd', $maxFecha)->format('Y-m-d') : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

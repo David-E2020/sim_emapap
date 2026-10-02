@@ -494,6 +494,37 @@
           <!-- ETAPA 2: AUDITORÍA VOLUMÉTRICA Y COMPARATIVA POR ESQUEMAS      -->
           <!-- ============================================================== -->
           <div v-else-if="vistaModal === 'comparativa'">
+            <!-- ALERTA DE CRONOLOGÍA Y FECHA DE CORTE DEL RESPALDO -->
+            <v-alert
+              v-if="auditoriaFechas && auditoriaFechas.mensaje"
+              :type="auditoriaFechas.color || 'info'"
+              outlined
+              dense
+              rounded="lg"
+              class="mb-3 text-caption font-weight-medium"
+            >
+              <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                <div class="d-flex align-center">
+                  <v-icon small left :color="auditoriaFechas.color || 'info'">
+                    {{ auditoriaFechas.estado === 'MAS_RECIENTE' ? 'mdi-check-decagram' : (auditoriaFechas.estado === 'ANTERIOR' ? 'mdi-alert' : 'mdi-information') }}
+                  </v-icon>
+                  <div>
+                    <span class="font-weight-bold">Auditoría de Fechas del Respaldo:</span> {{ auditoriaFechas.mensaje }}
+                  </div>
+                </div>
+                <div class="d-flex gap-2" v-if="auditoriaFechas.fecha_respaldo">
+                  <v-chip x-small color="primary" text-color="white" class="font-weight-bold">
+                    <v-icon left x-small>mdi-calendar-clock</v-icon>
+                    Corte Respaldo: {{ formatearFechaCorta(auditoriaFechas.fecha_respaldo) }}
+                  </v-chip>
+                  <v-chip x-small color="teal darken-2" text-color="white" class="font-weight-bold" v-if="auditoriaFechas.fecha_db">
+                    <v-icon left x-small>mdi-database-check</v-icon>
+                    Corte BD Actual: {{ formatearFechaCorta(auditoriaFechas.fecha_db) }}
+                  </v-chip>
+                </div>
+              </div>
+            </v-alert>
+
             <!-- BANNER DE RESUMEN VOLUMÉTRICO GENERAL -->
             <v-row dense class="mb-3">
               <v-col cols="12" sm="6" md="3">
@@ -1088,6 +1119,7 @@ export default {
 
       // Tablas y Auditoría
       tablasComparativa: [],
+      auditoriaFechas: null,
       filtroEsquema: 'todos',
       modulosSeleccionados: [],
       totalDbfsEncontrados: 0,
@@ -1140,8 +1172,11 @@ export default {
     },
 
     totalFaltantePorMigrar() {
-      const faltante = this.totalRegistrosDbf - this.totalRegistrosPg;
-      return faltante > 0 ? faltante : 0;
+      if (!this.tablasComparativa || this.tablasComparativa.length === 0) return 0;
+      return this.tablasComparativa.reduce((acc, t) => {
+        const dif = (t.dbf_registros || 0) - (t.pg_registros || 0);
+        return acc + (dif > 0 ? dif : 0);
+      }, 0);
     },
 
     logDetallesFormateado() {
@@ -1322,6 +1357,7 @@ export default {
         const res = await axios.post('api/datos/migracion/escanear', { ruta });
         const d = res.data;
         this.tablasComparativa = d.tablas || [];
+        this.auditoriaFechas = d.auditoria_fechas || null;
         this.totalDbfsEncontrados = d.total_dbfs_encontrados || 0;
         this.totalRegistrosDbf = d.total_registros_dbf || 0;
         this.totalRegistrosPg = d.total_registros_pg || 0;
@@ -1481,6 +1517,15 @@ export default {
     formatearFecha(f) {
       if (!f) return '-';
       return f.substring(0, 10);
+    },
+
+    formatearFechaCorta(f) {
+      if (!f) return '-';
+      const partes = f.substring(0, 10).split('-');
+      if (partes.length === 3) {
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+      return f;
     },
 
     formatearFechaRelativa(f) {
