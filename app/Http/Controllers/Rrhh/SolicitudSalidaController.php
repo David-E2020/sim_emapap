@@ -38,15 +38,43 @@ class SolicitudSalidaController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $solicitudes = SolicitudSalida::with(['permiso'])
-            ->orderBy('id', 'desc')
-            ->paginate((int) $request->query('per_page', 15));
+        $solicitudes = DB::table('rrhh.solicitudes_salidas as ss')
+            ->join('rrhh.permisos as perm', 'perm.id', '=', 'ss.id_permiso')
+            ->leftJoin('rrhh.usuarios_solicitudes_salidas as uss', 'uss.id_solicitud_salida', '=', 'ss.id')
+            ->leftJoin('rrhh.personas as p', 'p.id', '=', 'uss.id_persona')
+            ->select(
+                'ss.id',
+                'ss.cite',
+                'ss.motivo',
+                'ss.lugar',
+                'ss.fecha_inicio',
+                'ss.fecha_fin',
+                'ss.hora_inicio',
+                'ss.hora_fin',
+                'ss.horas_solicitadas',
+                'ss.dia_completo',
+                'ss.tipo_accion',
+                'ss.metadata',
+                'ss.turno_periodo',
+                'ss.hora_marcado_omision',
+                'ss._estado',
+                'uss.estado_aprobacion',
+                'p.id as persona_id',
+                'p.nombres',
+                'p.primer_apellido',
+                'p.segundo_apellido',
+                'p.nro_documento',
+                'perm.id as permiso_id',
+                'perm.nombre as permiso_nombre',
+                'perm.sigla as permiso_sigla'
+            )
+            ->orderBy('ss.id', 'desc')
+            ->get();
 
         return response()->json([
             'success' => true,
-            'data' => $solicitudes->items(),
-            'total' => $solicitudes->total(),
-            'current_page' => $solicitudes->currentPage(),
+            'data' => $solicitudes,
+            'total' => $solicitudes->count(),
         ], Response::HTTP_OK);
     }
 

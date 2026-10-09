@@ -23,7 +23,22 @@ class HorarioController extends Controller
 
     public function index(): JsonResponse
     {
-        $horarios = Horario::with('periodos')->where('_estado', 'ACTIVO')->orderBy('id')->get();
+        $horarios = Horario::with('periodos')
+            ->where('_estado', 'ACTIVO')
+            ->orderBy('id')
+            ->get()
+            ->map(function ($h) {
+                $asignados = DB::table('rrhh.asignaciones_horarios as ah')
+                    ->join('rrhh.personas as p', 'p.id', '=', 'ah.id_persona')
+                    ->where('ah.id_horarios', $h->id)
+                    ->where('ah._estado', 'ACTIVO')
+                    ->select('p.id', 'p.nombres', 'p.primer_apellido', 'p.segundo_apellido', 'p.nro_documento')
+                    ->get();
+                $h->asignados = $asignados;
+                $h->total_asignados = $asignados->count();
+
+                return $h;
+            });
 
         return response()->json([
             'success' => true,

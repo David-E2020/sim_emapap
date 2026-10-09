@@ -121,9 +121,33 @@ export const routes = [
     },
   },
   {
+    path: '/rrhh/biometricos',
+    name: 'rrhh_biometricos',
+    component: () => import('@/views/rrhh/Biometricos.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/permisos-licencias',
+    redirect: '/rrhh/solicitudes',
+  },
+  {
     path: '/rrhh/solicitudes',
     name: 'rrhh_solicitudes',
-    component: () => import('@/views/rrhh/BoletasPermisos.vue'),
+    component: () => import('@/views/rrhh/PermisosLicencias.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/comisiones-omisiones',
+    redirect: '/rrhh/solicitudes',
+  },
+  {
+    path: '/rrhh/horarios-calendario',
+    name: 'rrhh_horarios_calendario',
+    component: () => import('@/views/rrhh/JornadasCalendario.vue'),
     meta: {
       requiresAuth: true,
     },
@@ -131,15 +155,7 @@ export const routes = [
   {
     path: '/rrhh/horarios',
     name: 'rrhh_horarios',
-    component: () => import('@/views/rrhh/Horarios.vue'),
-    meta: {
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/rrhh/comisiones-omisiones',
-    name: 'rrhh_comisiones_omisiones',
-    component: () => import('@/views/rrhh/ComisionesOmisiones.vue'),
+    component: () => import('@/views/rrhh/JornadasCalendario.vue'),
     meta: {
       requiresAuth: true,
     },
@@ -147,7 +163,31 @@ export const routes = [
   {
     path: '/rrhh/feriados-cortes',
     name: 'rrhh_feriados_cortes',
-    component: () => import('@/views/rrhh/FeriadosCortes.vue'),
+    component: () => import('@/views/rrhh/JornadasCalendario.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/calculos-laborales',
+    name: 'rrhh_calculos_laborales',
+    component: () => import('@/views/rrhh/CalculosLaborales.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/vacaciones',
+    name: 'rrhh_vacaciones',
+    component: () => import('@/views/rrhh/Vacaciones.vue'),
+    meta: {
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/rrhh/planillas',
+    name: 'rrhh_planillas',
+    component: () => import('@/views/rrhh/Reportes.vue'),
     meta: {
       requiresAuth: true,
     },

@@ -20,6 +20,7 @@ class EscalaSalarial extends Model
         'salario',
         'salario_mensual',
         'id_nivel',
+        'codigo',
         'id_gestion',
         '_estado',
         '_transaccion',
@@ -39,6 +40,11 @@ class EscalaSalarial extends Model
     public function setSalarioMensualAttribute($value): void
     {
         $this->attributes['salario'] = (float) $value;
+    }
+
+    public function nivel()
+    {
+        return $this->belongsTo(Nivel::class, 'id_nivel', 'id');
     }
 
     public function puestos(): HasMany

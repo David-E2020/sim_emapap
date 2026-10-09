@@ -41,6 +41,11 @@ class Puesto extends Model
             ->whereNull('fecha_fin');
     }
 
+    public function escalaSalarial(): BelongsTo
+    {
+        return $this->belongsTo(EscalaSalarial::class, 'id_escala_salarial', 'id');
+    }
+
     public function asignacionesActivas(): HasMany
     {
         return $this->hasMany(AsignacionPuesto::class, 'id_puesto', 'id')

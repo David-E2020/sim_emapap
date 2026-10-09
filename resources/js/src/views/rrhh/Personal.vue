@@ -24,6 +24,9 @@
         </div>
 
         <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
+          <v-btn color="success" class="text-capitalize font-weight-medium rounded-pill mr-2" @click="abrirModalMigracionExcel()">
+            <v-icon left small>mdi-file-excel</v-icon> Sincronizar desde Excel
+          </v-btn>
           <v-btn color="primary" class="text-capitalize font-weight-medium rounded-pill" @click="abrirModalNuevo()">
             <v-icon left small>mdi-account-plus</v-icon> + Nuevo Funcionario
           </v-btn>
@@ -572,6 +575,209 @@
       </v-card>
     </v-dialog>
 
+    <!-- DIÁLOGO: SINCRONIZACIÓN Y MIGRACIÓN DESDE EXCEL DE PLANILLAS -->
+    <v-dialog v-model="dialogExcel" max-width="950" persistent scrollable>
+      <v-card rounded="lg">
+        <v-card-title class="success white--text py-3 d-flex align-center">
+          <v-icon left color="white">mdi-file-excel-box</v-icon>
+          <span class="text-subtitle-1 font-weight-bold">Sincronización de Personal y Planilla desde Excel</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogExcel = false" :disabled="migrandoExcel">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-4">
+          <v-alert dense outlined type="info" class="text-caption mb-3">
+            <strong>Garantía de Integridad:</strong> Esta herramienta detecta el personal, cargos, escalas salariales y fechas de ingreso desde el libro oficial de planillas. Aplica sincronización inteligente (<code>updateOrCreate</code>) identificando por C.I., asegurando <strong>cero pérdida de datos</strong> en funcionarios previamente registrados.
+          </v-alert>
+
+          <!-- SELECCIÓN DE ORIGEN DEL ARCHIVO -->
+          <v-sheet outlined rounded="lg" class="pa-3 mb-4 grey lighten-5">
+            <div class="text-caption font-weight-bold text-secondary mb-2">ORIGEN DEL ARCHIVO EXCEL (.XLSX)</div>
+            <v-radio-group v-model="origenExcel" row dense hide-details class="mt-0" @change="onCambioOrigenExcel">
+              <v-radio label="Archivo oficial del servidor (PLANILLA DE SUELDOS SEPTIEMBRE.xlsx)" value="servidor" color="success"></v-radio>
+              <v-radio label="Subir otro archivo Excel (.xlsx)" value="archivo" color="success"></v-radio>
+            </v-radio-group>
+
+            <v-file-input
+              v-if="origenExcel === 'archivo'"
+              v-model="archivoExcelSeleccionado"
+              accept=".xlsx,.xls"
+              label="Seleccionar archivo Excel de Planilla"
+              dense
+              outlined
+              prepend-icon="mdi-file-excel"
+              class="mt-3"
+              hide-details
+              @change="onArchivoExcelCambiado"
+            ></v-file-input>
+
+            <div class="d-flex align-center mt-3">
+              <v-btn
+                color="success"
+                small
+                elevation="1"
+                class="text-capitalize rounded-pill px-4"
+                :loading="analizandoExcel"
+                @click="previsualizarExcel"
+              >
+                <v-icon left small>mdi-table-search</v-icon> Analizar / Previsualizar
+              </v-btn>
+              <span class="text-caption text-secondary ml-3" v-if="datosExcelPrevia">
+                Detectados: <strong>{{ datosExcelPrevia.totales.total_general_personas }} personas</strong> ({{ datosExcelPrevia.totales.planta_count }} planta, {{ datosExcelPrevia.totales.eventual_count }} eventual, {{ datosExcelPrevia.totales.directorio_count }} directorio).
+              </span>
+            </div>
+          </v-sheet>
+
+          <!-- CONTENIDO DE LA PREVISUALIZACIÓN -->
+          <div v-if="analizandoExcel" class="text-center py-8">
+            <v-progress-circular indeterminate color="success" size="48"></v-progress-circular>
+            <div class="text-caption text-secondary mt-2">Analizando hojas, cargos, salarios y fórmulas del Excel...</div>
+          </div>
+
+          <div v-else-if="datosExcelPrevia">
+            <!-- CHIPS DE RESUMEN -->
+            <v-row dense class="mb-3">
+              <v-col cols="12" sm="4">
+                <v-card outlined class="pa-2 text-center rounded-lg green lighten-5">
+                  <div class="text-caption font-weight-bold green--text text--darken-2">PLANTA PERMANENTE</div>
+                  <div class="text-h6 font-weight-bold green--text text--darken-3">{{ datosExcelPrevia.totales.planta_count }} funcionarios</div>
+                  <div class="text-caption text-secondary">Total Ganado: Bs {{ formatoMoneda(datosExcelPrevia.totales.total_ganado_planta) }}</div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" sm="4">
+                <v-card outlined class="pa-2 text-center rounded-lg blue lighten-5">
+                  <div class="text-caption font-weight-bold blue--text text--darken-2">PERSONAL EVENTUAL</div>
+                  <div class="text-h6 font-weight-bold blue--text text--darken-3">{{ datosExcelPrevia.totales.eventual_count }} funcionario</div>
+                  <div class="text-caption text-secondary">Total Ganado: Bs {{ formatoMoneda(datosExcelPrevia.totales.total_ganado_eventual) }}</div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" sm="4">
+                <v-card outlined class="pa-2 text-center rounded-lg amber lighten-5">
+                  <div class="text-caption font-weight-bold amber--text text--darken-3">DIRECTORIO EMAPA</div>
+                  <div class="text-h6 font-weight-bold amber--text text--darken-4">{{ datosExcelPrevia.totales.directorio_count }} miembros</div>
+                  <div class="text-caption text-secondary">Total Dietas: Bs {{ formatoMoneda(datosExcelPrevia.totales.total_dietas_directorio) }}</div>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <!-- TABS DE DETALLE PREVIO -->
+            <v-tabs v-model="tabExcelPrevia" color="success" dense>
+              <v-tab>Planta Permanente ({{ datosExcelPrevia.datos.planta.length }})</v-tab>
+              <v-tab>Personal Eventual ({{ datosExcelPrevia.datos.eventual.length }})</v-tab>
+              <v-tab>Directorio ({{ datosExcelPrevia.datos.directorio.length }})</v-tab>
+            </v-tabs>
+
+            <v-tabs-items v-model="tabExcelPrevia" class="pt-2">
+              <v-tab-item>
+                <v-simple-table dense class="elevation-1 rounded-lg">
+                  <template v-slot:default>
+                    <thead>
+                      <tr class="grey lighten-4">
+                        <th>Ítem</th>
+                        <th>Funcionario</th>
+                        <th>C.I.</th>
+                        <th>Cargo</th>
+                        <th>Unidad Organizacional</th>
+                        <th class="text-right">Haber Básico</th>
+                        <th class="text-right">Líquido Pagable</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="p in datosExcelPrevia.datos.planta" :key="p.ci">
+                        <td><v-chip x-small color="primary" class="font-weight-bold">{{ p.item }}</v-chip></td>
+                        <td class="font-weight-medium">{{ p.nombre_completo }}</td>
+                        <td>{{ p.ci }}</td>
+                        <td>{{ p.cargo }}</td>
+                        <td><span class="text-caption text-secondary">{{ p.unidad_nombre }}</span></td>
+                        <td class="text-right font-weight-bold">Bs {{ formatoMoneda(p.haber_basico) }}</td>
+                        <td class="text-right success--text font-weight-bold">Bs {{ formatoMoneda(p.liquido_pagable) }}</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+              </v-tab-item>
+
+              <v-tab-item>
+                <v-simple-table dense class="elevation-1 rounded-lg">
+                  <template v-slot:default>
+                    <thead>
+                      <tr class="grey lighten-4">
+                        <th>Ítem</th>
+                        <th>Funcionario</th>
+                        <th>C.I.</th>
+                        <th>Cargo</th>
+                        <th>Unidad Organizacional</th>
+                        <th class="text-right">Haber Básico</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="e in datosExcelPrevia.datos.eventual" :key="e.ci">
+                        <td><v-chip x-small color="info" class="font-weight-bold">{{ e.item }}</v-chip></td>
+                        <td class="font-weight-medium">{{ e.nombre_completo }}</td>
+                        <td>{{ e.ci }}</td>
+                        <td>{{ e.cargo }}</td>
+                        <td><span class="text-caption text-secondary">{{ e.unidad_nombre }}</span></td>
+                        <td class="text-right font-weight-bold">Bs {{ formatoMoneda(e.haber_basico) }}</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+              </v-tab-item>
+
+              <v-tab-item>
+                <v-simple-table dense class="elevation-1 rounded-lg">
+                  <template v-slot:default>
+                    <thead>
+                      <tr class="grey lighten-4">
+                        <th>Ítem</th>
+                        <th>Nombre</th>
+                        <th>C.I.</th>
+                        <th>Cargo</th>
+                        <th class="text-right">Dieta Base</th>
+                        <th class="text-right">Total Dietas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="d in datosExcelPrevia.datos.directorio" :key="d.nombre_completo">
+                        <td><v-chip x-small color="amber darken-2" dark class="font-weight-bold">{{ d.item }}</v-chip></td>
+                        <td class="font-weight-medium">{{ d.nombre_completo }}</td>
+                        <td>{{ d.ci || 'Ex-officio' }}</td>
+                        <td>{{ d.cargo }}</td>
+                        <td class="text-right">Bs {{ formatoMoneda(d.haber_basico) }}</td>
+                        <td class="text-right font-weight-bold">Bs {{ formatoMoneda(d.total_dietas) }}</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+              </v-tab-item>
+            </v-tabs-items>
+          </div>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn text color="grey darken-1" class="text-capitalize" @click="dialogExcel = false" :disabled="migrandoExcel">
+            Cerrar
+          </v-btn>
+          <v-btn
+            color="success"
+            elevation="1"
+            class="text-capitalize px-4"
+            :loading="migrandoExcel"
+            :disabled="!datosExcelPrevia"
+            @click="ejecutarMigracionExcel"
+          >
+            <v-icon left small>mdi-database-import</v-icon>
+            Ejecutar Sincronización Sin Pérdida de Datos
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- SNACKBAR -->
     <v-snackbar v-model="snackbar.status" :color="snackbar.color" timeout="3000" top right>
       {{ snackbar.text }}
@@ -639,6 +845,15 @@ export default {
         usuario: '',
         password: '',
       },
+
+      // Sincronización Excel Planillas
+      dialogExcel: false,
+      origenExcel: 'servidor',
+      archivoExcelSeleccionado: null,
+      analizandoExcel: false,
+      datosExcelPrevia: null,
+      tabExcelPrevia: 0,
+      migrandoExcel: false,
 
       snackbar: { status: false, text: '', color: 'success' },
     };
@@ -867,6 +1082,106 @@ export default {
         JUBILACION: 'teal lighten-5 teal--text',
       };
       return map[mov] || 'grey lighten-3 grey--text';
+    },
+
+    abrirModalMigracionExcel() {
+      this.dialogExcel = true;
+      this.origenExcel = 'servidor';
+      this.archivoExcelSeleccionado = null;
+      this.datosExcelPrevia = null;
+      this.tabExcelPrevia = 0;
+      this.previsualizarExcel();
+    },
+
+    onCambioOrigenExcel(val) {
+      if (val === 'servidor') {
+        this.archivoExcelSeleccionado = null;
+        this.previsualizarExcel();
+      } else {
+        this.datosExcelPrevia = null;
+      }
+    },
+
+    onArchivoExcelCambiado(file) {
+      if (file) {
+        this.previsualizarExcel();
+      } else {
+        this.datosExcelPrevia = null;
+      }
+    },
+
+    previsualizarExcel() {
+      this.analizandoExcel = true;
+      const formData = new FormData();
+
+      if (this.origenExcel === 'archivo') {
+        if (!this.archivoExcelSeleccionado) {
+          this.analizandoExcel = false;
+          this.showSnackbar('Debe seleccionar un archivo Excel para analizar', 'warning');
+          return;
+        }
+        formData.append('archivo_excel', this.archivoExcelSeleccionado);
+      } else {
+        formData.append('usar_archivo_servidor', '1');
+      }
+
+      axios
+        .post('/api/rrhh/personal/previsualizar-excel', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        .then(res => {
+          this.analizandoExcel = false;
+          if (res.data && res.data.success) {
+            this.datosExcelPrevia = res.data;
+          } else {
+            this.showSnackbar(res.data.message || 'Error al analizar el Excel', 'error');
+          }
+        })
+        .catch(err => {
+          this.analizandoExcel = false;
+          const msg = err.response?.data?.message || 'Error al conectar con el analizador de Excel';
+          this.showSnackbar(msg, 'error');
+        });
+    },
+
+    ejecutarMigracionExcel() {
+      if (!this.datosExcelPrevia) return;
+      this.migrandoExcel = true;
+      const formData = new FormData();
+
+      if (this.origenExcel === 'archivo' && this.archivoExcelSeleccionado) {
+        formData.append('archivo_excel', this.archivoExcelSeleccionado);
+      } else {
+        formData.append('usar_archivo_servidor', '1');
+      }
+
+      axios
+        .post('/api/rrhh/personal/importar-excel', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        .then(res => {
+          this.migrandoExcel = false;
+          if (res.data && res.data.success) {
+            this.dialogExcel = false;
+            this.showSnackbar(res.data.message, 'success');
+            this.cargarPersonal();
+          } else {
+            this.showSnackbar(res.data.message || 'Error al importar datos', 'error');
+          }
+        })
+        .catch(err => {
+          this.migrandoExcel = false;
+          const msg = err.response?.data?.message || 'Error al ejecutar la sincronización';
+          this.showSnackbar(msg, 'error');
+        });
+    },
+
+    formatoMoneda(val) {
+      if (val === null || val === undefined || isNaN(val)) return '0.00';
+      return parseFloat(val).toLocaleString('es-BO', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
     },
   },
 };

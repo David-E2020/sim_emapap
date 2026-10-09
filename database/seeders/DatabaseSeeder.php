@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
             \Database\Seeders\Rrhh\RrhhParametricasSeeder::class,
             \Database\Seeders\Rrhh\FeriadoSeeder::class,
             \Database\Seeders\Rrhh\PermisoJustificacionSeeder::class,
+            \Database\Seeders\Rrhh\ConfiguracionLaboralSeeder::class,
             \Database\Seeders\Rrhh\RrhhMenuAndPermissionsSeeder::class,
         ]);
 

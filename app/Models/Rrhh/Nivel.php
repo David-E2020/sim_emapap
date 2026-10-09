@@ -16,6 +16,7 @@ class Nivel extends Model
 
     protected $fillable = [
         'nombre',
+        'nivel',
         'jerarquia',
         'id_gestion',
         '_estado',
@@ -25,4 +26,9 @@ class Nivel extends Model
         '_usuario_modificacion',
         '_fecha_modificacion',
     ];
+
+    public function escalasSalariales()
+    {
+        return $this->hasMany(EscalaSalarial::class, 'id_nivel', 'id');
+    }
 }

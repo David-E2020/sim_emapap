@@ -113,6 +113,8 @@ class PrepararProduccionCommand extends Command
             'correspondencia.documentos' => DB::table('correspondencia.documentos')->count(),
             'rrhh.marcaciones' => DB::table('rrhh.marcaciones')->count(),
             'rrhh.asistencias' => DB::table('rrhh.asistencias')->count(),
+            'rrhh.planillas_consolidadas' => DB::table('rrhh.planillas_consolidadas')->count(),
+            'rrhh.detalles_planillas' => DB::table('rrhh.detalles_planillas')->count(),
             'almacen.materiales' => DB::table('almacen.materiales')->count(),
             'activos_fijos.bienes' => DB::table('activos_fijos.bienes')->count(),
             'audit_logs' => DB::table('audit_logs')->count(),

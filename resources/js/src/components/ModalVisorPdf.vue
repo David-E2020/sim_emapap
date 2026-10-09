@@ -114,7 +114,7 @@
         <iframe
           v-else-if="blobUrl"
           ref="pdfIframe"
-          :src="blobUrl"
+          :src="pdfSrc"
           class="visor-iframe"
           frameborder="0"
         ></iframe>
@@ -228,6 +228,10 @@ export default {
       const cleanToken = token.replace(/^Bearer\s+/i, '');
       const separator = this.urlCompleta.includes('?') ? '&' : '?';
       return `${this.urlCompleta}${separator}token=${encodeURIComponent(cleanToken)}`;
+    },
+    pdfSrc() {
+      if (!this.blobUrl) return null;
+      return `${this.blobUrl}#toolbar=1&navpanes=0&view=FitH`;
     },
   },
   watch: {
@@ -387,12 +391,15 @@ export default {
 }
 .modal-visor-body {
   position: relative;
-  height: 680px;
+  height: 75vh;
+  min-height: 600px;
+  max-height: 860px;
   background: #525659;
 }
 .visor-iframe {
   width: 100%;
-  height: 680px;
+  height: 100%;
+  min-height: 600px;
   display: block;
 }
 .visor-loading-overlay {

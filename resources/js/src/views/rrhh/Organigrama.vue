@@ -115,6 +115,7 @@
                   <tr>
                     <th>Puesto / Cargo</th>
                     <th>Tipo</th>
+                    <th>Escala Salarial / Haber Básico</th>
                     <th>Funcionario Asignado</th>
                     <th>Ítem</th>
                     <th class="text-center" style="width: 120px;">Acciones</th>
@@ -124,6 +125,15 @@
                   <tr v-for="p in unidadSeleccionada.puestos || []" :key="p.id">
                     <td class="font-weight-medium">{{ p.nombre }}</td>
                     <td><v-chip x-small label color="blue lighten-5" text-color="primary">{{ p.tipo_puesto }}</v-chip></td>
+                    <td>
+                      <div v-if="p.escala_salarial">
+                        <span class="font-weight-medium text-caption primary--text">{{ p.escala_salarial.nombre }}</span>
+                        <div class="text-caption font-weight-black text-success">
+                          Bs. {{ Number(p.escala_salarial.salario).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}
+                        </div>
+                      </div>
+                      <span v-else class="text-caption text-secondary">—</span>
+                    </td>
                     <td>
                       <div v-if="p.asignaciones && p.asignaciones.length > 0 && p.asignaciones[0].persona" class="d-flex align-center">
                         <v-avatar size="24" color="primary" class="white--text mr-2 text-caption font-weight-bold">
@@ -160,7 +170,7 @@
                     </td>
                   </tr>
                   <tr v-if="!unidadSeleccionada.puestos || unidadSeleccionada.puestos.length === 0">
-                    <td colspan="5" class="text-center text-caption py-4 text-secondary">
+                    <td colspan="6" class="text-center text-caption py-4 text-secondary">
                       No hay puestos registrados en esta unidad. Presiona "+ Nuevo Puesto".
                     </td>
                   </tr>
@@ -178,23 +188,86 @@
       <!-- TAB 2: ESCALAS SALARIALES -->
       <v-tab-item>
         <v-card rounded="lg" class="erp-card-elevated pa-4">
-          <div class="d-flex align-center justify-space-between mb-3">
+          <div class="d-flex align-center justify-space-between mb-3 flex-wrap gap-2">
             <div>
               <span class="font-weight-bold text-subtitle-1">Escalas Salariales Institucionales</span>
-              <p class="text-caption text-secondary mb-0">Tabulador salarial oficial por puesto y jerarquía</p>
+              <p class="text-caption text-secondary mb-0">Tabulador salarial oficial por puesto, categoría y nivel jerárquico</p>
             </div>
-            <v-btn color="primary" small class="rounded-pill text-capitalize" @click="dialogEscala = true">
+            <v-btn color="primary" small class="rounded-pill text-capitalize font-weight-medium" @click="abrirModalNuevaEscala()">
               <v-icon left small>mdi-plus</v-icon> + Nueva Escala
             </v-btn>
           </div>
           <v-divider class="mb-4"></v-divider>
 
           <v-data-table :headers="headersEscalas" :items="escalasSalariales" class="erp-table" dense>
-            <template v-slot:item.salario_mensual="{ item }">
-              <span class="font-weight-bold text-success">Bs. {{ Number(item.salario_mensual).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}</span>
+            <!-- NIVEL -->
+            <template v-slot:item.nivel="{ item }">
+              <v-chip
+                v-if="item.nivel"
+                small
+                label
+                :class="getColorNivel(item.nivel.nivel)"
+                class="font-weight-bold"
+              >
+                {{ item.nivel.nombre }}
+              </v-chip>
+              <span v-else class="text-caption text-secondary">General</span>
             </template>
+
+            <!-- CÓDIGO -->
+            <template v-slot:item.codigo="{ item }">
+              <v-chip x-small label color="grey lighten-3" class="font-weight-bold" v-if="item.codigo">
+                {{ item.codigo }}
+              </v-chip>
+              <span v-else class="text-caption text-secondary">-</span>
+            </template>
+
+            <!-- NOMBRE -->
+            <template v-slot:item.nombre="{ item }">
+              <span class="font-weight-bold">{{ item.nombre }}</span>
+            </template>
+
+            <!-- SALARIO -->
+            <template v-slot:item.salario_mensual="{ item }">
+              <span class="font-weight-black success--text">
+                Bs. {{ Number(item.salario_mensual).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}
+              </span>
+            </template>
+
+            <!-- PUESTOS ASOCIADOS -->
+            <template v-slot:item.puestos_count="{ item }">
+              <v-chip x-small label :color="item.puestos_count > 0 ? 'blue lighten-5' : 'grey lighten-4'" :text-color="item.puestos_count > 0 ? 'primary' : 'grey'">
+                {{ item.puestos_count || 0 }} {{ (item.puestos_count === 1) ? 'puesto' : 'puestos' }}
+              </v-chip>
+            </template>
+
+            <!-- ESTADO -->
             <template v-slot:item._estado="{ item }">
-              <v-chip x-small color="green lighten-5" text-color="green" label>{{ item._estado }}</v-chip>
+              <v-chip x-small color="green lighten-5" text-color="green darken-2" label class="font-weight-bold">
+                {{ item._estado }}
+              </v-chip>
+            </template>
+
+            <!-- ACCIONES -->
+            <template v-slot:item.acciones="{ item }">
+              <div class="d-flex align-center justify-center">
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn icon small color="primary" v-bind="attrs" v-on="on" @click="editarEscala(item)">
+                      <v-icon small>mdi-pencil</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Editar escala</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn icon small color="error" v-bind="attrs" v-on="on" @click="confirmarEliminarEscala(item)">
+                      <v-icon small>mdi-delete</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Dar de baja escala</span>
+                </v-tooltip>
+              </div>
             </template>
           </v-data-table>
         </v-card>
@@ -301,11 +374,26 @@
             :items="escalasSalariales"
             item-text="nombre"
             item-value="id"
-            label="Escala Salarial (Opcional)"
+            label="Escala Salarial (Tabulador Oficial)"
             dense
             outlined
             clearable
-          ></v-select>
+          >
+            <template v-slot:item="{ item }">
+              <div class="d-flex align-center justify-space-between w-100 py-1">
+                <div>
+                  <span class="font-weight-medium">{{ item.nombre }}</span>
+                  <div class="text-caption text-secondary" v-if="item.nivel">{{ item.nivel.nombre }}</div>
+                </div>
+                <v-chip x-small color="green lighten-5" text-color="green darken-3" label class="font-weight-black ml-2">
+                  Bs. {{ Number(item.salario_mensual).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}
+                </v-chip>
+              </div>
+            </template>
+            <template v-slot:selection="{ item }">
+              <span class="font-weight-medium">{{ item.nombre }} — <strong class="green--text text--darken-3">Bs. {{ Number(item.salario_mensual).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}</strong></span>
+            </template>
+          </v-select>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer></v-spacer>
@@ -616,18 +704,64 @@
       </v-card>
     </v-dialog>
 
-    <!-- DIALOG NUEVA ESCALA SALARIAL -->
-    <v-dialog v-model="dialogEscala" max-width="450px" persistent>
+    <!-- DIALOG NUEVA / EDITAR ESCALA SALARIAL -->
+    <v-dialog v-model="dialogEscala" max-width="520px" persistent>
       <v-card rounded="lg">
-        <v-card-title class="font-weight-bold text-h6 primary white--text py-3">Nueva Escala Salarial</v-card-title>
+        <v-card-title class="font-weight-bold text-h6 primary white--text py-3">
+          <v-icon left color="white">{{ esModoEdicionEscala ? 'mdi-pencil' : 'mdi-cash-plus' }}</v-icon>
+          {{ esModoEdicionEscala ? 'Editar Escala Salarial' : 'Nueva Escala Salarial' }}
+        </v-card-title>
         <v-card-text class="pt-4">
-          <v-text-field v-model="formEscala.nombre" label="Denominación de Escala *" dense outlined class="mb-2"></v-text-field>
-          <v-text-field v-model="formEscala.salario_mensual" label="Salario Mensual (Bs.) *" type="number" dense outlined></v-text-field>
+          <v-row dense>
+            <v-col cols="12" sm="4">
+              <v-text-field
+                v-model="formEscala.codigo"
+                label="Código (Ej: NIV-01)"
+                placeholder="NIV-01"
+                dense
+                outlined
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="8">
+              <v-select
+                v-model="formEscala.id_nivel"
+                :items="niveles"
+                item-text="nombre"
+                item-value="id"
+                label="Nivel Jerárquico"
+                dense
+                outlined
+                clearable
+              ></v-select>
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
+                v-model="formEscala.nombre"
+                label="Denominación de la Escala *"
+                placeholder="Ej: Nivel 4: Técnico I / Operativo Especializado"
+                dense
+                outlined
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
+                v-model="formEscala.salario_mensual"
+                label="Salario Mensual Tabulado (Bs.) *"
+                type="number"
+                step="0.01"
+                dense
+                outlined
+                prefix="Bs."
+              ></v-text-field>
+            </v-col>
+          </v-row>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer></v-spacer>
           <v-btn text @click="dialogEscala = false">Cancelar</v-btn>
-          <v-btn color="primary" @click="guardarEscala()">Guardar Escala</v-btn>
+          <v-btn color="primary" class="font-weight-bold" :loading="guardandoEscala" @click="guardarEscala()">
+            {{ esModoEdicionEscala ? 'Actualizar Escala' : 'Crear Escala' }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -682,11 +816,16 @@ export default {
       unidadesPlanas: [],
       unidadSeleccionada: null,
 
+      niveles: [],
       escalasSalariales: [],
       headersEscalas: [
-        { text: 'Denominación de Escala', value: 'nombre' },
-        { text: 'Salario Mensual', value: 'salario_mensual' },
-        { text: 'Estado', value: '_estado' },
+        { text: 'Nivel Jerárquico', value: 'nivel', sortable: false },
+        { text: 'Código', value: 'codigo', sortable: true },
+        { text: 'Denominación de Escala', value: 'nombre', sortable: true },
+        { text: 'Salario Mensual', value: 'salario_mensual', align: 'right', sortable: true },
+        { text: 'Puestos Asociados', value: 'puestos_count', align: 'center', sortable: true },
+        { text: 'Estado', value: '_estado', align: 'center', sortable: false },
+        { text: 'Acciones', value: 'acciones', align: 'center', sortable: false },
       ],
 
       regionales: [],
@@ -763,7 +902,10 @@ export default {
       accionConfirmadaCallback: null,
 
       dialogEscala: false,
-      formEscala: { nombre: '', salario_mensual: '' },
+      esModoEdicionEscala: false,
+      idEscalaEditar: null,
+      guardandoEscala: false,
+      formEscala: { id: null, codigo: '', nombre: '', id_nivel: null, salario_mensual: '' },
 
       dialogRegional: false,
       formRegional: { nombre: '', sigla: '' },
@@ -794,6 +936,7 @@ export default {
   },
   mounted() {
     this.cargarOrganigrama();
+    this.cargarNiveles();
     this.cargarEscalas();
     this.cargarRegionales();
     this.cargarGestiones();
@@ -1120,14 +1263,83 @@ export default {
       });
     },
 
-    // ================= OTROS CATÁLOGOS =================
+    cargarNiveles() {
+      axios.get('/api/rrhh/niveles').then(res => {
+        if (res.data && res.data.success) this.niveles = res.data.data || [];
+      }).catch(() => {});
+    },
+
+    getColorNivel(nivelNum) {
+      switch (Number(nivelNum)) {
+        case 1: return 'purple lighten-5 purple--text text--darken-3';
+        case 2: return 'blue lighten-5 primary--text';
+        case 3: return 'teal lighten-5 teal--text text--darken-3';
+        case 4: return 'amber lighten-5 amber--text text--darken-4';
+        default: return 'grey lighten-4 grey--text text--darken-2';
+      }
+    },
+
+    abrirModalNuevaEscala() {
+      this.esModoEdicionEscala = false;
+      this.idEscalaEditar = null;
+      this.formEscala = {
+        id: null,
+        codigo: '',
+        nombre: '',
+        id_nivel: null,
+        salario_mensual: '',
+      };
+      this.dialogEscala = true;
+    },
+
+    editarEscala(item) {
+      this.esModoEdicionEscala = true;
+      this.idEscalaEditar = item.id;
+      this.formEscala = {
+        id: item.id,
+        codigo: item.codigo || '',
+        nombre: item.nombre,
+        id_nivel: item.id_nivel || (item.nivel ? item.nivel.id : null),
+        salario_mensual: item.salario_mensual,
+      };
+      this.dialogEscala = true;
+    },
+
     guardarEscala() {
-      if (!this.formEscala.nombre || !this.formEscala.salario_mensual) return;
-      axios.post('/api/rrhh/escalas-salariales', this.formEscala).then(res => {
+      if (!this.formEscala.nombre || !this.formEscala.salario_mensual) {
+        this.showSnackbar('Denominación y salario mensual son obligatorios', 'error');
+        return;
+      }
+      this.guardandoEscala = true;
+      const peticion = this.esModoEdicionEscala
+        ? axios.put(`/api/rrhh/escalas-salariales/${this.idEscalaEditar}`, this.formEscala)
+        : axios.post('/api/rrhh/escalas-salariales', this.formEscala);
+
+      peticion.then(res => {
         this.dialogEscala = false;
-        this.showSnackbar(res.data.message || 'Escala creada', 'success');
+        this.showSnackbar(res.data.message || (this.esModoEdicionEscala ? 'Escala actualizada' : 'Escala creada'), 'success');
         this.cargarEscalas();
+        this.cargarOrganigrama();
+      }).catch(err => {
+        this.showSnackbar(err.response?.data?.message || 'Error al guardar escala', 'error');
+      }).finally(() => {
+        this.guardandoEscala = false;
       });
+    },
+
+    confirmarEliminarEscala(escala) {
+      this.confirmarTitulo = 'Dar de Baja Escala Salarial';
+      this.confirmarMensaje = `¿Está seguro de que desea dar de baja la escala "${escala.nombre}" (Bs. ${Number(escala.salario_mensual).toLocaleString('es-BO', { minimumFractionDigits: 2 })})?`;
+      this.accionConfirmadaCallback = () => {
+        return axios.delete(`/api/rrhh/escalas-salariales/${escala.id}`).then(res => {
+          this.showSnackbar(res.data.message || 'Escala salarial dada de baja', 'success');
+          this.cargarEscalas();
+          this.cargarOrganigrama();
+        }).catch(err => {
+          this.showSnackbar(err.response?.data?.message || 'Error al eliminar escala', 'error');
+        });
+      };
+      this.dialogConfirmar = true;
     },
 
     guardarRegional() {

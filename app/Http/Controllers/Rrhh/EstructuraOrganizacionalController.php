@@ -10,6 +10,7 @@ use App\Models\Rrhh\DatoLaboral;
 use App\Models\Rrhh\EscalaSalarial;
 use App\Models\Rrhh\FichaPersonal;
 use App\Models\Rrhh\Gestion;
+use App\Models\Rrhh\Nivel;
 use App\Models\Rrhh\Persona;
 use App\Models\Rrhh\Puesto;
 use App\Models\Rrhh\Regional;
@@ -33,6 +34,7 @@ class EstructuraOrganizacionalController extends Controller
     {
         $unidades = UnidadOrganizacional::with([
             'puestos.asignaciones.persona',
+            'puestos.escalaSalarial.nivel',
             'dependencias',
         ])
             ->whereNull('padreId')
@@ -597,7 +599,13 @@ class EstructuraOrganizacionalController extends Controller
 
     public function listarEscalasSalariales(): JsonResponse
     {
-        $escalas = EscalaSalarial::where('_estado', 'ACTIVO')->orderBy('salario', 'desc')->get();
+        $escalas = EscalaSalarial::with('nivel')
+            ->withCount(['puestos' => function ($q) {
+                $q->where('_estado', 'ACTIVO');
+            }])
+            ->where('_estado', 'ACTIVO')
+            ->orderBy('salario', 'desc')
+            ->get();
 
         return response()->json(['success' => true, 'data' => $escalas], Response::HTTP_OK);
     }
@@ -605,9 +613,12 @@ class EstructuraOrganizacionalController extends Controller
     public function storeEscalaSalarial(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'nombre' => 'required|string|max:100',
-            'salario' => 'nullable|numeric',
-            'salario_mensual' => 'nullable|numeric',
+            'nombre' => 'required|string|max:150',
+            'salario' => 'nullable|numeric|min:0',
+            'salario_mensual' => 'nullable|numeric|min:0',
+            'id_nivel' => 'nullable|integer',
+            'codigo' => 'nullable|string|max:50',
+            'id_gestion' => 'nullable|integer',
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -616,13 +627,73 @@ class EstructuraOrganizacionalController extends Controller
         $salario = (float) ($request->input('salario') ?? $request->input('salario_mensual') ?? 0);
 
         $escala = EscalaSalarial::create([
-            'nombre' => strtoupper(trim((string) $request->input('nombre'))),
+            'nombre' => trim((string) $request->input('nombre')),
             'salario' => $salario,
+            'id_nivel' => $request->input('id_nivel') ? (int) $request->input('id_nivel') : null,
+            'codigo' => $request->input('codigo') ? trim((string) $request->input('codigo')) : null,
+            'id_gestion' => $request->input('id_gestion') ? (int) $request->input('id_gestion') : null,
             '_usuario_creacion' => auth()->id() ?? 1,
             '_fecha_creacion' => now(),
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Escala salarial registrada.', 'data' => $escala], Response::HTTP_CREATED);
+        return response()->json(['success' => true, 'message' => 'Escala salarial registrada exitosamente.', 'data' => $escala->load('nivel')], Response::HTTP_CREATED);
+    }
+
+    public function updateEscalaSalarial(Request $request, int $id): JsonResponse
+    {
+        $escala = EscalaSalarial::findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'required|string|max:150',
+            'salario' => 'nullable|numeric|min:0',
+            'salario_mensual' => 'nullable|numeric|min:0',
+            'id_nivel' => 'nullable|integer',
+            'codigo' => 'nullable|string|max:50',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $salario = (float) ($request->input('salario') ?? $request->input('salario_mensual') ?? $escala->salario);
+
+        $escala->update([
+            'nombre' => trim((string) $request->input('nombre')),
+            'salario' => $salario,
+            'id_nivel' => $request->input('id_nivel') ? (int) $request->input('id_nivel') : null,
+            'codigo' => $request->input('codigo') ? trim((string) $request->input('codigo')) : null,
+            '_usuario_modificacion' => auth()->id() ?? 1,
+            '_fecha_modificacion' => now(),
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Escala salarial actualizada exitosamente.', 'data' => $escala->load('nivel')], Response::HTTP_OK);
+    }
+
+    public function deleteEscalaSalarial(int $id): JsonResponse
+    {
+        $escala = EscalaSalarial::findOrFail($id);
+
+        $puestosCount = Puesto::where('id_escala_salarial', $id)->where('_estado', 'ACTIVO')->count();
+        if ($puestosCount > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "No se puede dar de baja la escala porque tiene {$puestosCount} puesto(s) activo(s) asignado(s). Reasigne los puestos primero.",
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $escala->update([
+            '_estado' => 'INACTIVO',
+            '_usuario_modificacion' => auth()->id() ?? 1,
+            '_fecha_modificacion' => now(),
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Escala salarial dada de baja exitosamente.'], Response::HTTP_OK);
+    }
+
+    public function listarNiveles(): JsonResponse
+    {
+        $niveles = Nivel::where('_estado', 'ACTIVO')->orderBy('nivel', 'asc')->get();
+
+        return response()->json(['success' => true, 'data' => $niveles], Response::HTTP_OK);
     }
 
     public function listarRegionales(): JsonResponse

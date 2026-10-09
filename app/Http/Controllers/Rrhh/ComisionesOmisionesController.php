@@ -27,16 +27,41 @@ class ComisionesOmisionesController extends Controller
      */
     public function listarComisiones(): JsonResponse
     {
-        $comisiones = SolicitudSalida::with(['permiso'])
-            ->whereHas('permiso', function ($q) {
-                $q->where('sigla', 'C.O.')->orWhere('nombre', 'LIKE', '%COMISION%');
+        $comisiones = DB::table('rrhh.solicitudes_salidas as ss')
+            ->join('rrhh.permisos as perm', 'perm.id', '=', 'ss.id_permiso')
+            ->join('rrhh.usuarios_solicitudes_salidas as uss', 'uss.id_solicitud_salida', '=', 'ss.id')
+            ->join('rrhh.personas as p', 'p.id', '=', 'uss.id_persona')
+            ->where(function ($q) {
+                $q->where('perm.sigla', 'C.O.')
+                  ->orWhere('perm.nombre', 'LIKE', '%COMISION%')
+                  ->orWhere('ss.tipo_accion', 'COMISION');
             })
-            ->orderBy('id', 'desc')
+            ->select(
+                'ss.id',
+                'ss.cite',
+                'ss.motivo',
+                'ss.lugar',
+                'ss.fecha_inicio',
+                'ss.fecha_fin',
+                'ss.dia_completo',
+                'ss.metadata',
+                'ss._estado',
+                'uss.estado_aprobacion',
+                'p.id as persona_id',
+                'p.nombres',
+                'p.primer_apellido',
+                'p.segundo_apellido',
+                'p.nro_documento',
+                'perm.nombre as permiso_nombre',
+                'perm.sigla as permiso_sigla'
+            )
+            ->orderBy('ss.id', 'desc')
             ->get();
 
         return response()->json([
             'success' => true,
             'data' => $comisiones,
+            'total' => $comisiones->count(),
         ], Response::HTTP_OK);
     }
 
@@ -116,16 +141,40 @@ class ComisionesOmisionesController extends Controller
      */
     public function listarOmisiones(): JsonResponse
     {
-        $omisiones = SolicitudSalida::with(['permiso'])
-            ->whereHas('permiso', function ($q) {
-                $q->where('sigla', 'OM')->orWhere('nombre', 'LIKE', '%OMISION%');
+        $omisiones = DB::table('rrhh.solicitudes_salidas as ss')
+            ->join('rrhh.permisos as perm', 'perm.id', '=', 'ss.id_permiso')
+            ->join('rrhh.usuarios_solicitudes_salidas as uss', 'uss.id_solicitud_salida', '=', 'ss.id')
+            ->join('rrhh.personas as p', 'p.id', '=', 'uss.id_persona')
+            ->where(function ($q) {
+                $q->where('perm.sigla', 'OM')
+                  ->orWhere('perm.nombre', 'LIKE', '%OMISION%')
+                  ->orWhere('ss.tipo_accion', 'OMISION');
             })
-            ->orderBy('id', 'desc')
+            ->select(
+                'ss.id',
+                'ss.cite',
+                'ss.motivo',
+                'ss.fecha_inicio',
+                'ss.fecha_fin',
+                'ss.turno_periodo',
+                'ss.hora_marcado_omision',
+                'ss._estado',
+                'uss.estado_aprobacion',
+                'p.id as persona_id',
+                'p.nombres',
+                'p.primer_apellido',
+                'p.segundo_apellido',
+                'p.nro_documento',
+                'perm.nombre as permiso_nombre',
+                'perm.sigla as permiso_sigla'
+            )
+            ->orderBy('ss.id', 'desc')
             ->get();
 
         return response()->json([
             'success' => true,
             'data' => $omisiones,
+            'total' => $omisiones->count(),
         ], Response::HTTP_OK);
     }
 

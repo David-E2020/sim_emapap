@@ -28,6 +28,7 @@ use App\Http\Controllers\RolController;
 use App\Http\Controllers\RolUserController;
 use App\Http\Controllers\Rrhh\AsistenciaController;
 use App\Http\Controllers\Rrhh\ComisionesOmisionesController;
+use App\Http\Controllers\Rrhh\ConfiguracionLaboralController;
 use App\Http\Controllers\Rrhh\EstructuraOrganizacionalController;
 use App\Http\Controllers\Rrhh\FeriadoCorteController;
 use App\Http\Controllers\Rrhh\HorarioController;
@@ -202,6 +203,8 @@ Route::group(['middleware' => ['jwt.auth']], function () {
         Route::group(['middleware' => ['check.permission:rrhh.personal.ver|rrhh.personal.crear|rrhh.personal.editar|rrhh.personal.legajo']], function () {
             Route::get('personal', [PersonalController::class, 'index']);
             Route::post('personal', [PersonalController::class, 'store']);
+            Route::post('personal/previsualizar-excel', [PersonalController::class, 'previsualizarExcelPlanilla']);
+            Route::post('personal/importar-excel', [PersonalController::class, 'importarExcelPlanilla']);
             Route::put('personal/{id}', [PersonalController::class, 'update']);
             Route::get('personal/{id}', [PersonalController::class, 'show']);
             Route::post('personal/{id}/estudios', [PersonalController::class, 'storeEstudio']);
@@ -226,6 +229,9 @@ Route::group(['middleware' => ['jwt.auth']], function () {
             Route::get('puestos/{id}/historial', [EstructuraOrganizacionalController::class, 'historialPuesto']);
             Route::get('escalas-salariales', [EstructuraOrganizacionalController::class, 'listarEscalasSalariales']);
             Route::post('escalas-salariales', [EstructuraOrganizacionalController::class, 'storeEscalaSalarial']);
+            Route::put('escalas-salariales/{id}', [EstructuraOrganizacionalController::class, 'updateEscalaSalarial']);
+            Route::delete('escalas-salariales/{id}', [EstructuraOrganizacionalController::class, 'deleteEscalaSalarial']);
+            Route::get('niveles', [EstructuraOrganizacionalController::class, 'listarNiveles']);
             Route::get('regionales', [EstructuraOrganizacionalController::class, 'listarRegionales']);
             Route::post('regionales', [EstructuraOrganizacionalController::class, 'storeRegional']);
             Route::get('gestiones', [EstructuraOrganizacionalController::class, 'listarGestiones']);
@@ -235,10 +241,19 @@ Route::group(['middleware' => ['jwt.auth']], function () {
         // Control de Asistencia y Biométricos
         Route::group(['middleware' => ['check.permission:rrhh.asistencias.ver|rrhh.asistencias.sincronizar_biometrico|rrhh.asistencias.calcular_asistencia|rrhh.biometricos.administrar']], function () {
             Route::get('biometricos', [AsistenciaController::class, 'listarBiometricos']);
+            Route::post('biometricos', [AsistenciaController::class, 'storeBiometrico']);
+            Route::put('biometricos/{id}', [AsistenciaController::class, 'updateBiometrico']);
+            Route::delete('biometricos/{id}', [AsistenciaController::class, 'eliminarBiometrico']);
+            Route::post('biometricos/probar-todos', [AsistenciaController::class, 'probarTodos']);
+            Route::post('biometricos/sincronizar-todos', [AsistenciaController::class, 'sincronizarTodos']);
             Route::post('biometricos/{id}/probar-conexion', [AsistenciaController::class, 'probarConexion']);
             Route::post('biometricos/{id}/sincronizar', [AsistenciaController::class, 'sincronizar']);
             Route::get('asistencias', [AsistenciaController::class, 'listarAsistencias']);
+            Route::get('asistencias/pdf', [AsistenciaController::class, 'exportarPdf']);
             Route::post('asistencias/calcular', [AsistenciaController::class, 'calcularAsistencia']);
+            Route::post('asistencias/marcar-masivo', [AsistenciaController::class, 'marcarAsistenciaMasiva']);
+            Route::post('asistencias/marcar-mes-completo', [AsistenciaController::class, 'marcarMesCompleto']);
+            Route::get('asistencias/verificar-mes', [AsistenciaController::class, 'verificarAsistenciaMes']);
         });
 
         // Solicitudes y Permisos
@@ -280,13 +295,36 @@ Route::group(['middleware' => ['jwt.auth']], function () {
             Route::get('reportes/asistencia-mensual', [ReporteRrhhController::class, 'asistenciaMensual']);
             Route::get('reportes/refrigerio-mensual', [ReporteRrhhController::class, 'refrigerioMensual']);
             Route::get('reportes/saldo-vacaciones', [ReporteRrhhController::class, 'saldoVacaciones']);
+            Route::get('reportes/kardex-vacaciones', [ReporteRrhhController::class, 'kardexVacaciones']);
             Route::get('reportes/planilla-sueldos', [ReporteRrhhController::class, 'planillaSueldosMensual']);
+            Route::get('reportes/planillas-registradas', [ReporteRrhhController::class, 'listarPlanillasRegistradas']);
+            Route::post('reportes/planillas/generar', [ReporteRrhhController::class, 'generarPlanilla']);
+            Route::delete('reportes/planillas/{id}', [ReporteRrhhController::class, 'eliminarPlanillaBorrador']);
+            Route::get('reportes/planilla-sueldos/excel', [ReporteRrhhController::class, 'exportarPlanillaExcel']);
+            Route::post('reportes/planilla-sueldos/declarar', [ReporteRrhhController::class, 'cerrarYDeclararPlanilla']);
+            Route::post('reportes/planilla-sueldos/reabrir', [ReporteRrhhController::class, 'reabrirPlanilla']);
+            Route::get('reportes/exportar-excel-mensual', [ReporteRrhhController::class, 'exportarPlanillaExcel']);
             Route::post('reportes/cerrar-declarar-planilla', [ReporteRrhhController::class, 'cerrarYDeclararPlanilla']);
             Route::get('reportes/boleta-pago/{personaId}/html', [ReporteRrhhController::class, 'boletaPagoHtml']);
+            Route::get('reportes/boletas-pago-mes', [ReporteRrhhController::class, 'boletasPagoMesHtml']);
             Route::get('reportes/padron-personal', [ReporteRrhhController::class, 'padronPersonal']);
             Route::get('reportes/kardex-funcionario/{personaId}/html', [ReporteRrhhController::class, 'kardexFuncionarioHtml']);
             Route::post('reportes/generar-personalizado', [ReporteRrhhController::class, 'generarReportePersonalizado']);
             Route::get('reportes/certificado-trabajo/{personaId}/html', [ReporteRrhhController::class, 'certificadoTrabajoHtml']);
+            // ── PDF Binarios (para ModalVisorPdf — igual que Facturación) ──
+            Route::get('reportes/boleta-pago/{personaId}/pdf', [ReporteRrhhController::class, 'boletaPagoPdf']);
+            Route::get('reportes/boletas-masivas/pdf', [ReporteRrhhController::class, 'boletasMasivasPdf']);
+            Route::get('reportes/boleta-salida/{id}/pdf', [ReporteRrhhController::class, 'boletaSalidaPdf']);
+            Route::get('reportes/kardex-vacaciones/pdf', [ReporteRrhhController::class, 'kardexVacacionesPdf']);
+            Route::get('reportes/planilla-sueldos/pdf', [ReporteRrhhController::class, 'planillaSueldosPdf']);
+        });
+
+        // Parámetros Laborales y Salariales Oficiales de RRHH
+        Route::group(['middleware' => ['check.permission:rrhh.personal.ver|rrhh.reportes.asistencia']], function () {
+            Route::get('configuracion-laboral', [ConfiguracionLaboralController::class, 'obtener']);
+            Route::match(['post', 'put'], 'configuracion-laboral', [ConfiguracionLaboralController::class, 'guardar']);
+            Route::get('configuraciones-laborales', [ConfiguracionLaboralController::class, 'obtener']);
+            Route::match(['post', 'put'], 'configuraciones-laborales', [ConfiguracionLaboralController::class, 'guardar']);
         });
     });
 

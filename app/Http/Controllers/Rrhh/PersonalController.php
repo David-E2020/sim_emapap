@@ -12,6 +12,7 @@ use App\Models\Rrhh\FichaPersonal;
 use App\Models\Rrhh\Persona;
 use App\Models\User;
 use App\Services\Audit\AuditService;
+use App\Services\Rrhh\PlanillaExcelImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,8 @@ use Symfony\Component\HttpFoundation\Response;
 class PersonalController extends Controller
 {
     public function __construct(
-        private readonly AuditService $auditService
+        private readonly AuditService $auditService,
+        private readonly PlanillaExcelImportService $excelImportService
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -456,4 +458,93 @@ class PersonalController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Previsualiza los funcionarios y datos detectados en el archivo Excel de Planilla.
+     */
+    public function previsualizarExcelPlanilla(Request $request): JsonResponse
+    {
+        $filePath = $this->resolverRutaArchivoExcel($request);
+
+        if (!$filePath || !file_exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encontró el archivo Excel de planilla para procesar. Suba un archivo o seleccione el archivo oficial del sistema.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $data = $this->excelImportService->previsualizar($filePath);
+            return response()->json($data, Response::HTTP_OK);
+        } catch (\Throwable $e) {
+            Log::error('Error al previsualizar planilla Excel: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al analizar el archivo Excel: ' . $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Importa y sincroniza el personal, cargos y escalas salariales desde el Excel.
+     */
+    public function importarExcelPlanilla(Request $request): JsonResponse
+    {
+        $filePath = $this->resolverRutaArchivoExcel($request);
+
+        if (!$filePath || !file_exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encontró el archivo Excel de planilla para sincronizar.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $userId = auth()->id() ? (int) auth()->id() : 1;
+            $res = $this->excelImportService->importar($filePath, $userId);
+
+            $this->auditService->log(
+                event: 'rrhh_personal_excel_imported',
+                model: new Persona(),
+                newValues: $res['estadisticas'] ?? []
+            );
+
+            return response()->json($res, Response::HTTP_OK);
+        } catch (\Throwable $e) {
+            Log::error('Error al importar personal desde Excel: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error durante la migración: ' . $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Resuelve la ruta del archivo Excel (archivo subido o archivo oficial en servidor).
+     */
+    private function resolverRutaArchivoExcel(Request $request): ?string
+    {
+        if ($request->hasFile('archivo_excel')) {
+            $file = $request->file('archivo_excel');
+            if ($file->isValid()) {
+                return $file->getRealPath();
+            }
+        }
+
+        // Buscar archivo oficial de planilla en rutas estándar del servidor
+        $rutas = [
+            base_path('../PLANILLA DE SUELDOS SEPTIEMBRE.xlsx'),
+            base_path('PLANILLA DE SUELDOS SEPTIEMBRE.xlsx'),
+            '/home/david/Documentos/Mis Proyectos/Sistemas Emapa 2025/PLANILLA DE SUELDOS SEPTIEMBRE.xlsx',
+        ];
+
+        foreach ($rutas as $r) {
+            if (file_exists($r)) {
+                return $r;
+            }
+        }
+
+        return null;
+    }
 }
+

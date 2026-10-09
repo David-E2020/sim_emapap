@@ -56,15 +56,15 @@ class RrhhMenuAndPermissionsSeeder extends Seeder
                 'order' => 4,
             ],
             [
-                'label' => 'Boletas y Permisos',
+                'label' => 'Permisos y Comisiones',
                 'route' => 'rrhh_solicitudes',
-                'icon' => 'mdi-file-document-edit-outline',
+                'icon' => 'mdi-folder-account-outline',
                 'order' => 5,
             ],
             [
-                'label' => 'Comisiones y Omisiones',
-                'route' => 'rrhh_comisiones_omisiones',
-                'icon' => 'mdi-airplane',
+                'label' => 'Cálculos Laborales',
+                'route' => 'rrhh_calculos_laborales',
+                'icon' => 'mdi-calculator-variant-outline',
                 'order' => 6,
             ],
             [
@@ -74,10 +74,16 @@ class RrhhMenuAndPermissionsSeeder extends Seeder
                 'order' => 7,
             ],
             [
+                'label' => 'Control de Vacaciones',
+                'route' => 'rrhh_vacaciones',
+                'icon' => 'mdi-calendar-account-outline',
+                'order' => 8,
+            ],
+            [
                 'label' => 'Reportes y Planillas',
                 'route' => 'rrhh_reportes',
                 'icon' => 'mdi-file-chart-outline',
-                'order' => 8,
+                'order' => 9,
             ],
         ];
 
@@ -146,9 +152,17 @@ class RrhhMenuAndPermissionsSeeder extends Seeder
             ['name' => 'rrhh.omisiones.crear', 'module' => 'Comisiones y Omisiones', 'description' => 'Solicitar regularización por omisión o fallo de marcado'],
             ['name' => 'rrhh.omisiones.aprobar', 'module' => 'Comisiones y Omisiones', 'description' => 'Bandeja de firma y resolución de solicitudes'],
 
+            // Cálculos Laborales
+            ['name' => 'rrhh.calculos_laborales.ver', 'module' => 'Cálculos Laborales', 'description' => 'Consultar parámetros laborales, SMN y aportes de ley'],
+            ['name' => 'rrhh.calculos_laborales.guardar', 'module' => 'Cálculos Laborales', 'description' => 'Modificar parámetros salariales, SMN, Gestora y cargas patronales'],
+
             // Feriados y Cortes
             ['name' => 'rrhh.feriados.ver', 'module' => 'Feriados y Cortes', 'description' => 'Consultar calendario oficial de feriados y cortes'],
             ['name' => 'rrhh.feriados.crear', 'module' => 'Feriados y Cortes', 'description' => 'Registrar feriados nacionales y fechas de corte mensual'],
+
+            // Vacaciones
+            ['name' => 'rrhh.vacaciones.ver', 'module' => 'Control de Vacaciones', 'description' => 'Consultar récord y saldo de vacaciones de personal'],
+            ['name' => 'rrhh.vacaciones.gestionar', 'module' => 'Control de Vacaciones', 'description' => 'Registrar solicitudes y programación de vacaciones'],
 
             // Reportes
             ['name' => 'rrhh.reportes.asistencia', 'module' => 'Reportes y Planillas', 'description' => 'Generar consolidado mensual de asistencia y atrasos'],

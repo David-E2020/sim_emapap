@@ -132,7 +132,7 @@ class RrhhParametricasSeeder extends Seeder
                 'nombre' => 'RRHH - PARÁMETROS SALARIALES Y DE LEY',
                 'descripcion' => 'Valores de referencia para planillas y aportes de ley',
                 'items' => [
-                    ['codigo' => 'SMN_BOLIVIA', 'nombre' => 'Salario Mínimo Nacional (Bs.)', 'detalle' => '2500.00'],
+                    ['codigo' => 'SMN_BOLIVIA', 'nombre' => 'Salario Mínimo Nacional (Bs.)', 'detalle' => '3300.00'],
                     ['codigo' => 'TARIFA_REFRIGERIO', 'nombre' => 'Tarifa Diaria de Refrigerio (Bs.)', 'detalle' => '18.00'],
                     ['codigo' => 'APORTE_GESTORA', 'nombre' => 'Aporte Laboral Gestora Pública (%)', 'detalle' => '12.71'],
                 ],

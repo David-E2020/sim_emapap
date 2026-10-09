@@ -99,6 +99,14 @@ class RolSeeder extends Seeder
             ['name' => 'rrhh.feriados.ver', 'module' => 'Feriados y Cortes', 'description' => 'Consultar calendario oficial de feriados y cortes'],
             ['name' => 'rrhh.feriados.crear', 'module' => 'Feriados y Cortes', 'description' => 'Registrar feriados nacionales y fechas de corte mensual'],
 
+            // Cálculos Laborales y Parámetros
+            ['name' => 'rrhh.calculos_laborales.ver', 'module' => 'Cálculos Laborales', 'description' => 'Consultar parámetros laborales, SMN y aportes de ley'],
+            ['name' => 'rrhh.calculos_laborales.guardar', 'module' => 'Cálculos Laborales', 'description' => 'Modificar parámetros salariales, SMN, Gestora y cargas patronales'],
+
+            // Vacaciones y Salarios
+            ['name' => 'rrhh.vacaciones.ver', 'module' => 'Control de Vacaciones', 'description' => 'Consultar récord y saldo de vacaciones de personal'],
+            ['name' => 'rrhh.vacaciones.gestionar', 'module' => 'Control de Vacaciones', 'description' => 'Registrar solicitudes y programación de vacaciones'],
+
             // Reportes y Planillas
             ['name' => 'rrhh.reportes.asistencia', 'module' => 'Reportes y Planillas', 'description' => 'Generar consolidado mensual de asistencia y atrasos'],
             ['name' => 'rrhh.reportes.refrigerio', 'module' => 'Reportes y Planillas', 'description' => 'Generar planilla mensual de refrigerios para pago'],
@@ -362,8 +370,9 @@ class RolSeeder extends Seeder
                     'rrhh_asistencias',
                     'rrhh_horarios',
                     'rrhh_solicitudes',
-                    'rrhh_comisiones_omisiones',
                     'rrhh_feriados_cortes',
+                    'rrhh_calculos_laborales',
+                    'rrhh_vacaciones',
                     'rrhh_reportes',
                     'correspondencia_hojas_ruta',
                     'correspondencia_documentos',
@@ -395,6 +404,10 @@ class RolSeeder extends Seeder
                     'rrhh.omisiones.aprobar',
                     'rrhh.feriados.ver',
                     'rrhh.feriados.crear',
+                    'rrhh.calculos_laborales.ver',
+                    'rrhh.calculos_laborales.guardar',
+                    'rrhh.vacaciones.ver',
+                    'rrhh.vacaciones.gestionar',
                     'rrhh.reportes.asistencia',
                     'rrhh.reportes.refrigerio',
                     'rrhh.reportes.vacaciones',

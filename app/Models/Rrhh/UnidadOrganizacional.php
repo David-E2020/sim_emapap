@@ -51,6 +51,7 @@ class UnidadOrganizacional extends Model
             ->where('_estado', 'ACTIVO')
             ->with([
                 'puestos.asignaciones.persona',
+                'puestos.escalaSalarial.nivel',
                 'dependencias',
             ]);
     }
@@ -58,6 +59,7 @@ class UnidadOrganizacional extends Model
     public function puestos(): HasMany
     {
         return $this->hasMany(Puesto::class, 'id_unidad_organizacional', 'id')
-            ->where('_estado', 'ACTIVO');
+            ->where('_estado', 'ACTIVO')
+            ->with(['escalaSalarial.nivel']);
     }
 }
