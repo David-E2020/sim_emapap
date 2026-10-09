@@ -73,23 +73,12 @@ class EmisionFacturaService
                 ]);
         }
 
-        // 2. Obtener o Generar CUFD Vigente
-        $cufdVigente = SiatCufd::where('id_sucursal', $sucursal->id)
-            ->where('id_punto_venta', $puntoVenta->id)
-            ->where('fecha_vigencia', '>', Carbon::now())
-            ->latest('id')
-            ->first();
+        // 2. Obtener o Generar CUIS y CUFD Vigente
+        $cuisCodigo = SiatCuis::getVigente((int) $sucursal->id, $puntoVenta->id, (int) $puntoVenta->codigo_punto_venta);
+        $cufdVigente = SiatCufd::getVigente((int) $sucursal->id, $puntoVenta->id, (int) $puntoVenta->codigo_punto_venta);
 
         if (!$cufdVigente) {
-            $cuisVigente = SiatCuis::where('id_sucursal', $sucursal->id)
-                ->where('id_punto_venta', $puntoVenta->id)
-                ->where('fecha_vigencia', '>', Carbon::now())
-                ->latest('id')
-                ->first();
-
-            $cuisCodigo = $cuisVigente ? $cuisVigente->codigo : 'CUIS_EMAPAP_GENERAL';
-
-            $respCufd = $this->siatSoapService->solicitarCufd($cuisCodigo, $sucursal->codigo_sucursal, $puntoVenta->codigo_punto_venta);
+            $respCufd = $this->siatSoapService->solicitarCufd($cuisCodigo, (int) $sucursal->codigo_sucursal, (int) $puntoVenta->codigo_punto_venta);
 
             if (!empty($respCufd['success'])) {
                 $cufdVigente = SiatCufd::create([
@@ -99,6 +88,9 @@ class EmisionFacturaService
                     'codigo_control' => $respCufd['codigo_control'],
                     'direccion' => $respCufd['direccion'] ?? $sucursal->direccion,
                     'fecha_vigencia' => Carbon::parse($respCufd['fecha_vigencia']),
+                    '_estado' => 'ACTIVO',
+                    '_transaccion' => 'AUTO_EMISION',
+                    '_usuario_creacion' => 1,
                 ]);
             } else {
                 // CUFD de contingencia si no hay conexión SOAP activa
@@ -109,6 +101,9 @@ class EmisionFacturaService
                     'codigo_control' => strtoupper(substr(md5(uniqid()), 0, 16)),
                     'direccion' => $sucursal->direccion,
                     'fecha_vigencia' => Carbon::now()->addHours(24),
+                    '_estado' => 'ACTIVO',
+                    '_transaccion' => 'AUTO_CONTINGENCIA',
+                    '_usuario_creacion' => 1,
                 ]);
             }
         }
@@ -135,7 +130,7 @@ class EmisionFacturaService
             ->first();
         $numeroFactura = ($ultimaFactura ? (int) $ultimaFactura->numero_factura : 0) + 1;
 
-        $fechaEmision = Carbon::now();
+        $fechaEmision = Carbon::now()->startOfSecond();
 
         $empresa = null;
         try {
@@ -146,9 +141,39 @@ class EmisionFacturaService
             $empresa = null;
         }
 
-        $nitEmisor = $empresa && !empty($empresa->nit) ? (string) $empresa->nit : config('siat.nit_emisor', '123456789');
+        $tokenNit = $empresa ? SiatSoapService::extractNitFromToken($empresa->token_delegado ?? '') : null;
+        $esPiloto = ($empresa && (int)$empresa->codigo_ambiente === 2) || (int)config('siat.ambiente', 2) === 2;
+
+        $nitEmisor = $datos['nit_emisor'] 
+            ?? ($esPiloto && !empty($tokenNit) 
+                ? $tokenNit 
+                : ($empresa && !empty($empresa->nit) 
+                    ? (string) $empresa->nit 
+                    : (string) config('siat.nit_emisor', '123456789')));
+
         $modalidad = $empresa && $empresa->codigo_modalidad ? (int) $empresa->codigo_modalidad : (int) config('siat.modalidad', 1);
         $tipoEmision = (int) ($datos['tipo_emision'] ?? $datos['codigo_emision'] ?? 1);
+        $idEventoSignificativo = $datos['id_evento_significativo'] ?? null;
+
+        // Si no se especificó evento pero la sucursal/punto de venta tiene una contingencia activa, vincular automáticamente
+        if (empty($idEventoSignificativo)) {
+            $eventoActivo = \App\Models\Facturacion\EventoSignificativo::where('id_sucursal', $sucursal->id)
+                ->where(function ($q) use ($puntoVenta) {
+                    $q->where('id_punto_venta', $puntoVenta->id)
+                      ->orWhereNull('id_punto_venta');
+                })
+                ->where('estado_evento', 'INICIADO')
+                ->latest('id')
+                ->first();
+
+            if ($eventoActivo) {
+                $idEventoSignificativo = $eventoActivo->id;
+                if (!isset($datos['tipo_emision']) && !isset($datos['codigo_emision'])) {
+                    $tipoEmision = 2; // Forzar modo contingencia fuera de línea
+                }
+            }
+        }
+
         $tipoFactura = (int) ($datos['tipo_factura_documento'] ?? 1);
         $documentoSector = (int) ($datos['codigo_documento_sector'] ?? 1);
 
@@ -178,8 +203,10 @@ class EmisionFacturaService
             $fechaEmision,
             $modalidad,
             $tipoEmision,
+            $idEventoSignificativo,
             $tipoFactura,
-            $documentoSector
+            $documentoSector,
+            $esPiloto
         ) {
             $items = $datos['items'] ?? [];
             $montoTotalItems = 0.0;
@@ -203,16 +230,29 @@ class EmisionFacturaService
                 ? (float) $datos['monto_total_sujeto_iva']
                 : max(0, $montoTotalFinal - $ajusteNoSujetoIva);
 
-            $leyenda = $datos['leyenda'] ?? 'Ley N° 453: Los servicios deben prestarse en condiciones de inocuidad, calidad y seguridad.';
+            $leyenda = $datos['leyenda'] ?? ($esPiloto 
+                ? 'Ley N° 453: Puedes acceder a la reclamación cuando tus derechos han sido vulnerados.' 
+                : 'Ley N° 453: Los servicios deben prestarse en condiciones de inocuidad, calidad y seguridad.');
+
+            $idSesionCaja = $datos['id_sesion_caja'] ?? null;
+            if (empty($idSesionCaja)) {
+                $sesionActiva = \App\Models\Comercial\CajaSesion::where('id_punto_venta', $puntoVenta->id)
+                    ->where('estado', 'ABIERTA')
+                    ->latest('id')
+                    ->first();
+                if ($sesionActiva) {
+                    $idSesionCaja = $sesionActiva->id;
+                }
+            }
 
             $factura = Factura::create([
                 'id_sucursal' => $sucursal->id,
                 'id_punto_venta' => $puntoVenta->id,
-                'id_sesion_caja' => $datos['id_sesion_caja'] ?? null,
+                'id_sesion_caja' => $idSesionCaja,
                 'id_cliente' => $cliente?->id,
                 'id_abonado' => $datos['id_abonado'] ?? null,
                 'id_cufd' => $cufdVigente->id,
-                'id_evento_significativo' => $datos['id_evento_significativo'] ?? null,
+                'id_evento_significativo' => $idEventoSignificativo,
                 'numero_factura' => $numeroFactura,
                 'cuf' => $cuf,
                 'cufd' => $cufdVigente->codigo,
@@ -267,10 +307,10 @@ class EmisionFacturaService
                 FacturaDetalle::create([
                     'id_factura' => $factura->id,
                     'id_producto_servicio' => $item['id_producto_servicio'] ?? null,
-                    'codigo_actividad' => $item['codigo_actividad'] ?? '360000',
-                    'codigo_producto_sin' => $item['codigo_producto_sin'] ?? '86330',
-                    'codigo_producto_empresa' => $item['codigo_producto_empresa'] ?? 'AGUA-01',
-                    'descripcion' => $item['descripcion'] ?? 'Servicio de Agua Potable',
+                    'codigo_actividad' => $item['codigo_actividad'] ?? ($esPiloto ? '6201000' : '360000'),
+                    'codigo_producto_sin' => $item['codigo_producto_sin'] ?? ($esPiloto ? '1003913' : '86330'),
+                    'codigo_producto_empresa' => $item['codigo_producto_empresa'] ?? ($esPiloto ? 'SERV-01' : 'AGUA-01'),
+                    'descripcion' => $item['descripcion'] ?? ($esPiloto ? 'Suministro de asistencia en relación a programas informática.' : 'Servicio de Agua Potable'),
                     'cantidad' => $cant,
                     'codigo_unidad_medida' => (int) ($item['codigo_unidad_medida'] ?? 58),
                     'precio_unitario' => $pu,
@@ -287,10 +327,18 @@ class EmisionFacturaService
         // 7. Generar XML Oficial
         $xmlContent = $this->xmlFacturaService->construirXml($factura);
 
+        // Si la modalidad es 1 (Electrónica en Línea), se aplica firma digital XMLDSig
+        // Si la modalidad es 2 (Computarizada en Línea), el XML no se firma
+        if ($modalidad === 1) {
+            $xmlParaEnvio = $this->firmaDigitalService->firmarXml($xmlContent);
+        } else {
+            $xmlParaEnvio = $xmlContent;
+        }
+
         // Guardar archivo XML
         $fileName = "factura_{$factura->numero_factura}_{$factura->cuf}.xml";
         $xmlPath = "siat/facturas/{$fileName}";
-        Storage::disk('local')->put($xmlPath, $xmlContent);
+        Storage::disk('local')->put($xmlPath, $xmlParaEnvio);
 
         // Representación gráfica QR oficial del SIAT
         $nitConfig = $empresa && !empty($empresa->nit) ? (string) $empresa->nit : config('siat.nit_emisor', '1002393029');
@@ -309,9 +357,8 @@ class EmisionFacturaService
 
         if ($tipoEmision === 1) {
             try {
-                $cuisCodigo = $cuisVigente?->codigo ?? 'CUIS_EMAPAP_GENERAL';
                 $respSiat = $this->siatSoapService->enviarFactura(
-                    $xmlContent,
+                    $xmlParaEnvio,
                     $cuisCodigo,
                     $cufdVigente->codigo,
                     (int) $sucursal->codigo_sucursal,
@@ -321,7 +368,10 @@ class EmisionFacturaService
                     $tipoFactura
                 );
 
-                if (!empty($respSiat['success']) && ($respSiat['estado'] ?? '') === 'VALIDADA') {
+                if (!empty($respSiat['success']) && (
+                    in_array(strtoupper((string) ($respSiat['estado'] ?? '')), ['VALIDADA', 'VALIDA'], true) ||
+                    in_array((int) ($respSiat['codigo_estado'] ?? 0), [908, 690], true)
+                )) {
                     $estadoFactura = 'VALIDADA';
                     $tipoEmisionFinal = 1;
                     $codigoRecepcion = $respSiat['codigo_recepcion'] ?? null;
@@ -344,6 +394,11 @@ class EmisionFacturaService
             'tipo_emision' => $tipoEmisionFinal,
             'codigo_recepcion' => $codigoRecepcion,
         ]);
+
+        if ($factura->id_sesion_caja) {
+            $sesion = \App\Models\Comercial\CajaSesion::find($factura->id_sesion_caja);
+            $sesion?->recalcularTotales();
+        }
 
         return $factura->fresh(['detalles', 'sucursal', 'puntoVenta', 'cliente', 'abonado']);
     }

@@ -74,6 +74,39 @@
       </div>
     </v-card>
 
+    <!-- ALERTA BLOQUEANTE: TURNO REZAGADO DE FECHA ANTERIOR -->
+    <v-alert
+      v-if="tieneSesionActiva && sesionActiva && esSesionDiaAnterior"
+      prominent
+      type="error"
+      rounded="lg"
+      class="mb-5 elevation-3"
+      border="left"
+    >
+      <v-row align="center">
+        <v-col class="grow">
+          <div class="text-subtitle-1 font-weight-bold">
+            <v-icon left color="white">mdi-alert-octagon</v-icon>
+            ¡ATENCIÓN! TURNO PENDIENTE DE CIERRE DE JORNADA ANTERIOR
+          </div>
+          <div class="text-body-2 mt-1">
+            El <strong>Turno #{{ sesionActiva.numero_sesion }}</strong> fue abierto en fecha <strong>{{ formatearFechaCompleta(sesionActiva.fecha_apertura) }}</strong> y quedó pendiente de arqueo. Por estricto control contable y normas de tesorería, <strong>debe realizar el Cierre y Arqueo de la jornada anterior</strong> antes de registrar nuevos cobros hoy.
+          </div>
+        </v-col>
+        <v-col class="shrink">
+          <v-btn
+            color="white"
+            class="red--text text--darken-3 font-weight-bold text-capitalize elevation-2"
+            rounded
+            @click="mostrarModalCierre = true"
+          >
+            <v-icon left color="red darken-3">mdi-cash-register</v-icon>
+            Efectuar Cierre Rezagado Ahora
+          </v-btn>
+        </v-col>
+      </v-row>
+    </v-alert>
+
     <!-- 2. BARRA DE ESTADO DE SESIÓN / TURNO ACTIVO (Solo visible cuando hay turno abierto) -->
     <v-card
       v-if="tieneSesionActiva && sesionActiva"
@@ -561,13 +594,19 @@
               </v-btn>
             </div>
 
+            <!-- Alerta si cobro está bloqueado por turno rezagado -->
+            <div v-if="esSesionDiaAnterior" class="pa-2 mb-2 rounded red lighten-5 red--text text--darken-4 text-caption font-weight-bold text-center d-flex align-center justify-center">
+              <v-icon x-small color="red darken-4" class="mr-1">mdi-lock-alert</v-icon>
+              Cobro bloqueado: Cierre el turno rezagado de la jornada anterior.
+            </div>
+
             <!-- Botón de Cobro y Emisión SIAT -->
             <v-btn
               block
               x-large
               color="primary"
               class="rounded-pill font-weight-bold elevation-2 text-white"
-              :disabled="totalSeleccionado <= 0 || (datosCobro.codigo_metodo_pago === 1 && efectivoRecibido < totalSeleccionado)"
+              :disabled="totalSeleccionado <= 0 || esSesionDiaAnterior || (datosCobro.codigo_metodo_pago === 1 && efectivoRecibido < totalSeleccionado)"
               :loading="procesandoCobro"
               @click="procesarCobro(false)"
             >
@@ -963,6 +1002,7 @@ export default {
       // Estado de Sesión / Turno de Caja
       sesionActiva: null,
       tieneSesionActiva: false,
+      esSesionDiaAnterior: false,
       cajaDefectoId: null,
       cargandoSesion: false,
       mostrarModalApertura: false,
@@ -1112,11 +1152,26 @@ export default {
       const d = new Date(fecha);
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
+    formatearFechaCompleta(fecha) {
+      if (!fecha) return '';
+      try {
+        const d = new Date(fecha);
+        return d.toLocaleDateString('es-BO', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+      } catch (e) {
+        return String(fecha);
+      }
+    },
     async verificarEstadoSesion() {
       this.cargandoSesion = true;
       try {
         const res = await axios.get('/api/comercial/caja-sesiones/estado-actual');
         this.tieneSesionActiva = !!res.data?.tiene_sesion_activa;
+        this.esSesionDiaAnterior = !!res.data?.es_dia_anterior;
         this.sesionActiva = res.data?.sesion || null;
         this.cajaDefectoId = res.data?.caja_defecto_id || null;
       } catch (e) {
@@ -1128,11 +1183,13 @@ export default {
     alAbrirSesion(sesion) {
       this.sesionActiva = sesion;
       this.tieneSesionActiva = true;
+      this.esSesionDiaAnterior = false;
       this.mostrarModalApertura = false;
     },
     alCerrarSesion(sesion) {
       this.mostrarModalCierre = false;
       this.tieneSesionActiva = false;
+      this.esSesionDiaAnterior = false;
       this.sesionActiva = null;
       this.estadoCuenta = null;
       // Abrir reporte oficial de arqueo en el visor integrado
@@ -1313,6 +1370,15 @@ export default {
       if (!this.tieneSesionActiva) {
         this.mostrarNotificacion('Debe realizar la apertura formal del turno de caja antes de cobrar.', 'warning', 'mdi-cash-register');
         this.mostrarModalApertura = true;
+        return;
+      }
+      if (this.esSesionDiaAnterior) {
+        this.mostrarNotificacion(
+          `El turno activo (#${this.sesionActiva?.numero_sesion}) es de un día anterior y quedó pendiente de cierre. Debe efectuar el arqueo y cierre del turno anterior antes de registrar nuevos cobros.`,
+          'error',
+          'mdi-alert-octagon'
+        );
+        this.mostrarModalCierre = true;
         return;
       }
       if (this.totalSeleccionado <= 0) {

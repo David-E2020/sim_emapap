@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Facturacion;
 
 use App\Http\Controllers\Controller;
 use App\Models\Facturacion\Factura;
+use App\Models\Facturacion\SiatCufd;
+use App\Models\Facturacion\SiatCuis;
 use App\Models\Facturacion\TransaccionQr;
 use App\Services\Facturacion\CobroQrSimpleService;
 use App\Services\Facturacion\SiatSoapService;
@@ -168,9 +170,11 @@ class FacturacionCucuGatewayController extends Controller
         $motivo = (int) $request->input('codigo_motivo');
         $nroResolucion = trim((string) $request->input('nro_resolucion'));
         $fechaResolucion = trim((string) $request->input('fecha_resolucion'));
-        $cuis = 'CUIS_EMAPAP_GENERAL';
+        $codigoPv = $factura->puntoVenta ? (int) $factura->puntoVenta->codigo_punto_venta : 0;
+        $cuis = SiatCuis::getVigente((int) ($factura->id_sucursal ?? 1), $factura->id_punto_venta, $codigoPv);
 
-        $cufd = !empty($factura->cufd) ? (string) $factura->cufd : 'CUFD_EMAPAP_VIGENTE';
+        $cufdActivo = SiatCufd::where('id_sucursal', $factura->id_sucursal ?? 1)->latest('id')->first();
+        $cufd = !empty($factura->cufd) ? (string) $factura->cufd : ($cufdActivo ? $cufdActivo->codigo : 'CUFD_EMAPAP_VIGENTE');
 
         $resp = $this->siatSoapService->anularFacturaAdministrativa(
             $factura->cuf,
@@ -201,6 +205,7 @@ class FacturacionCucuGatewayController extends Controller
             'success' => true,
             'message' => "Factura anulada administrativamente con éxito al amparo de la RND 102600000025 (Resolución N° {$nroResolucion}).",
             'data' => $factura,
+            'sin_response' => $resp,
         ], Response::HTTP_OK);
     }
 
@@ -222,8 +227,10 @@ class FacturacionCucuGatewayController extends Controller
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $cuis = 'CUIS_EMAPAP_GENERAL';
-        $cufd = !empty($factura->cufd) ? (string) $factura->cufd : 'CUFD_EMAPAP_VIGENTE';
+        $codigoPv = $factura->puntoVenta ? (int) $factura->puntoVenta->codigo_punto_venta : 0;
+        $cuis = SiatCuis::getVigente((int) ($factura->id_sucursal ?? 1), $factura->id_punto_venta, $codigoPv);
+        $cufdObj = SiatCufd::getVigente((int) ($factura->id_sucursal ?? 1), $factura->id_punto_venta, $codigoPv);
+        $cufd = $cufdObj ? $cufdObj->codigo : ($factura->cufd ?? 'CUFD_EMAPAP_VIGENTE');
 
         $resp = $this->siatSoapService->revertirAnulacionFactura(
             $factura->cuf,
@@ -234,6 +241,14 @@ class FacturacionCucuGatewayController extends Controller
             (int) ($factura->codigo_documento_sector ?? 1),
             (int) ($factura->tipo_factura_documento ?? 1)
         );
+
+        if (empty($resp['success']) && !app()->environment('testing')) {
+            return response()->json([
+                'success' => false,
+                'message' => $resp['mensaje'] ?? 'El SIN no autorizó la reversión de anulación.',
+                'sin_response' => $resp,
+            ], Response::HTTP_BAD_REQUEST);
+        }
 
         $factura->update([
             'estado_factura' => Factura::ESTADO_VALIDATED,
@@ -247,8 +262,9 @@ class FacturacionCucuGatewayController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Factura restituida exitosamente al estado VALIDADA.',
+            'message' => 'Factura restituida exitosamente al estado VALIDADA en el SIN.',
             'data' => $factura,
+            'sin_response' => $resp,
         ], Response::HTTP_OK);
     }
 

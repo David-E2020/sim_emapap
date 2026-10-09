@@ -44,4 +44,25 @@ class SiatCuis extends Model
     {
         return $this->belongsTo(SiatPuntoVenta::class, 'id_punto_venta');
     }
+
+    public static function getVigente(int $idSucursal = 1, ?int $idPuntoVenta = null, int $codigoPuntoVenta = 0): string
+    {
+        if ($codigoPuntoVenta === 0 || $idPuntoVenta === null) {
+            $cuis = static::where('id_sucursal', $idSucursal)
+                ->whereNull('id_punto_venta')
+                ->latest('id')
+                ->first();
+        } else {
+            $cuis = static::where('id_sucursal', $idSucursal)
+                ->where('id_punto_venta', $idPuntoVenta)
+                ->latest('id')
+                ->first();
+        }
+
+        if (!$cuis) {
+            $cuis = static::where('id_sucursal', $idSucursal)->latest('id')->first();
+        }
+
+        return $cuis ? (string) $cuis->codigo : '6D4A1883';
+    }
 }

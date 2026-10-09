@@ -117,6 +117,14 @@ class Factura extends Model
         'otras_tasas' => 'decimal:2',
     ];
 
+    /**
+     * Asegura la serialización de fechas en hora local sin desfase UTC.
+     */
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        return $date->format('Y-m-d H:i:s');
+    }
+
     public function transaccionesQr(): HasMany
     {
         return $this->hasMany(TransaccionQr::class, 'id_factura');

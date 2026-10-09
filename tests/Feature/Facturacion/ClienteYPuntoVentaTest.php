@@ -101,7 +101,7 @@ class ClienteYPuntoVentaTest extends TestCase
                 'id_sucursal' => $sucursal->id,
                 'nombre' => 'Caja Recaudación Terminal',
                 'descripcion' => 'Ventanilla en Terminal de Buses Patacamaya',
-                'tipo_punto_venta' => 1,
+                'tipo_punto_venta' => 2, // 2: Ventanilla de Cobranza (homologado SIN)
             ]);
 
         $resRegistro->assertStatus(201)

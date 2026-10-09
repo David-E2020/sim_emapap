@@ -66,9 +66,14 @@ class CajaSesionController extends Controller
                 },
             ]);
 
+            $fechaApertura = $sesionActiva->fecha_apertura ? Carbon::parse($sesionActiva->fecha_apertura) : null;
+            $esDiaAnterior = $fechaApertura ? !$fechaApertura->isToday() : false;
+
             return response()->json([
                 'success' => true,
                 'tiene_sesion_activa' => true,
+                'es_dia_anterior' => $esDiaAnterior,
+                'fecha_apertura_legible' => $fechaApertura ? $fechaApertura->format('d/m/Y H:i:s') : null,
                 'sesion' => $sesionActiva,
             ], Response::HTTP_OK);
         }

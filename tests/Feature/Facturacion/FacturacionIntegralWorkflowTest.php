@@ -184,7 +184,8 @@ class FacturacionIntegralWorkflowTest extends TestCase
         $xmlPath = $factura['xml_firmado_path'];
         $this->assertTrue(Storage::disk('local')->exists($xmlPath));
         $xmlContent = Storage::disk('local')->get($xmlPath);
-        $this->assertStringContainsString('facturaElectronicaServicioBasico', $xmlContent);
+        $tagEsperado = (int) ($factura['codigo_modalidad'] ?? 1) === 2 ? 'facturaComputarizadaServicioBasico' : 'facturaElectronicaServicioBasico';
+        $this->assertStringContainsString($tagEsperado, $xmlContent);
         $this->assertStringContainsString('MED-9021', $xmlContent);
     }
 

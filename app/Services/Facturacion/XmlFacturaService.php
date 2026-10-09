@@ -29,20 +29,42 @@ class XmlFacturaService
     {
         $factura->loadMissing(['detalles', 'sucursal']);
 
+        $modalidad = (int) ($factura->codigo_modalidad ?? 1);
+        $rootName = ($modalidad === 2) ? 'facturaComputarizadaCompraVenta' : 'facturaElectronicaCompraVenta';
+        $xsdFile = ($modalidad === 2) ? 'facturaComputarizadaCompraVenta.xsd' : 'facturaElectronicaCompraVenta.xsd';
+
         $dom = new DOMDocument('1.0', 'utf-8');
         $dom->formatOutput = true;
 
-        $root = $dom->createElement('facturaElectronicaCompraVenta');
+        $root = $dom->createElement($rootName);
         $root->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-        $root->setAttribute('xsi:noNamespaceSchemaLocation', 'facturaElectronicaCompraVenta.xsd');
+        $root->setAttribute('xsi:noNamespaceSchemaLocation', $xsdFile);
         $dom->appendChild($root);
 
         // --- CABECERA ---
         $cabecera = $dom->createElement('cabecera');
         $root->appendChild($cabecera);
 
-        $nitEmisor = config('siat.nit_emisor', '123456789');
-        $razonSocialEmisor = 'EMPRESA MUNICIPAL DE AGUA POTABLE Y ALCANTARILLADO SANITARIO PATACAMAYA - EMAPAP';
+        $empresa = null;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('facturacion.configuracion_empresa')) {
+                $empresa = \App\Models\Facturacion\ConfiguracionEmpresa::getActiva();
+            }
+        } catch (\Throwable $e) {}
+
+        $tokenNit = $empresa ? SiatSoapService::extractNitFromToken($empresa->token_delegado ?? '') : null;
+        $esPiloto = ($empresa && (int)$empresa->codigo_ambiente === 2) || (int)config('siat.ambiente', 2) === 2;
+
+        $nitEmisor = $factura->nit_emisor 
+            ?? ($esPiloto && !empty($tokenNit) 
+                ? $tokenNit 
+                : ($empresa && !empty($empresa->nit) 
+                    ? $empresa->nit 
+                    : config('siat.nit_emisor', '123456789')));
+
+        $razonSocialEmisor = $empresa && !empty($empresa->razon_social)
+            ? $empresa->razon_social
+            : 'EMPRESA MUNICIPAL DE AGUA POTABLE Y ALCANTARILLADO SANITARIO PATACAMAYA - EMAPAP';
         $municipio = $factura->sucursal->municipio ?? 'Patacamaya';
         $telefono = $factura->sucursal->telefono ?? '2-8147000';
         $direccion = $factura->sucursal->direccion ?? 'Av. Panamericana s/n, Plaza 15 de Agosto';
@@ -109,20 +131,42 @@ class XmlFacturaService
     {
         $factura->loadMissing(['detalles', 'sucursal', 'abonado.medidorActual']);
 
+        $modalidad = (int) ($factura->codigo_modalidad ?? 1);
+        $rootName = ($modalidad === 2) ? 'facturaComputarizadaServicioBasico' : 'facturaElectronicaServicioBasico';
+        $xsdFile = ($modalidad === 2) ? 'facturaComputarizadaServicioBasico.xsd' : 'facturaElectronicaServicioBasico.xsd';
+
         $dom = new DOMDocument('1.0', 'utf-8');
         $dom->formatOutput = true;
 
-        $root = $dom->createElement('facturaElectronicaServicioBasico');
+        $root = $dom->createElement($rootName);
         $root->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-        $root->setAttribute('xsi:noNamespaceSchemaLocation', 'facturaElectronicaServicioBasico.xsd');
+        $root->setAttribute('xsi:noNamespaceSchemaLocation', $xsdFile);
         $dom->appendChild($root);
 
         // --- CABECERA ---
         $cabecera = $dom->createElement('cabecera');
         $root->appendChild($cabecera);
 
-        $nitEmisor = config('siat.nit_emisor', '123456789');
-        $razonSocialEmisor = 'EMPRESA MUNICIPAL DE AGUA POTABLE Y ALCANTARILLADO SANITARIO PATACAMAYA - EMAPAP';
+        $empresa = null;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('facturacion.configuracion_empresa')) {
+                $empresa = \App\Models\Facturacion\ConfiguracionEmpresa::getActiva();
+            }
+        } catch (\Throwable $e) {}
+
+        $tokenNit = $empresa ? SiatSoapService::extractNitFromToken($empresa->token_delegado ?? '') : null;
+        $esPiloto = ($empresa && (int)$empresa->codigo_ambiente === 2) || (int)config('siat.ambiente', 2) === 2;
+
+        $nitEmisor = $factura->nit_emisor 
+            ?? ($esPiloto && !empty($tokenNit) 
+                ? $tokenNit 
+                : ($empresa && !empty($empresa->nit) 
+                    ? $empresa->nit 
+                    : config('siat.nit_emisor', '123456789')));
+
+        $razonSocialEmisor = $empresa && !empty($empresa->razon_social)
+            ? $empresa->razon_social
+            : 'EMPRESA MUNICIPAL DE AGUA POTABLE Y ALCANTARILLADO SANITARIO PATACAMAYA - EMAPAP';
         $municipio = $factura->sucursal->municipio ?? 'Patacamaya';
         $telefono = $factura->sucursal->telefono ?? '2-8147000';
         $direccion = $factura->sucursal->direccion ?? 'Av. Panamericana s/n, Plaza 15 de Agosto';
@@ -210,12 +254,20 @@ class XmlFacturaService
      *
      * @throws Exception Si el XML no es válido según la normativa del SIN.
      */
-    public function validarContraXsd(string $xmlContent, ?string $rutaXsd = null, int $codigoDocumentoSector = 1): bool
+    public function validarContraXsd(string $xmlContent, ?string $rutaXsd = null, int $codigoDocumentoSector = 1, ?int $modalidad = null): bool
     {
         if ($rutaXsd === null) {
-            $schemaPath = $codigoDocumentoSector === 13
-                ? storage_path('app/siat/schemas/facturaElectronicaServicioBasico.xsd')
-                : storage_path('app/siat/schemas/facturaElectronicaCompraVenta.xsd');
+            $mod = $modalidad;
+            if ($mod === null) {
+                $mod = str_contains($xmlContent, 'facturaComputarizada') ? 2 : 1;
+            }
+
+            if ($codigoDocumentoSector === 13) {
+                $schemaFile = ($mod === 2) ? 'facturaComputarizadaServicioBasico.xsd' : 'facturaElectronicaServicioBasico.xsd';
+            } else {
+                $schemaFile = ($mod === 2) ? 'facturaComputarizadaCompraVenta.xsd' : 'facturaElectronicaCompraVenta.xsd';
+            }
+            $schemaPath = storage_path("app/siat/schemas/{$schemaFile}");
         } else {
             $schemaPath = $rutaXsd;
         }

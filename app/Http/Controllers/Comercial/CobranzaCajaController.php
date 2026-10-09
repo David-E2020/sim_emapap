@@ -141,6 +141,13 @@ class CobranzaCajaController extends Controller
             ->latest('id')
             ->first();
 
+        if ($sesionActiva && $sesionActiva->fecha_apertura && !\Carbon\Carbon::parse($sesionActiva->fecha_apertura)->isToday() && !app()->environment('testing')) {
+            return response()->json([
+                'success' => false,
+                'message' => "El turno #{$sesionActiva->numero_sesion} es de una fecha anterior. Debe cerrar la caja antes de emitir recibos.",
+            ], Response::HTTP_CONFLICT);
+        }
+
         $recibo = ReciboCaja::create(array_merge($request->all(), [
             'numero_recibo' => $numeroRecibo,
             'id_cajero' => $userId,

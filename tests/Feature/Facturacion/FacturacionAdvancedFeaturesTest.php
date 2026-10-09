@@ -217,6 +217,13 @@ class FacturacionAdvancedFeaturesTest extends TestCase
 
         $resValidar->assertStatus(200)
             ->assertJson(['success' => true]);
+
+        // 6. Validar descarga del paquete .tar.gz
+        $resDescarga = $this->withHeaders($this->authHeaders())
+            ->get("/api/facturacion/eventos-significativos/paquetes/{$paquete->id}/descargar");
+
+        $resDescarga->assertStatus(200);
+        $resDescarga->assertHeader('content-type', 'application/gzip');
     }
 
     public function test_reporte_libro_ventas_iva_calculos_y_exportacion_csv_oficial(): void
@@ -321,10 +328,10 @@ class FacturacionAdvancedFeaturesTest extends TestCase
             'codigo_metodo_pago' => 1,
             'items' => [
                 [
-                    'codigo_producto_empresa' => 'AGUA-COM-01',
-                    'codigo_actividad' => '360000',
-                    'codigo_producto_sin' => '86311',
-                    'descripcion' => 'CONSUMO AGUA POTABLE - CATEGORÍA COMERCIAL',
+                    'codigo_producto_empresa' => 'SERV-01',
+                    'codigo_actividad' => '6201000',
+                    'codigo_producto_sin' => '1003913',
+                    'descripcion' => 'SERVICIO TECNICO Y CONSULTORIA SISTEMA',
                     'cantidad' => 1,
                     'precio_unitario' => 45.00,
                 ],
@@ -364,5 +371,114 @@ class FacturacionAdvancedFeaturesTest extends TestCase
                 'fecha_hora_local',
                 'diferencia_segundos',
             ]);
+    }
+
+    public function test_reenviar_factura_contingencia_regulariza_via_paquete_sin_error_tipo_emision(): void
+    {
+        $sucursal = SiatSucursal::first() ?? SiatSucursal::factory()->create();
+        $pv = SiatPuntoVenta::where('id_sucursal', $sucursal->id)->first() ?? SiatPuntoVenta::factory()->create(['id_sucursal' => $sucursal->id]);
+        $cufd = SiatCufd::latest('id')->first();
+
+        // 1. Crear una factura en modo contingencia (tipo_emision = 2)
+        $factura = Factura::create([
+            'id_sucursal' => $sucursal->id,
+            'id_punto_venta' => $pv->id,
+            'id_cufd' => $cufd->id,
+            'numero_factura' => 999123,
+            'cuf' => '1D4C42B9C6C04C3AFC0000000000000000000000000000000000000000',
+            'cufd' => $cufd->codigo,
+            'codigo_control' => 'CTRL123',
+            'fecha_emision' => Carbon::now(),
+            'codigo_modalidad' => 2,
+            'tipo_emision' => 2, // CONTINGENCIA / FUERA DE LÍNEA
+            'tipo_factura_documento' => 1,
+            'codigo_documento_sector' => 1,
+            'nombre_razon_social' => 'CLIENTE TEST CONTINGENCIA',
+            'numero_documento' => '12345678',
+            'codigo_tipo_documento_identidad' => 1,
+            'codigo_metodo_pago' => 1,
+            'monto_total' => 60.00,
+            'monto_total_sujeto_iva' => 60.00,
+            'leyenda' => 'Ley N° 453: Los servicios básicos deben prestarse en condiciones de calidad.',
+            'usuario_emision' => 'ADMIN_TEST',
+            'estado_factura' => 'CONTINGENCIA',
+            '_estado' => 'ACTIVO',
+            '_transaccion' => 'TEST',
+            '_usuario_creacion' => $this->user->id,
+        ]);
+
+        FacturaDetalle::create([
+            'id_factura' => $factura->id,
+            'codigo_actividad' => '360000',
+            'codigo_producto_sin' => '86311',
+            'codigo_producto_empresa' => 'SERV-TEST',
+            'descripcion' => 'SERVICIO EN CONTINGENCIA',
+            'cantidad' => 1,
+            'codigo_unidad_medida' => 58,
+            'precio_unitario' => 60.00,
+            'subtotal' => 60.00,
+            '_estado' => 'ACTIVO',
+            '_transaccion' => 'TEST',
+            '_usuario_creacion' => $this->user->id,
+        ]);
+
+        // 2. Reenviar a SIAT para regularizar contingencia
+        $resReenvio = $this->withHeaders($this->authHeaders())
+            ->postJson("/api/facturacion/facturas/{$factura->id}/enviar-siat");
+
+        $resReenvio->assertStatus(200);
+
+        // Asegurarse de que NO arroja el error del SIN "EL PARAMETRO TIPO DE EMISION ES INVALIDO"
+        $mensaje = $resReenvio->json('message') ?? '';
+        $this->assertStringNotContainsString('EL PARAMETRO TIPO DE EMISION ES INVALIDO', $mensaje);
+        $this->assertTrue($resReenvio->json('success'));
+        $this->assertNotEmpty($resReenvio->json('data.codigo_recepcion'));
+    }
+
+    public function test_iniciar_evento_significativo_con_toda_la_sucursal_o_caja_especifica(): void
+    {
+        $sucursal = SiatSucursal::first();
+
+        // 1. Evento para toda la sucursal (id_punto_venta = null)
+        $resTodaSuc = $this->withHeaders($this->authHeaders())
+            ->postJson('/api/facturacion/eventos-significativos', [
+                'codigo_evento' => 1,
+                'descripcion' => 'Corte general de suministro de energía eléctrica',
+                'id_sucursal' => $sucursal->codigo_sucursal,
+                'id_punto_venta' => null,
+            ]);
+
+        $resTodaSuc->assertStatus(201)
+            ->assertJson(['success' => true]);
+
+        $eventoId1 = $resTodaSuc->json('data.id');
+        $evento1 = EventoSignificativo::find($eventoId1);
+        $this->assertNotNull($evento1);
+        $this->assertNull($evento1->id_punto_venta);
+
+        // 2. Evento para un punto de venta específico
+        $pv = SiatPuntoVenta::where('id_sucursal', $sucursal->id)->latest('id')->first();
+        $resPvEsp = $this->withHeaders($this->authHeaders())
+            ->postJson('/api/facturacion/eventos-significativos', [
+                'codigo_evento' => 2,
+                'descripcion' => 'Falla de conexión en caja específica',
+                'id_sucursal' => $sucursal->codigo_sucursal,
+                'id_punto_venta' => $pv->codigo_punto_venta,
+            ]);
+
+        $resPvEsp->assertStatus(201)
+            ->assertJson(['success' => true]);
+
+        $eventoId2 = $resPvEsp->json('data.id');
+        $evento2 = EventoSignificativo::find($eventoId2);
+        $this->assertNotNull($evento2);
+        $this->assertEquals($pv->id, $evento2->id_punto_venta);
+
+        // 3. Filtrar eventos por sucursal y punto de venta
+        $resFiltro = $this->withHeaders($this->authHeaders())
+            ->getJson("/api/facturacion/eventos-significativos?id_sucursal={$sucursal->codigo_sucursal}&id_punto_venta={$pv->codigo_punto_venta}");
+
+        $resFiltro->assertStatus(200)
+            ->assertJson(['success' => true]);
     }
 }

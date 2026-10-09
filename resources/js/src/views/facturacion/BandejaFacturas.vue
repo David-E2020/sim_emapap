@@ -73,12 +73,47 @@
           ></v-text-field>
         </v-col>
 
+        <!-- Filtro Sucursal -->
+        <v-col cols="12" sm="6" md="3">
+          <v-select
+            v-model="filtroSucursal"
+            :items="opcionesSucursales"
+            item-text="texto"
+            item-value="id"
+            label="Sucursal"
+            prepend-inner-icon="mdi-office-building-marker"
+            dense
+            outlined
+            hide-details
+            clearable
+            @change="alCambiarSucursal"
+          ></v-select>
+        </v-col>
+
+        <!-- Filtro Punto de Venta / Caja -->
+        <v-col cols="12" sm="6" md="3">
+          <v-select
+            v-model="filtroPuntoVenta"
+            :items="opcionesPuntosVenta"
+            item-text="texto"
+            item-value="id"
+            label="Punto de Venta / Caja"
+            prepend-inner-icon="mdi-cash-register"
+            dense
+            outlined
+            hide-details
+            clearable
+            @change="cargarFacturas"
+          ></v-select>
+        </v-col>
+
         <!-- Estado Fiscal -->
-        <v-col cols="12" sm="4" md="2">
+        <v-col cols="12" sm="4" md="4">
           <v-select
             v-model="filtroEstado"
             :items="['TODOS', 'VALIDADA', 'ANULADA', 'OBSERVADA', 'CONTINGENCIA', 'DUPLICADAS']"
             label="Estado Fiscal"
+            prepend-inner-icon="mdi-shield-check-outline"
             dense
             outlined
             hide-details
@@ -87,11 +122,12 @@
         </v-col>
 
         <!-- Fecha Desde -->
-        <v-col cols="12" sm="4" md="2">
+        <v-col cols="12" sm="4" md="4">
           <v-text-field
             v-model="filtroFechaInicio"
             label="Fecha Desde"
             type="date"
+            prepend-inner-icon="mdi-calendar-start"
             dense
             outlined
             hide-details
@@ -101,11 +137,12 @@
         </v-col>
 
         <!-- Fecha Hasta -->
-        <v-col cols="12" sm="4" md="2">
+        <v-col cols="12" sm="4" md="4">
           <v-text-field
             v-model="filtroFechaFin"
             label="Fecha Hasta"
             type="date"
+            prepend-inner-icon="mdi-calendar-end"
             dense
             outlined
             hide-details
@@ -133,7 +170,7 @@
             Año {{ new Date().getFullYear() }}
           </v-btn>
           <v-btn
-            v-if="busqueda || filtroEstado !== 'TODOS' || filtroFechaInicio || filtroFechaFin"
+            v-if="busqueda || filtroEstado !== 'TODOS' || filtroSucursal || filtroPuntoVenta || filtroFechaInicio || filtroFechaFin"
             x-small
             text
             class="text-capitalize font-weight-bold ml-1"
@@ -260,22 +297,100 @@
       >
         <!-- N° Factura -->
         <template v-slot:item.numero_factura="{ item }">
-          <div class="d-flex align-center flex-wrap">
-            <span class="font-weight-bold text-primary">N° {{ item.numero_factura }}</span>
-            <v-tooltip v-if="item.es_cuf_duplicado" bottom color="error">
-              <template v-slot:activator="{ on, attrs }">
-                <v-chip v-bind="attrs" v-on="on" x-small color="error" class="ml-1 font-weight-bold">
-                  <v-icon x-small left>mdi-alert</v-icon> DUPLICADA
-                </v-chip>
-              </template>
-              <span>Alerta: Este CUF se repite en más de un registro fiscal</span>
-            </v-tooltip>
+          <div class="d-flex flex-column py-1">
+            <div class="d-flex align-center flex-wrap">
+              <span class="font-weight-bold text-primary">N° {{ item.numero_factura }}</span>
+              <v-tooltip v-if="item.es_cuf_duplicado" bottom color="error">
+                <template v-slot:activator="{ on, attrs }">
+                  <v-chip v-bind="attrs" v-on="on" x-small color="error" class="ml-1 font-weight-bold">
+                    <v-icon x-small left>mdi-alert</v-icon> DUPLICADA
+                  </v-chip>
+                </template>
+                <span>Alerta: Este CUF se repite en más de un registro fiscal</span>
+              </v-tooltip>
+            </div>
+            <div class="d-flex align-center gap-1 mt-1 flex-wrap">
+              <v-chip
+                v-if="item.tipo_emision === 2"
+                x-small
+                color="amber lighten-5"
+                class="amber--text text--darken-4 font-weight-bold"
+              >
+                <v-icon left x-small color="amber darken-4">mdi-wifi-off</v-icon>
+                CONTINGENCIA
+              </v-chip>
+              <v-chip
+                x-small
+                outlined
+                :color="item.codigo_documento_sector === 13 ? 'blue darken-2' : 'purple darken-2'"
+                class="font-weight-medium"
+              >
+                <v-icon left x-small>{{ item.codigo_documento_sector === 13 ? 'mdi-water-outline' : 'mdi-cart-outline' }}</v-icon>
+                {{ item.codigo_documento_sector === 13 ? 'Serv. Básicos' : 'Compra Venta' }}
+              </v-chip>
+            </div>
           </div>
         </template>
 
         <!-- Fecha Emisión -->
         <template v-slot:item.fecha_emision="{ item }">
-          <span class="text-caption">{{ formatearFecha(item.fecha_emision) }}</span>
+          <div class="d-flex flex-column">
+            <span class="text-caption font-weight-medium">{{ formatearFecha(item.fecha_emision) }}</span>
+            <span
+              v-if="item.cuf"
+              class="text-caption grey--text text-truncate font-monospace"
+              style="max-width: 145px; font-size: 10px;"
+              :title="'CUF: ' + item.cuf"
+            >
+              CUF: {{ item.cuf.slice(0, 10) }}...
+            </span>
+          </div>
+        </template>
+
+        <!-- Sucursal / Caja (Punto de Venta) -->
+        <template v-slot:item.sucursal_punto_venta="{ item }">
+          <div class="d-flex flex-column py-1" style="min-width: 180px;">
+            <div
+              class="d-flex align-center font-weight-medium text-caption text-truncate"
+              :title="item.sucursal ? item.sucursal.nombre : 'Casa Matriz'"
+            >
+              <v-icon x-small color="primary" class="mr-1">mdi-office-building-marker</v-icon>
+              <span>{{ item.sucursal ? `Suc. ${item.sucursal.codigo_sucursal} - ${item.sucursal.nombre}` : 'Casa Matriz (Suc. 0)' }}</span>
+            </div>
+            <div class="d-flex align-center flex-wrap gap-1 mt-1">
+              <v-chip
+                v-if="item.punto_venta"
+                x-small
+                color="teal lighten-5"
+                class="teal--text text--darken-3 font-weight-medium"
+                :title="item.punto_venta.descripcion || item.punto_venta.nombre"
+              >
+                <v-icon left x-small color="teal darken-2">mdi-cash-register</v-icon>
+                PV {{ item.punto_venta.codigo_punto_venta }}: {{ item.punto_venta.nombre }}
+              </v-chip>
+              <v-chip
+                v-else
+                x-small
+                color="grey lighten-4"
+                class="grey--text text--darken-2"
+                title="Documento histórico migrado desde FoxPro (sin punto de venta registrado)"
+              >
+                <v-icon left x-small color="grey">mdi-database-clock-outline</v-icon>
+                Migrada (Sin PV)
+              </v-chip>
+
+              <!-- Cajero si tiene sesión de caja -->
+              <v-tooltip v-if="item.sesion_caja && item.sesion_caja.cajero" bottom>
+                <template v-slot:activator="{ on, attrs }">
+                  <v-chip v-bind="attrs" v-on="on" x-small outlined color="indigo" class="font-weight-medium">
+                    <v-icon left x-small>mdi-account</v-icon>
+                    {{ item.sesion_caja.cajero.name.split(' ')[0] }}
+                  </v-chip>
+                </template>
+                <span>Cajero: {{ item.sesion_caja.cajero.name }} (Sesión #{{ item.sesion_caja.numero_sesion }})</span>
+              </v-tooltip>
+            </div>
+          </div>
         </template>
 
         <!-- Cliente / NIT / Abonado -->
@@ -292,7 +407,12 @@
 
         <!-- Monto Total -->
         <template v-slot:item.monto_total="{ item }">
-          <span class="font-weight-bold">Bs {{ parseFloat(item.monto_total).toFixed(2) }}</span>
+          <div class="d-flex flex-column align-end">
+            <span class="font-weight-bold text-subtitle-2">Bs {{ parseFloat(item.monto_total).toFixed(2) }}</span>
+            <span v-if="item.monto_total_sujeto_iva" class="text-caption text-secondary" style="font-size: 10px;">
+              Fiscal: Bs {{ parseFloat(item.monto_total_sujeto_iva).toFixed(2) }}
+            </span>
+          </div>
         </template>
 
         <!-- Estado Fiscal -->
@@ -665,8 +785,11 @@ export default {
         { texto: 'Razón Social / Nombre', valor: 'cliente' },
       ],
       filtroEstado: 'TODOS',
+      filtroSucursal: null,
+      filtroPuntoVenta: null,
       filtroFechaInicio: null,
       filtroFechaFin: null,
+      sucursales: [],
       totalFacturas: 0,
       opciones: {},
       facturas: [],
@@ -683,12 +806,13 @@ export default {
         { codigo: 5, descripcion: 'AUTORIZACIÓN ADMINISTRATIVA / R.A.' },
       ],
       headers: [
-        { text: 'N° Factura', value: 'numero_factura', width: '120px' },
-        { text: 'Fecha Emisión', value: 'fecha_emision', width: '150px' },
+        { text: 'N° Factura', value: 'numero_factura', width: '135px' },
+        { text: 'Fecha Emisión', value: 'fecha_emision', width: '155px' },
+        { text: 'Sucursal / Caja (PV)', value: 'sucursal_punto_venta', width: '220px' },
         { text: 'Razón Social / Cliente', value: 'nombre_razon_social' },
         { text: 'Total', value: 'monto_total', align: 'right', width: '120px' },
-        { text: 'Estado SIN', value: 'estado_factura', align: 'center', width: '130px' },
-        { text: 'Acciones', value: 'acciones', align: 'right', sortable: false, width: '130px' },
+        { text: 'Estado SIN', value: 'estado_factura', align: 'center', width: '125px' },
+        { text: 'Acciones', value: 'acciones', align: 'right', sortable: false, width: '140px' },
       ],
       snackbar: {
         status: false,
@@ -722,6 +846,46 @@ export default {
         default: return 'N° Factura, Carnet, Código o Nombre...';
       }
     },
+    opcionesSucursales() {
+      const lista = [{ id: null, texto: 'Todas las Sucursales' }];
+      (this.sucursales || []).forEach(s => {
+        lista.push({
+          id: s.id,
+          texto: `Suc. ${s.codigo_sucursal} - ${s.nombre}`,
+          codigo: s.codigo_sucursal,
+        });
+      });
+      return lista;
+    },
+    opcionesPuntosVenta() {
+      const lista = [
+        { id: null, texto: 'Todos los Puntos de Venta / Cajas' },
+        { id: 'sin_pv', texto: 'Históricas (Sin Punto de Venta)' },
+      ];
+      if (this.filtroSucursal) {
+        const suc = (this.sucursales || []).find(s => s.id === this.filtroSucursal);
+        if (suc && suc.puntos_venta) {
+          suc.puntos_venta.forEach(pv => {
+            lista.push({
+              id: pv.id,
+              texto: `PV ${pv.codigo_punto_venta}: ${pv.nombre}`,
+              codigo: pv.codigo_punto_venta,
+            });
+          });
+        }
+      } else {
+        (this.sucursales || []).forEach(s => {
+          (s.puntos_venta || []).forEach(pv => {
+            lista.push({
+              id: pv.id,
+              texto: `[Suc. ${s.codigo_sucursal}] PV ${pv.codigo_punto_venta}: ${pv.nombre}`,
+              codigo: pv.codigo_punto_venta,
+            });
+          });
+        });
+      }
+      return lista;
+    },
   },
   watch: {
     opciones: {
@@ -732,9 +896,24 @@ export default {
     },
   },
   mounted() {
+    this.cargarSucursales();
     this.cargarFacturas();
   },
   methods: {
+    async cargarSucursales() {
+      try {
+        const res = await window.axios.get('/api/facturacion/siat/sucursales');
+        if (res.data && res.data.data) {
+          this.sucursales = res.data.data;
+        }
+      } catch (e) {
+        console.error('Error al cargar sucursales en bandeja:', e);
+      }
+    },
+    alCambiarSucursal() {
+      this.filtroPuntoVenta = null;
+      this.cargarFacturas();
+    },
     async cargarFacturas() {
       this.cargando = true;
       try {
@@ -745,6 +924,8 @@ export default {
           search: this.busqueda || '',
           tipo_busqueda: this.tipoBusqueda || 'codigo_abonado',
           estado: this.filtroEstado === 'TODOS' ? '' : this.filtroEstado,
+          id_sucursal: this.filtroSucursal || '',
+          id_punto_venta: this.filtroPuntoVenta || '',
           fecha_inicio: this.filtroFechaInicio || '',
           fecha_fin: this.filtroFechaFin || '',
         };
@@ -803,6 +984,8 @@ export default {
       this.busqueda = '';
       this.tipoBusqueda = 'codigo_abonado';
       this.filtroEstado = 'TODOS';
+      this.filtroSucursal = null;
+      this.filtroPuntoVenta = null;
       this.filtroFechaInicio = null;
       this.filtroFechaFin = null;
       this.cargarFacturas();
@@ -812,6 +995,8 @@ export default {
       if (this.busqueda) params.append('search', this.busqueda);
       params.append('tipo_busqueda', this.tipoBusqueda || 'codigo_abonado');
       if (this.filtroEstado && this.filtroEstado !== 'TODOS') params.append('estado', this.filtroEstado);
+      if (this.filtroSucursal) params.append('id_sucursal', this.filtroSucursal);
+      if (this.filtroPuntoVenta) params.append('id_punto_venta', this.filtroPuntoVenta);
       if (this.filtroFechaInicio) params.append('fecha_inicio', this.filtroFechaInicio);
       if (this.filtroFechaFin) params.append('fecha_fin', this.filtroFechaFin);
 
@@ -932,14 +1117,31 @@ export default {
     },
     formatearFecha(fechaStr) {
       if (!fechaStr) return '-';
-      const partes = String(fechaStr).replace('T', ' ').split(' ');
-      if (partes.length === 2 && partes[0].includes('-')) {
-        const [y, m, d] = partes[0].split('-');
-        const hora = partes[1].slice(0, 8);
-        return `${d}/${m}/${y} ${hora}`;
+      try {
+        if (typeof fechaStr === 'string' && /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(fechaStr)) {
+          const limpia = fechaStr.replace('T', ' ');
+          const [fecha, horaCompleta] = limpia.split(' ');
+          const [y, m, d] = fecha.split('-');
+          const hora = horaCompleta.slice(0, 8);
+          return `${d}/${m}/${y} ${hora}`;
+        }
+        const d = new Date(fechaStr);
+        if (!isNaN(d.getTime())) {
+          return new Intl.DateTimeFormat('es-BO', {
+            timeZone: 'America/La_Paz',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          }).format(d);
+        }
+      } catch (e) {
+        console.error('Error al formatear fecha:', e);
       }
-      const f = new Date(fechaStr);
-      return isNaN(f.getTime()) ? fechaStr : f.toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'medium' });
+      return String(fechaStr);
     },
     colorEstado(estado) {
       switch (estado) {

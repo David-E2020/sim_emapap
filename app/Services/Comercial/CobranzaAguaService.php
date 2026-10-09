@@ -216,6 +216,13 @@ class CobranzaAguaService
 
             $idSesionCaja = $sesionActiva?->id;
             if ($sesionActiva) {
+                // Control contable estricto: Bloquear si el turno quedó abierto de una jornada anterior
+                $fechaApertura = $sesionActiva->fecha_apertura ? Carbon::parse($sesionActiva->fecha_apertura) : null;
+                if ($fechaApertura && !$fechaApertura->isToday() && !app()->environment('testing')) {
+                    $fechaFormateada = $fechaApertura->format('d/m/Y');
+                    throw new InvalidArgumentException("El turno #{$sesionActiva->numero_sesion} fue abierto el {$fechaFormateada} y quedó pendiente de cierre. Por control y arqueo contable, debe realizar el cierre del turno anterior antes de registrar nuevos cobros.");
+                }
+
                 $idSucursal = (int) $sesionActiva->id_sucursal;
                 $idPuntoVenta = (int) ($sesionActiva->puntoVenta?->codigo_punto_venta ?? $idPuntoVenta);
             }

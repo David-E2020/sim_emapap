@@ -34,9 +34,32 @@ class EventoSignificativoController extends Controller
     public function index(Request $request): JsonResponse
     {
         $perPage = (int) $request->input('per_page', 10);
-        $paginator = EventoSignificativo::with(['sucursal', 'puntoVenta', 'facturas'])
-            ->orderByDesc('id')
-            ->paginate($perPage);
+        $query = EventoSignificativo::with([
+            'sucursal',
+            'puntoVenta',
+            'paquetes',
+            'facturas:id,id_evento_significativo,numero_factura,fecha_emision,nombre_razon_social,numero_documento,monto_total,estado_factura',
+        ]);
+
+        if ($request->filled('id_sucursal')) {
+            $idSucursal = (int) $request->input('id_sucursal');
+            $query->whereHas('sucursal', function ($q) use ($idSucursal) {
+                $q->where('codigo_sucursal', $idSucursal)->orWhere('id', $idSucursal);
+            });
+        }
+
+        if ($request->filled('id_punto_venta')) {
+            $idPv = (int) $request->input('id_punto_venta');
+            $query->whereHas('puntoVenta', function ($q) use ($idPv) {
+                $q->where('codigo_punto_venta', $idPv)->orWhere('id', $idPv);
+            });
+        }
+
+        if ($request->filled('estado_evento')) {
+            $query->where('estado_evento', strtoupper((string) $request->input('estado_evento')));
+        }
+
+        $paginator = $query->orderByDesc('id')->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -57,6 +80,7 @@ class EventoSignificativoController extends Controller
             'descripcion' => 'required|string|max:255',
             'id_sucursal' => 'required|integer',
             'id_punto_venta' => 'nullable|integer',
+            'fecha_inicio' => 'nullable|date',
             'cafc' => 'nullable|string|max:50',
         ]);
 
@@ -68,19 +92,29 @@ class EventoSignificativoController extends Controller
         }
 
         $idSucursal = (int) $request->input('id_sucursal');
-        $idPuntoVenta = (int) $request->input('id_punto_venta', 0);
+        $hasPv = $request->has('id_punto_venta') && $request->input('id_punto_venta') !== null;
+        $idPuntoVenta = $hasPv ? (int) $request->input('id_punto_venta') : null;
 
         $sucursal = SiatSucursal::where('codigo_sucursal', $idSucursal)
             ->orWhere('id', $idSucursal)
             ->firstOrFail();
-        $puntoVenta = SiatPuntoVenta::where('id_sucursal', $sucursal->id)
-            ->where('codigo_punto_venta', $idPuntoVenta)
-            ->first();
 
-        // Obtener el CUFD activo al iniciar el evento
-        $cufd = SiatCufd::where('id_sucursal', $sucursal->id)
-            ->latest('id')
-            ->first();
+        $puntoVenta = null;
+        if ($idPuntoVenta !== null) {
+            $puntoVenta = SiatPuntoVenta::where('id_sucursal', $sucursal->id)
+                ->where(function ($q) use ($idPuntoVenta) {
+                    $q->where('codigo_punto_venta', $idPuntoVenta)
+                      ->orWhere('id', $idPuntoVenta);
+                })
+                ->first();
+        }
+
+        // Obtener el CUFD activo al iniciar el evento (del punto de venta o de la sucursal)
+        $cufd = SiatCufd::getVigente($sucursal->id, $puntoVenta?->id, $idPuntoVenta ?? 0);
+
+        $fechaInicio = $request->filled('fecha_inicio')
+            ? Carbon::parse($request->input('fecha_inicio'))
+            : Carbon::now();
 
         $evento = EventoSignificativo::create([
             'id_sucursal' => $sucursal->id,
@@ -88,14 +122,14 @@ class EventoSignificativoController extends Controller
             'codigo_evento' => (int) $request->input('codigo_evento'),
             'descripcion' => $request->input('descripcion'),
             'cufd_evento' => $cufd ? $cufd->codigo : 'CUFD_EVENTO',
-            'fecha_inicio' => Carbon::now(),
+            'fecha_inicio' => $fechaInicio,
             'cafc' => $request->input('cafc'),
             'estado_evento' => 'INICIADO',
         ]);
 
         return response()->json([
             'success' => true,
-            'data' => $evento,
+            'data' => $evento->load(['sucursal', 'puntoVenta', 'facturas', 'paquetes']),
             'message' => 'Evento significativo iniciado. El sistema ha entrado en modo contingencia.',
         ], Response::HTTP_CREATED);
     }
@@ -161,21 +195,42 @@ class EventoSignificativoController extends Controller
         @rmdir($tempDir);
 
         // Obtener CUIS y CUFD vigentes
-        $cuisActivo = SiatCuis::where('id_sucursal', $evento->id_sucursal)->latest('id')->first();
-        $cufdActivo = SiatCufd::where('id_sucursal', $evento->id_sucursal)->latest('id')->first();
+        $codigoPv = $evento->puntoVenta ? (int) $evento->puntoVenta->codigo_punto_venta : 0;
+        $cuis = SiatCuis::getVigente($evento->id_sucursal, $evento->id_punto_venta, $codigoPv);
+        $cufdObj = SiatCufd::getVigente($evento->id_sucursal, $evento->id_punto_venta, $codigoPv);
+        $cufd = $cufdObj ? $cufdObj->codigo : ($evento->cufd_evento ?? 'CUFD_EVENTO');
 
-        $cuis = $cuisActivo ? $cuisActivo->codigo_cuis : 'CUIS_EMAPAP_DEFAULT';
-        $cufd = $cufdActivo ? $cufdActivo->codigo : ($evento->cufd_evento ?? 'CUFD_EVENTO');
-
-        // 2. Enviar paquete al SIAT vía SOAP
+        // 2. Registrar evento significativo en el SIN para obtener el código de recepción oficial
         $sucursal = $evento->sucursal ? (int) $evento->sucursal->codigo_sucursal : 0;
         $puntoVenta = $evento->puntoVenta ? (int) $evento->puntoVenta->codigo_punto_venta : 0;
+        $cufdEvento = $evento->cufd_evento ?: $cufd;
 
+        $respEventoSin = $this->siatSoapService->registrarEventoSignificativo(
+            (int) $evento->codigo_evento,
+            $evento->descripcion ?: 'Contingencia operativa',
+            $evento->fecha_inicio,
+            $evento->fecha_fin,
+            $cufdEvento,
+            $cuis,
+            $cufd,
+            $sucursal,
+            $puntoVenta
+        );
+
+        $codigoEventoParaPaquete = !empty($respEventoSin['codigo_recepcion_evento'])
+            ? (int) $respEventoSin['codigo_recepcion_evento']
+            : (int) $evento->codigo_evento;
+
+        if (!empty($respEventoSin['codigo_recepcion_evento'])) {
+            $evento->update(['codigo_recepcion_evento' => $respEventoSin['codigo_recepcion_evento']]);
+        }
+
+        // 3. Enviar paquete al SIAT vía SOAP
         $respSiat = $this->siatSoapService->enviarPaqueteFacturas(
             $binarioTarGz,
             $hashArchivo,
             $cantidadFacturas,
-            (int) $evento->codigo_evento,
+            $codigoEventoParaPaquete,
             $cuis,
             $cufd,
             $sucursal,
@@ -211,11 +266,10 @@ class EventoSignificativoController extends Controller
         $paquete = FacturaPaquete::with('eventoSignificativo')->findOrFail($paqueteId);
         $evento = $paquete->eventoSignificativo;
 
-        $cuisActivo = SiatCuis::where('id_sucursal', $evento->id_sucursal)->latest('id')->first();
-        $cufdActivo = SiatCufd::where('id_sucursal', $evento->id_sucursal)->latest('id')->first();
-
-        $cuis = $cuisActivo ? $cuisActivo->codigo_cuis : 'CUIS_EMAPAP_DEFAULT';
-        $cufd = $cufdActivo ? $cufdActivo->codigo : 'CUFD_DEFAULT';
+        $codigoPv = $evento->puntoVenta ? (int) $evento->puntoVenta->codigo_punto_venta : 0;
+        $cuis = SiatCuis::getVigente($evento->id_sucursal, $evento->id_punto_venta, $codigoPv);
+        $cufdObj = SiatCufd::getVigente($evento->id_sucursal, $evento->id_punto_venta, $codigoPv);
+        $cufd = $cufdObj ? $cufdObj->codigo : 'CUFD_DEFAULT';
 
         $sucursal = $evento->sucursal ? (int) $evento->sucursal->codigo_sucursal : 0;
         $puntoVenta = $evento->puntoVenta ? (int) $evento->puntoVenta->codigo_punto_venta : 0;
@@ -238,5 +292,26 @@ class EventoSignificativoController extends Controller
             'data' => $paquete,
             'mensaje_siat' => $res['mensajes'] ?? $res['mensaje'] ?? 'Estado actualizado.',
         ], Response::HTTP_OK);
+    }
+
+    /**
+     * Descargar el archivo .tar.gz oficial enviado al SIAT.
+     */
+    public function descargarPaquete(int $paqueteId): mixed
+    {
+        $paquete = FacturaPaquete::findOrFail($paqueteId);
+
+        if (!$paquete->archivo_tar_gz_path || !Storage::disk('local')->exists($paquete->archivo_tar_gz_path)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El archivo comprimido del paquete no existe en el almacenamiento del servidor.',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        return Storage::disk('local')->download(
+            $paquete->archivo_tar_gz_path,
+            basename($paquete->archivo_tar_gz_path),
+            ['Content-Type' => 'application/gzip']
+        );
     }
 }

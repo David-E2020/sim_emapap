@@ -489,6 +489,7 @@ Route::group(['middleware' => ['jwt.auth']], function () {
             Route::get('siat/verificar-nit/{nit}', [SiatCodigoController::class, 'verificarNit']);
             Route::get('siat/catalogos', [SiatCodigoController::class, 'catalogos']);
             Route::get('siat/sucursales', [SiatCodigoController::class, 'sucursales']);
+            Route::post('siat/sucursales', [SiatCodigoController::class, 'registrarSucursal']);
             Route::get('siat/productos', [SiatCodigoController::class, 'productos']);
             Route::post('siat/productos', [SiatCodigoController::class, 'guardarProducto']);
             Route::post('siat/puntos-venta', [SiatCodigoController::class, 'registrarPuntoVenta']);
@@ -502,6 +503,7 @@ Route::group(['middleware' => ['jwt.auth']], function () {
             Route::post('eventos-significativos', [EventoSignificativoController::class, 'store']);
             Route::post('eventos-significativos/{id}/cerrar', [EventoSignificativoController::class, 'cerrar']);
             Route::post('eventos-significativos/paquetes/{id}/validar', [EventoSignificativoController::class, 'validarPaquete']);
+            Route::get('eventos-significativos/paquetes/{id}/descargar', [EventoSignificativoController::class, 'descargarPaquete']);
         });
 
         // Reportes y Libro de Ventas IVA

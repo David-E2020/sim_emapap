@@ -37,6 +37,14 @@ class EventoSignificativo extends Model
         'fecha_fin' => 'datetime',
     ];
 
+    /**
+     * Garantizar hora local boliviana en respuestas JSON.
+     */
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        return $date->format('Y-m-d H:i:s');
+    }
+
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(SiatSucursal::class, 'id_sucursal');

@@ -157,7 +157,8 @@ class FacturacionIntegrationTest extends TestCase
         // Validar que se construyó el XML oficial con servicios de agua
         $xmlService = new XmlFacturaService();
         $xml = $xmlService->construirXml($factura);
-        $this->assertStringContainsString('<facturaElectronicaCompraVenta', $xml);
+        $tagEsperado = (int) $factura->codigo_modalidad === 2 ? '<facturaComputarizadaCompraVenta' : '<facturaElectronicaCompraVenta';
+        $this->assertStringContainsString($tagEsperado, $xml);
         $this->assertStringContainsString('<cuf>' . $factura->cuf . '</cuf>', $xml);
         $this->assertStringContainsString('CONSUMO AGUA POTABLE', $xml);
         $this->assertStringContainsString('ALCANTARILLADO SANITARIO', $xml);

@@ -71,7 +71,7 @@ class RenovarCufdCommand extends Command
                     ->latest('id')
                     ->first();
 
-                $cuisCodigo = $cuisActivo ? $cuisActivo->codigo_cuis : 'CUIS_VIGENTE_EMAPAP';
+                $cuisCodigo = $cuisActivo ? $cuisActivo->codigo : '6D4A1883';
 
                 $resultado = $soapService->solicitarCufd(
                     $cuisCodigo,

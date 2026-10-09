@@ -14,7 +14,10 @@
         </div>
 
         <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
-          <v-btn color="primary" class="rounded-pill elevation-2 text-capitalize" @click="abrirModalNuevoPunto(sucursales[0])">
+          <v-btn color="success" class="rounded-pill elevation-2 text-capitalize mr-2" @click="abrirModalNuevaSucursal">
+            <v-icon left small>mdi-store-plus</v-icon> + Nueva Sucursal
+          </v-btn>
+          <v-btn color="primary" class="rounded-pill elevation-2 text-capitalize mr-2" @click="abrirModalNuevoPunto(sucursales[0])">
             <v-icon left small>mdi-plus-circle</v-icon> + Nuevo Punto de Venta
           </v-btn>
           <v-btn outlined color="secondary" class="rounded-pill text-capitalize" @click="cargarDatos">
@@ -136,6 +139,82 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <!-- DIÁLOGO REGISTRAR NUEVA SUCURSAL ANTE EL SIN -->
+    <v-dialog v-model="dialogoNuevaSucursal" max-width="520">
+      <v-card rounded="lg" class="pa-4">
+        <div class="d-flex align-center mb-3">
+          <v-avatar color="success" rounded="lg" size="36" class="mr-2 text-white elevation-1">
+            <v-icon small color="white">mdi-store-plus</v-icon>
+          </v-avatar>
+          <div>
+            <h3 class="text-h6 font-weight-bold mb-0">Registrar Sucursal / Agencia</h3>
+            <span class="text-caption text-secondary">Establecimiento fiscal con sincronización directa ante el SIN</span>
+          </div>
+        </div>
+
+        <v-alert dense text type="info" class="text-caption mb-3">
+          Se registrará la sucursal, se creará su Caja Principal (Punto 0) y se solicitarán sus códigos tributarios CUIS y CUFD en tiempo real con el SIN.
+        </v-alert>
+
+        <v-row dense>
+          <v-col cols="12" sm="4">
+            <v-text-field
+              v-model.number="formSucursal.codigo_sucursal"
+              label="Código Sucursal *"
+              type="number"
+              min="0"
+              dense
+              outlined
+              hint="0 para Matriz, 1, 2, etc."
+              persistent-hint
+            ></v-text-field>
+          </v-col>
+          <v-col cols="12" sm="8">
+            <v-text-field
+              v-model="formSucursal.nombre"
+              label="Nombre de la Sucursal *"
+              placeholder="Ej. AGENCIA TERMINAL PATACAMAYA"
+              dense
+              outlined
+            ></v-text-field>
+          </v-col>
+          <v-col cols="12">
+            <v-text-field
+              v-model="formSucursal.direccion"
+              label="Dirección Oficial *"
+              placeholder="Ej. Av. Panamericana esq. Terminal Terrestre"
+              dense
+              outlined
+            ></v-text-field>
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-text-field
+              v-model="formSucursal.telefono"
+              label="Teléfono"
+              placeholder="Ej. 2-8147055"
+              dense
+              outlined
+            ></v-text-field>
+          </v-col>
+          <v-col cols="12" sm="6">
+            <v-text-field
+              v-model="formSucursal.municipio"
+              label="Municipio"
+              dense
+              outlined
+            ></v-text-field>
+          </v-col>
+        </v-row>
+
+        <div class="d-flex justify-end gap-2 mt-3">
+          <v-btn text @click="dialogoNuevaSucursal = false">Cancelar</v-btn>
+          <v-btn color="success" class="text-white font-weight-bold" :loading="guardandoSucursal" @click="guardarSucursal">
+            Registrar y Sincronizar SIN
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
 
     <!-- DIÁLOGO REGISTRAR PUNTO DE VENTA ANTE EL SIN -->
     <v-dialog v-model="dialogoNuevoPunto" max-width="500">
@@ -264,6 +343,8 @@ export default {
     return {
       cargando: false,
       guardandoPunto: false,
+      dialogoNuevaSucursal: false,
+      guardandoSucursal: false,
       dialogoNuevoPunto: false,
       dialogoAsignarCajero: false,
       puntoSeleccionado: null,
@@ -272,16 +353,25 @@ export default {
       cajeros: [],
       sucursales: [],
       sucursalSeleccionada: null,
+      formSucursal: {
+        codigo_sucursal: 1,
+        nombre: '',
+        direccion: '',
+        telefono: '2-8147000',
+        municipio: 'Patacamaya',
+        departamento: 'La Paz',
+      },
       formPunto: {
         id_sucursal: null,
         nombre: '',
         descripcion: '',
-        tipo_punto_venta: 5,
+        tipo_punto_venta: 2,
       },
       tiposPuntoVenta: [
-        { codigo: 1, descripcion: 'Ventanilla de Cobranza / Recaudación' },
-        { codigo: 5, descripcion: 'Punto de Venta Fijo' },
-        { codigo: 2, descripcion: 'Punto Móvil' },
+        { codigo: 2, descripcion: 'PUNTO VENTA VENTANILLA DE COBRANZA (Recomendado)' },
+        { codigo: 5, descripcion: 'PUNTO DE VENTA CAJEROS' },
+        { codigo: 3, descripcion: 'PUNTO DE VENTA MÓVILES' },
+        { codigo: 6, descripcion: 'PUNTO DE VENTA CONJUNTA' },
       ],
       snackbar: {
         status: false,
@@ -314,13 +404,50 @@ export default {
         this.cargando = false;
       }
     },
+    abrirModalNuevaSucursal() {
+      const siguienteCodigo = this.sucursales && this.sucursales.length > 0 
+        ? Math.max(...this.sucursales.map(s => Number(s.codigo_sucursal || 0))) + 1 
+        : 1;
+
+      this.formSucursal = {
+        codigo_sucursal: siguienteCodigo,
+        nombre: '',
+        direccion: '',
+        telefono: '2-8147000',
+        municipio: 'Patacamaya',
+        departamento: 'La Paz',
+      };
+      this.dialogoNuevaSucursal = true;
+    },
+    async guardarSucursal() {
+      if (!this.formSucursal.nombre || !this.formSucursal.direccion) {
+        this.mostrarNotificacion('Ingrese nombre y dirección de la sucursal', 'warning', 'mdi-alert');
+        return;
+      }
+      this.guardandoSucursal = true;
+      try {
+        const res = await window.axios.post('/api/facturacion/siat/sucursales', this.formSucursal);
+        if (res.data && res.data.success) {
+          this.mostrarNotificacion(res.data.message || 'Sucursal registrada y sincronizada con el SIN.', 'success', 'mdi-check-circle');
+          this.dialogoNuevaSucursal = false;
+          this.cargarDatos();
+        } else {
+          this.mostrarNotificacion(res.data.message || 'No se pudo registrar la sucursal', 'error', 'mdi-alert-circle');
+        }
+      } catch (e) {
+        const msg = e.response && e.response.data ? e.response.data.message : e.message;
+        this.mostrarNotificacion(msg, 'error', 'mdi-alert-circle');
+      } finally {
+        this.guardandoSucursal = false;
+      }
+    },
     abrirModalNuevoPunto(sucursal) {
       this.sucursalSeleccionada = sucursal;
       this.formPunto = {
         id_sucursal: sucursal ? sucursal.id : (this.sucursales[0] ? this.sucursales[0].id : 1),
         nombre: '',
         descripcion: '',
-        tipo_punto_venta: 5,
+        tipo_punto_venta: 2,
       };
       this.dialogoNuevoPunto = true;
     },

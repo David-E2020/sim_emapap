@@ -42,7 +42,7 @@ class SiatCodigoController extends Controller
      */
     public function verificarNit(string $nit): JsonResponse
     {
-        $cuis = 'CUIS_EMAPA_DEMO';
+        $cuis = SiatCuis::getVigente();
         $res = $this->siatSoapService->verificarNit($cuis, trim($nit));
 
         return response()->json([
@@ -118,6 +118,94 @@ class SiatCodigoController extends Controller
             'data' => $sucursales,
             'message' => 'Sucursales obtenidas exitosamente',
         ], Response::HTTP_OK);
+    }
+
+    /**
+     * Registrar una nueva sucursal y solicitar sus credenciales SIAT ante el SIN.
+     */
+    public function registrarSucursal(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'codigo_sucursal' => 'required|integer|min:0',
+            'nombre' => 'required|string|max:150',
+            'direccion' => 'required|string|max:255',
+            'telefono' => 'nullable|string|max:30',
+            'municipio' => 'nullable|string|max:100',
+            'departamento' => 'nullable|string|max:100',
+        ]);
+
+        $sucursal = SiatSucursal::updateOrCreate(
+            ['codigo_sucursal' => (int) $validated['codigo_sucursal']],
+            [
+                'nombre' => mb_strtoupper($validated['nombre']),
+                'direccion' => $validated['direccion'],
+                'telefono' => $validated['telefono'] ?? '2-8147000',
+                'municipio' => $validated['municipio'] ?? 'Patacamaya',
+                'departamento' => $validated['departamento'] ?? 'La Paz',
+                '_estado' => 'ACTIVO',
+                '_transaccion' => 'REG_SUCURSAL',
+                '_usuario_creacion' => auth()->id() ?? 1,
+            ]
+        );
+
+        // 1. Crear Punto de Venta 0 (Casa Matriz o Sucursal Central)
+        $pv0 = SiatPuntoVenta::firstOrCreate(
+            [
+                'id_sucursal' => $sucursal->id,
+                'codigo_punto_venta' => 0,
+            ],
+            [
+                'nombre' => "Caja Principal Sucursal {$sucursal->codigo_sucursal}",
+                'tipo_punto_venta' => 0,
+                'descripcion' => "Ventanilla principal y recaudación general de {$sucursal->nombre}",
+                '_estado' => 'ACTIVO',
+                '_transaccion' => 'AUTO_PV0',
+                '_usuario_creacion' => auth()->id() ?? 1,
+            ]
+        );
+
+        // 2. Solicitar CUIS ante el SIN
+        $resCuis = $this->siatSoapService->solicitarCuis((int) $sucursal->codigo_sucursal, 0);
+        $cuisCodigo = null;
+        if (!empty($resCuis['success'])) {
+            $cuisCodigo = $resCuis['cuis'];
+            SiatCuis::create([
+                'id_sucursal' => $sucursal->id,
+                'id_punto_venta' => null,
+                'codigo' => $cuisCodigo,
+                'fecha_vigencia' => Carbon::parse($resCuis['fecha_vigencia']),
+                '_estado' => 'ACTIVO',
+                '_transaccion' => 'REG_SUC_CUIS',
+                '_usuario_creacion' => auth()->id() ?? 1,
+            ]);
+        } elseif (($resCuis['codigo_error'] ?? 0) === 980) {
+            $cuisExistente = SiatCuis::where('id_sucursal', $sucursal->id)->whereNull('id_punto_venta')->latest('id')->first();
+            $cuisCodigo = $cuisExistente ? $cuisExistente->codigo : '6D4A1883';
+        }
+
+        // 3. Solicitar CUFD ante el SIN si se obtuvo el CUIS
+        if ($cuisCodigo) {
+            $resCufd = $this->siatSoapService->solicitarCufd($cuisCodigo, (int) $sucursal->codigo_sucursal, 0);
+            if (!empty($resCufd['success'])) {
+                SiatCufd::create([
+                    'id_sucursal' => $sucursal->id,
+                    'id_punto_venta' => $pv0->id,
+                    'codigo' => $resCufd['cufd'],
+                    'codigo_control' => $resCufd['codigo_control'],
+                    'direccion' => $resCufd['direccion'] ?? $sucursal->direccion,
+                    'fecha_vigencia' => Carbon::parse($resCufd['fecha_vigencia']),
+                    '_estado' => 'ACTIVO',
+                    '_transaccion' => 'REG_SUC_CUFD',
+                    '_usuario_creacion' => auth()->id() ?? 1,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $sucursal->load(['puntosVenta', 'cufd']),
+            'message' => "Sucursal N° {$sucursal->codigo_sucursal} ({$sucursal->nombre}) registrada y sincronizada con el SIN exitosamente.",
+        ], Response::HTTP_CREATED);
     }
 
     /**
@@ -207,8 +295,7 @@ class SiatCodigoController extends Controller
         ]);
 
         $sucursal = SiatSucursal::findOrFail($validated['id_sucursal']);
-        $cuisActivo = SiatCuis::where('id_sucursal', $sucursal->id)->latest('id')->first();
-        $cuis = $cuisActivo ? $cuisActivo->codigo_cuis : 'CUIS_EMAPAP_DEFAULT';
+        $cuis = SiatCuis::getVigente((int) $sucursal->id, null, 0);
 
         $tipo = $validated['tipo_punto_venta'] ?? 5; // 5: Punto de Venta Fijo
 
@@ -272,8 +359,7 @@ class SiatCodigoController extends Controller
     {
         $puntoVenta = SiatPuntoVenta::with('sucursal')->findOrFail($id);
         $sucursal = $puntoVenta->sucursal;
-        $cuisActivo = SiatCuis::where('id_sucursal', $puntoVenta->id_sucursal)->latest('id')->first();
-        $cuis = $cuisActivo ? $cuisActivo->codigo_cuis : 'CUIS_EMAPAP_DEFAULT';
+        $cuis = SiatCuis::getVigente((int) $puntoVenta->id_sucursal, null, 0);
 
         $resSin = $this->siatSoapService->cierrePuntoVenta(
             (int) $puntoVenta->codigo_punto_venta,
@@ -322,9 +408,24 @@ class SiatCodigoController extends Controller
             ], Response::HTTP_OK);
         }
 
+        // Si el SIN indica que ya existe un CUIS vigente (código 980)
+        if (($resCuis['codigo_error'] ?? null) === 980 || str_contains($resCuis['mensaje'] ?? '', 'EXISTE UN CUIS VIGENTE')) {
+            $cuisVigente = SiatCuis::where('id_punto_venta', $puntoVenta->id)
+                ->where('_estado', 'ACTIVO')
+                ->latest('id')
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'cuis' => $cuisVigente ? $cuisVigente->codigo : null,
+                'message' => 'El punto de venta ya cuenta con un CUIS vigente y habilitado ante el SIN.',
+            ], Response::HTTP_OK);
+        }
+
         return response()->json([
             'success' => false,
-            'message' => 'No se pudo obtener el CUIS del SIN.',
+            'message' => $resCuis['mensaje'] ?? 'No se pudo obtener el CUIS del SIN.',
+            'sin_response' => $resCuis,
         ], Response::HTTP_UNPROCESSABLE_ENTITY);
     }
 }

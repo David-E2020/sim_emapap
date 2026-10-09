@@ -144,10 +144,37 @@ class CufService
             return null;
         }
 
-        // Los primeros 42 caracteres hexadecimales corresponden a los 54 dígitos decimales
-        $subHex = substr($cuf, 0, 42);
-        $dec = $this->hex2dec($subHex);
-        $dec54 = str_pad($dec, 54, '0', STR_PAD_LEFT);
+        $cufLen = strlen($cuf);
+        $dec54 = null;
+        $codigoControl = '';
+
+        // Probar candidatos de longitud del código de control (habitualmente 15 o 16 caracteres hexadecimales)
+        $candidatos = [15, 16, $cufLen - 42, $cufLen - 43, $cufLen - 44];
+        foreach ($candidatos as $ccLen) {
+            if ($ccLen <= 0 || $ccLen >= $cufLen) {
+                continue;
+            }
+            $subHex = substr($cuf, 0, $cufLen - $ccLen);
+            $dec = $this->hex2dec($subHex);
+            $candidatoDec54 = str_pad($dec, 54, '0', STR_PAD_LEFT);
+            $y = (int) substr($candidatoDec54, 13, 4);
+            $m = (int) substr($candidatoDec54, 17, 2);
+            $d = (int) substr($candidatoDec54, 19, 2);
+
+            if ($y >= 2020 && $y <= 2040 && $m >= 1 && $m <= 12 && $d >= 1 && $d <= 31) {
+                $dec54 = $candidatoDec54;
+                $codigoControl = substr($cuf, $cufLen - $ccLen);
+                break;
+            }
+        }
+
+        // Si no calzó por detección de fecha, recurrir al método por defecto de 42 hex
+        if (!$dec54) {
+            $subHex = substr($cuf, 0, min(42, $cufLen));
+            $dec = $this->hex2dec($subHex);
+            $dec54 = str_pad($dec, 54, '0', STR_PAD_LEFT);
+            $codigoControl = substr($cuf, 42);
+        }
 
         $nit = substr($dec54, 0, 13);
         $rawFecha = substr($dec54, 13, 17); // YYYYMMDDHHmmssSSS
@@ -159,7 +186,6 @@ class CufService
         $numeroFactura = (int) substr($dec54, 39, 10);
         $puntoVenta = (int) substr($dec54, 49, 4);
         $modulo11 = (int) substr($dec54, 53, 1);
-        $codigoControl = substr($cuf, 42);
 
         $fechaCarbon = null;
         if (strlen($rawFecha) === 17 && is_numeric($rawFecha)) {

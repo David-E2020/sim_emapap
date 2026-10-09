@@ -48,11 +48,10 @@ class FirmaDigitalService
 
         try {
             $signer = new XmlSigner();
-            $signer->setAlgorithm(DigestAlgorithmType::SHA256);
             $signer->setReferenceUri(''); // Enveloped signature sobre el nodo raíz
             $signer->loadPfxFile($path, $pass);
 
-            return $signer->signXml($xmlContent);
+            return $signer->signXml($xmlContent, DigestAlgorithmType::SHA256);
         } catch (Exception $e) {
             throw new Exception("Error al realizar la firma digital XMLDSig: " . $e->getMessage(), (int) $e->getCode(), $e);
         }

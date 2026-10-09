@@ -40,28 +40,90 @@ class SiatSoapService
                 ? (int) $empresa->codigo_modalidad 
                 : (int) config('siat.modalidad', 1));
 
-        $this->nitEmisor = isset($overrides['nit'])
-            ? (string) $overrides['nit']
-            : ($empresa && !empty($empresa->nit) 
-                ? (string) $empresa->nit 
-                : (string) config('siat.nit_emisor', '123456789'));
-
-        $this->codigoSistema = isset($overrides['codigo_sistema'])
-            ? (string) $overrides['codigo_sistema']
-            : ($empresa && !empty($empresa->codigo_sistema) 
-                ? (string) $empresa->codigo_sistema 
-                : (string) config('siat.codigo_sistema', 'EMAPA_SISTEMA'));
-
         $this->tokenDelegado = isset($overrides['token_delegado'])
             ? (string) $overrides['token_delegado']
             : ($empresa && !empty($empresa->token_delegado) 
                 ? (string) $empresa->token_delegado 
                 : (string) config('siat.token_delegado', ''));
 
+        // Extraer NIT y Código Sistema del token si es ambiente piloto y no se especificó override
+        $tokenNit = self::extractNitFromToken($this->tokenDelegado);
+        $tokenSistema = self::extractCodigoSistemaFromToken($this->tokenDelegado);
+
+        $this->nitEmisor = isset($overrides['nit'])
+            ? (string) $overrides['nit']
+            : ($this->ambiente === 2 && !empty($tokenNit)
+                ? (string) $tokenNit
+                : ($empresa && !empty($empresa->nit) 
+                    ? (string) $empresa->nit 
+                    : (string) config('siat.nit_emisor', '123456789')));
+
+        $this->codigoSistema = isset($overrides['codigo_sistema'])
+            ? (string) $overrides['codigo_sistema']
+            : ($this->ambiente === 2 && !empty($tokenSistema)
+                ? (string) $tokenSistema
+                : ($empresa && !empty($empresa->codigo_sistema) 
+                    ? (string) $empresa->codigo_sistema 
+                    : (string) config('siat.codigo_sistema', 'EMAPA_SISTEMA')));
+
         $tipoAmbiente = $this->ambiente === 1 ? 'produccion' : 'piloto';
         $this->wsdlUrls = isset($overrides['wsdl_urls']) && is_array($overrides['wsdl_urls'])
             ? array_merge(config("siat.wsdl.{$tipoAmbiente}", []), $overrides['wsdl_urls'])
             : ($empresa ? $empresa->getWsdlEndpoints($this->ambiente) : config("siat.wsdl.{$tipoAmbiente}"));
+    }
+
+    /**
+     * Decodifica la carga útil del JWT del Token Delegado de Impuestos Nacionales.
+     */
+    public static function decodeToken(string $token): ?array
+    {
+        $parts = explode('.', $token);
+        if (count($parts) >= 2) {
+            $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $parts[1])), true);
+            if (is_array($payload)) {
+                return $payload;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extrae el NIT delegado autorizado dentro del Token SIAT.
+     */
+    public static function extractNitFromToken(string $token): ?string
+    {
+        $payload = self::decodeToken($token);
+        if (!empty($payload['nitDelegado'])) {
+            return (string) $payload['nitDelegado'];
+        }
+        return null;
+    }
+
+    /**
+     * Extrae el Código de Sistema registrado dentro del Token SIAT.
+     */
+    public static function extractCodigoSistemaFromToken(string $token): ?string
+    {
+        $payload = self::decodeToken($token);
+        if (!empty($payload['codigoSistema'])) {
+            return (string) $payload['codigoSistema'];
+        }
+        return null;
+    }
+
+    /**
+     * Obtiene la URL WSDL adecuada según el Documento Sector y la Modalidad.
+     * En el SIN, el Documento Sector 1 (Factura Compra-Venta) se atiende exclusivamente
+     * a través del ServicioFacturacionCompraVenta.
+     */
+    public function getFacturacionWsdlUrl(int $documentoSector = 1, ?int $modalidad = null): string
+    {
+        $mod = $modalidad ?? $this->modalidad;
+        if ($documentoSector === 1) {
+            return $this->wsdlUrls['compra_venta'] ?? reset($this->wsdlUrls);
+        }
+        $wsdlKey = ($mod === 1) ? 'electronica' : 'computarizada';
+        return $this->wsdlUrls[$wsdlKey] ?? ($this->wsdlUrls['compra_venta'] ?? reset($this->wsdlUrls));
     }
 
     /**
@@ -135,7 +197,7 @@ class SiatSoapService
                     'codigoSistema' => $this->codigoSistema,
                     'codigoSucursal' => $sucursal,
                     'codigoPuntoVenta' => $puntoVenta,
-                    'nit' => $this->nitEmisor,
+                    'nit' => (int) $this->nitEmisor,
                 ],
             ];
 
@@ -153,14 +215,13 @@ class SiatSoapService
 
             return [
                 'success' => false,
+                'codigo_error' => $res->mensajesList->codigo ?? null,
                 'mensaje' => $res->mensajesList->descripcion ?? 'No se pudo obtener el CUIS del SIN.',
             ];
         } catch (Exception $e) {
             return [
-                'success' => true,
-                'cuis' => 'CUIS_' . strtoupper(bin2hex(random_bytes(8))),
-                'fecha_vigencia' => \Carbon\Carbon::now()->addYear()->toIso8601String(),
-                'mensaje' => 'CUIS generado (Simulación SIAT): ' . $e->getMessage(),
+                'success' => false,
+                'mensaje' => 'Error al solicitar CUIS: ' . $e->getMessage(),
             ];
         }
     }
@@ -181,7 +242,7 @@ class SiatSoapService
                     'codigoSucursal' => $sucursal,
                     'codigoPuntoVenta' => $puntoVenta,
                     'cuis' => $cuis,
-                    'nit' => $this->nitEmisor,
+                    'nit' => (int) $this->nitEmisor,
                 ],
             ];
 
@@ -200,6 +261,7 @@ class SiatSoapService
 
             return [
                 'success' => false,
+                'codigo_error' => $res->mensajesList->codigo ?? null,
                 'mensaje' => $res->mensajesList->descripcion ?? 'No se pudo obtener el CUFD del SIN.',
             ];
         } catch (Exception $e) {
@@ -225,8 +287,8 @@ class SiatSoapService
                     'codigoSistema' => $this->codigoSistema,
                     'codigoSucursal' => $sucursal,
                     'cuis' => $cuis,
-                    'nit' => $this->nitEmisor,
-                    'numeroDocumento' => $nitParaVerificar,
+                    'nit' => (int) $this->nitEmisor,
+                    'nitParaVerificacion' => (int) $nitParaVerificar,
                 ],
             ];
 
@@ -238,6 +300,7 @@ class SiatSoapService
             return [
                 'success' => true,
                 'valido' => $esValido,
+                'codigo_clasificador' => $res->mensajesList->codigo ?? null,
                 'mensaje' => $esValido ? 'NIT válido en el padrón tributario.' : ($res->mensajesList->descripcion ?? 'NIT no activo o inválido.'),
             ];
         } catch (Exception $e) {
@@ -265,8 +328,7 @@ class SiatSoapService
     ): array {
         $inicio = microtime(true);
         try {
-            $wsdlKey = ($this->modalidad === 1) ? 'electronica' : 'computarizada';
-            $wsdlUrl = $this->wsdlUrls[$wsdlKey] ?? $this->wsdlUrls['compra_venta'];
+            $wsdlUrl = $this->getFacturacionWsdlUrl($documentoSector, $this->modalidad);
             $client = $this->getSoapClient($wsdlUrl, $timeoutSeconds);
 
             // Comprimir el archivo XML firmado en formato GZIP
@@ -284,7 +346,7 @@ class SiatSoapService
                     'codigoSucursal' => $sucursal,
                     'cufd' => $cufd,
                     'cuis' => $cuis,
-                    'nit' => $this->nitEmisor,
+                    'nit' => (int) $this->nitEmisor,
                     'tipoFacturaDocumento' => $tipoFacturaDocumento,
                     'archivo' => $archivoGz,
                     'fechaEnvio' => now()->format('Y-m-d\TH:i:s.v'),
@@ -300,7 +362,8 @@ class SiatSoapService
                 return [
                     'success' => true,
                     'codigo_recepcion' => $res->codigoRecepcion ?? 'OK',
-                    'estado' => $res->codigoEstado ?? 'VALIDADA',
+                    'estado' => $res->codigoDescripcion ?? 'VALIDADA',
+                    'codigo_estado' => $res->codigoEstado ?? 908,
                     'mensajes' => $res->mensajesList ?? 'Factura recepcionada y validada.',
                     'tiempo_respuesta_ms' => $duracionMs,
                 ];
@@ -338,7 +401,7 @@ class SiatSoapService
         int $tipoFacturaDocumento = 1
     ): array {
         try {
-            $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
+            $client = $this->getSoapClient($this->getFacturacionWsdlUrl($documentoSector, $this->modalidad));
 
             $params = [
                 'SolicitudServicioAnulacionFactura' => [
@@ -351,7 +414,7 @@ class SiatSoapService
                     'codigoSucursal' => $sucursal,
                     'cufd' => $cufd,
                     'cuis' => $cuis,
-                    'nit' => $this->nitEmisor,
+                    'nit' => (int) $this->nitEmisor,
                     'tipoFacturaDocumento' => $tipoFacturaDocumento,
                     'codigoMotivo' => $motivoAnulacion,
                     'cuf' => $cuf,
@@ -368,9 +431,10 @@ class SiatSoapService
                 ];
             }
 
+            $msg = self::formatMensajesList($res->mensajesList ?? null);
             return [
                 'success' => false,
-                'mensaje' => $res->mensajesList->descripcion ?? 'El SIN rechazó la solicitud de anulación.',
+                'mensaje' => !empty($msg) ? $msg : 'El SIN rechazó la solicitud de anulación.',
             ];
         } catch (Exception $e) {
             return [
@@ -396,7 +460,7 @@ class SiatSoapService
         int $tipoFacturaDocumento = 1
     ): array {
         try {
-            $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
+            $client = $this->getSoapClient($this->getFacturacionWsdlUrl($documentoSector, $this->modalidad));
 
             $solicitud = [
                 'codigoAmbiente' => $this->ambiente,
@@ -408,7 +472,7 @@ class SiatSoapService
                 'codigoSucursal' => $sucursal,
                 'cufd' => $cufd,
                 'cuis' => $cuis,
-                'nit' => $this->nitEmisor,
+                'nit' => (int) $this->nitEmisor,
                 'tipoFacturaDocumento' => $tipoFacturaDocumento,
                 'codigoMotivo' => $motivoAnulacion,
                 'cuf' => $cuf,
@@ -461,7 +525,7 @@ class SiatSoapService
         int $tipoFacturaDocumento = 1
     ): array {
         try {
-            $client = $this->getSoapClient($this->wsdlUrls['compra_venta']);
+            $client = $this->getSoapClient($this->getFacturacionWsdlUrl($documentoSector, $this->modalidad));
 
             $params = [
                 'SolicitudServicioReversionAnulacionFactura' => [
@@ -474,7 +538,7 @@ class SiatSoapService
                     'codigoSucursal' => $sucursal,
                     'cufd' => $cufd,
                     'cuis' => $cuis,
-                    'nit' => $this->nitEmisor,
+                    'nit' => (int) $this->nitEmisor,
                     'tipoFacturaDocumento' => $tipoFacturaDocumento,
                     'cuf' => $cuf,
                 ],
@@ -490,15 +554,76 @@ class SiatSoapService
                 ];
             }
 
+            $msg = self::formatMensajesList($res->mensajesList ?? null);
             return [
                 'success' => false,
-                'mensaje' => $res->mensajesList->descripcion ?? 'El SIN no autorizó la reversión de anulación.',
+                'mensaje' => !empty($msg) ? $msg : 'El SIN no autorizó la reversión de anulación.',
             ];
         } catch (Exception $e) {
             return [
-                'success' => true,
-                'aviso' => 'Reversión procesada localmente: ' . $e->getMessage(),
-                'mensaje' => 'Factura restituida localmente a estado VALIDADA.',
+                'success' => false,
+                'mensaje' => 'Error al revertir anulación de factura: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * 6.3 Registro de Evento Significativo ante el SIN (Obtención de código de recepción de evento).
+     */
+    public function registrarEventoSignificativo(
+        int $motivoEvento,
+        string $descripcion,
+        mixed $fechaInicio,
+        mixed $fechaFin,
+        string $cufdEvento,
+        string $cuis,
+        string $cufdActual,
+        int $sucursal = 0,
+        int $puntoVenta = 0
+    ): array {
+        try {
+            $client = $this->getSoapClient($this->wsdlUrls['operaciones']);
+
+            $fInicio = is_string($fechaInicio) ? $fechaInicio : (is_object($fechaInicio) && method_exists($fechaInicio, 'format') ? $fechaInicio->format('Y-m-d\TH:i:s.v') : now()->subMinutes(10)->format('Y-m-d\TH:i:s.v'));
+            $fFin = is_string($fechaFin) ? $fechaFin : (is_object($fechaFin) && method_exists($fechaFin, 'format') ? $fechaFin->format('Y-m-d\TH:i:s.v') : now()->format('Y-m-d\TH:i:s.v'));
+
+            $params = [
+                'SolicitudEventoSignificativo' => [
+                    'codigoAmbiente' => $this->ambiente,
+                    'codigoMotivoEvento' => $motivoEvento,
+                    'codigoPuntoVenta' => $puntoVenta,
+                    'codigoSistema' => $this->codigoSistema,
+                    'codigoSucursal' => $sucursal,
+                    'cufd' => $cufdActual,
+                    'cufdEvento' => $cufdEvento,
+                    'cuis' => $cuis,
+                    'descripcion' => $descripcion,
+                    'fechaHoraInicioEvento' => $fInicio,
+                    'fechaHoraFinEvento' => $fFin,
+                    'nit' => (int) $this->nitEmisor,
+                ],
+            ];
+
+            $response = $client->__soapCall('registroEventoSignificativo', [$params]);
+            $res = $response->RespuestaListaEventos ?? null;
+
+            if ($res && isset($res->transaccion) && $res->transaccion === true) {
+                return [
+                    'success' => true,
+                    'codigo_recepcion_evento' => (int) ($res->codigoRecepcionEventoSignificativo ?? 0),
+                    'mensaje' => 'Evento significativo registrado satisfactoriamente en el SIN.',
+                ];
+            }
+
+            return [
+                'success' => false,
+                'codigo_recepcion_evento' => null,
+                'mensaje' => self::formatMensajesList($res->mensajesList ?? null) ?: 'El SIN rechazó el registro del evento significativo.',
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'mensaje' => 'Error al registrar evento significativo en el SIN: ' . $e->getMessage(),
             ];
         }
     }
@@ -530,7 +655,7 @@ class SiatSoapService
                 'codigoSucursal' => $sucursal,
                 'cufd' => $cufd,
                 'cuis' => $cuis,
-                'nit' => $this->nitEmisor,
+                'nit' => (int) $this->nitEmisor,
                 'tipoFacturaDocumento' => 1,
                 'archivo' => $archivoTarGzBinario,
                 'fechaEnvio' => now()->format('Y-m-d\TH:i:s.v'),
@@ -562,7 +687,7 @@ class SiatSoapService
                 'success' => false,
                 'codigo_recepcion' => $res->codigoRecepcion ?? null,
                 'codigo_estado' => 'OBSERVADO',
-                'mensaje' => $res->mensajesList->descripcion ?? 'El SIN observó el paquete de contingencia.',
+                'mensaje' => self::formatMensajesList($res->mensajesList ?? null) ?: 'El SIN observó el paquete de contingencia.',
             ];
         } catch (Exception $e) {
             // Modo contingencia / simulación si no hay conexión externa
@@ -599,7 +724,7 @@ class SiatSoapService
                     'codigoSucursal' => $sucursal,
                     'cufd' => $cufd,
                     'cuis' => $cuis,
-                    'nit' => $this->nitEmisor,
+                    'nit' => (int) $this->nitEmisor,
                     'tipoFacturaDocumento' => 1,
                     'codigoRecepcion' => $codigoRecepcion,
                 ],
@@ -619,7 +744,7 @@ class SiatSoapService
             return [
                 'success' => false,
                 'codigo_descripcion' => $res->codigoDescripcion ?? 'PENDIENTE',
-                'mensaje' => $res->mensajesList->descripcion ?? 'El paquete se encuentra en procesamiento o fue observado.',
+                'mensaje' => self::formatMensajesList($res->mensajesList ?? null) ?: 'El paquete se encuentra en procesamiento o fue observado.',
             ];
         } catch (Exception $e) {
             return [
@@ -647,8 +772,7 @@ class SiatSoapService
     ): array {
         try {
             $mod = $modalidad ?? $this->modalidad;
-            $wsdlKey = ($mod === 1) ? 'electronica' : 'computarizada';
-            $wsdlUrl = $this->wsdlUrls[$wsdlKey] ?? ($this->wsdlUrls['compra_venta'] ?? reset($this->wsdlUrls));
+            $wsdlUrl = $this->getFacturacionWsdlUrl($documentoSector, $mod);
             $client = $this->getSoapClient($wsdlUrl);
 
             $params = [
@@ -662,7 +786,7 @@ class SiatSoapService
                     'codigoSucursal' => $sucursal,
                     'cufd' => $cufd,
                     'cuis' => $cuis,
-                    'nit' => $this->nitEmisor,
+                    'nit' => (int) $this->nitEmisor,
                     'tipoFacturaDocumento' => $tipoFacturaDocumento,
                     'cuf' => $cuf,
                 ],
@@ -692,9 +816,9 @@ class SiatSoapService
             ];
         } catch (Exception $e) {
             return [
-                'success' => true,
-                'codigo_descripcion' => 'VALIDADA_LOCAL',
-                'mensaje' => 'Factura activa en el registro local (Servidor SIN no disponible): ' . $e->getMessage(),
+                'success' => false,
+                'codigo_descripcion' => 'ERROR_COMUNICACION',
+                'mensaje' => 'Error al consultar estado en el SIN: ' . $e->getMessage(),
             ];
         }
     }
@@ -847,5 +971,54 @@ class SiatSoapService
                 'mensaje' => 'Punto de venta cerrado localmente (Simulación SIAT): ' . $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * 13. Sincronización paramétrica genérica con FacturacionSincronizacion WSDL.
+     */
+    public function sincronizarParametricas(string $metodo, string $cuis, int $sucursal = 0, int $puntoVenta = 0): array
+    {
+        try {
+            $client = $this->getSoapClient($this->wsdlUrls['sincronizacion']);
+
+            $params = [
+                'SolicitudSincronizacion' => [
+                    'codigoAmbiente' => $this->ambiente,
+                    'codigoModalidad' => $this->modalidad,
+                    'codigoSistema' => $this->codigoSistema,
+                    'codigoSucursal' => $sucursal,
+                    'codigoPuntoVenta' => $puntoVenta,
+                    'cuis' => $cuis,
+                    'nit' => (int) $this->nitEmisor,
+                ],
+            ];
+
+            $response = $client->__soapCall($metodo, [$params]);
+
+            return [
+                'success' => true,
+                'data' => $response,
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'mensaje' => "Error al sincronizar {$metodo}: " . $e->getMessage(),
+            ];
+        }
+    }
+
+    public static function formatMensajesList($mensajesList): string
+    {
+        if (is_array($mensajesList)) {
+            $texts = [];
+            foreach ($mensajesList as $m) {
+                $texts[] = is_object($m) ? ($m->descripcion ?? '') : (string) $m;
+            }
+            return implode('; ', array_filter($texts));
+        }
+        if (is_object($mensajesList)) {
+            return $mensajesList->descripcion ?? '';
+        }
+        return is_string($mensajesList) ? $mensajesList : '';
     }
 }

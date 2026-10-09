@@ -133,11 +133,23 @@ class CajaSesion extends Model
 
         $recibosEfectivo = (float) $this->recibos()->where('estado', 'VALIDO')->sum('monto_total');
 
+        $facturasDirectasEfectivo = (float) $this->facturas()
+            ->where('estado_factura', 'VALIDADA')
+            ->where('codigo_metodo_pago', 1)
+            ->whereNull('id_abonado')
+            ->sum('monto_total');
+
+        $facturasDirectasElectronico = (float) $this->facturas()
+            ->where('estado_factura', 'VALIDADA')
+            ->where('codigo_metodo_pago', '!=', 1)
+            ->whereNull('id_abonado')
+            ->sum('monto_total');
+
         $ingresosExtra = (float) $this->movimientos()->where('tipo', 'INGRESO')->sum('monto');
         $egresosExtra = (float) $this->movimientos()->where('tipo', 'EGRESO')->sum('monto');
 
-        $totalVentasEfectivo = round($lecturasEfectivo + $cuotasEfectivo + $recibosEfectivo, 2);
-        $totalVentasElectronico = round($lecturasElectronico + $cuotasElectronico, 2);
+        $totalVentasEfectivo = round($lecturasEfectivo + $cuotasEfectivo + $recibosEfectivo + $facturasDirectasEfectivo, 2);
+        $totalVentasElectronico = round($lecturasElectronico + $cuotasElectronico + $facturasDirectasElectronico, 2);
 
         $esperado = round($this->monto_apertura + $totalVentasEfectivo + $ingresosExtra - $egresosExtra, 2);
 
