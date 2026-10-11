@@ -34,8 +34,16 @@ class CajaSesionController extends Controller
     public function estadoActual(Request $request): JsonResponse
     {
         $userId = $request->user()?->id ?? 1;
+        $user = $request->user();
+        $esAdmin = $user && (
+            $user->id === 1 ||
+            (method_exists($user, 'hasRole') && ($user->hasRole('Administrador General') || $user->hasRole('admin') || $user->hasRole('Administrador') || $user->hasRole('Supervisor')))
+        );
 
-        $sesionActiva = CajaSesion::with([
+        $idSolicitadoPv = $request->input('punto_venta_id') ?? $request->input('id_punto_venta');
+        $idSolicitadoSesion = $request->input('sesion_id') ?? $request->input('id_sesion');
+
+        $query = CajaSesion::with([
             'puntoVenta',
             'sucursal',
             'cajero',
@@ -45,11 +53,47 @@ class CajaSesionController extends Controller
                     ->latest('id')
                     ->limit(10);
             },
-        ])
-            ->where('id_cajero', $userId)
+        ])->where('estado', 'ABIERTA');
+
+        $sesionActiva = null;
+
+        if (!empty($idSolicitadoSesion)) {
+            $sesionActiva = (clone $query)->where('id', (int) $idSolicitadoSesion)->first();
+        } elseif (!empty($idSolicitadoPv)) {
+            $sesionActiva = (clone $query)->where('id_punto_venta', (int) $idSolicitadoPv)->latest('id')->first();
+        }
+
+        // Si no se solicitó una específica, buscar primero la del usuario logueado
+        if (!$sesionActiva) {
+            $sesionActiva = (clone $query)->where('id_cajero', $userId)->latest('id')->first();
+        }
+
+        // Si el usuario es administrador y no tiene turno propio, cargar la sesión activa abierta para supervisión
+        if (!$sesionActiva && $esAdmin) {
+            $sesionActiva = (clone $query)->latest('id')->first();
+        }
+
+        // Obtener todas las sesiones abiertas para el selector de supervisor
+        $todasCajasActivas = CajaSesion::with(['puntoVenta', 'cajero'])
             ->where('estado', 'ABIERTA')
-            ->latest('id')
-            ->first();
+            ->orderBy('id_punto_venta')
+            ->get()
+            ->map(function ($s) {
+                $fApertura = $s->fecha_apertura ? Carbon::parse($s->fecha_apertura) : null;
+                return [
+                    'id' => $s->id,
+                    'numero_sesion' => $s->numero_sesion,
+                    'id_punto_venta' => $s->id_punto_venta,
+                    'nombre_punto_venta' => $s->puntoVenta?->nombre ?? "Punto {$s->id_punto_venta}",
+                    'codigo_punto_venta' => $s->puntoVenta?->codigo_punto_venta ?? 0,
+                    'cajero_id' => $s->id_cajero,
+                    'cajero_nombre' => $s->cajero?->name ?? 'Usuario',
+                    'monto_apertura' => (float) $s->monto_apertura,
+                    'total_cobrado' => (float) (($s->monto_ventas_efectivo ?? 0) + ($s->monto_ventas_qr_banco ?? 0)),
+                    'es_dia_anterior' => $fApertura ? !$fApertura->isToday() : false,
+                    'fecha_apertura_legible' => $fApertura?->format('d/m/Y H:i'),
+                ];
+            });
 
         if ($sesionActiva) {
             $sesionActiva->recalcularTotales();
@@ -68,17 +112,21 @@ class CajaSesionController extends Controller
 
             $fechaApertura = $sesionActiva->fecha_apertura ? Carbon::parse($sesionActiva->fecha_apertura) : null;
             $esDiaAnterior = $fechaApertura ? !$fechaApertura->isToday() : false;
+            $esSupervisor = (int) $sesionActiva->id_cajero !== (int) $userId;
 
             return response()->json([
                 'success' => true,
                 'tiene_sesion_activa' => true,
                 'es_dia_anterior' => $esDiaAnterior,
+                'es_supervisor' => $esSupervisor,
+                'es_admin' => $esAdmin,
                 'fecha_apertura_legible' => $fechaApertura ? $fechaApertura->format('d/m/Y H:i:s') : null,
                 'sesion' => $sesionActiva,
+                'todas_cajas_activas' => $todasCajasActivas,
             ], Response::HTTP_OK);
         }
 
-        // Si no tiene sesión activa, buscar si tiene una caja asignada por defecto
+        // Si no tiene sesión activa
         $cajaAsignada = SiatPuntoVenta::where('id_cajero_defecto', $userId)
             ->where('_estado', 'ACTIVO')
             ->first();
@@ -86,8 +134,11 @@ class CajaSesionController extends Controller
         return response()->json([
             'success' => true,
             'tiene_sesion_activa' => false,
+            'es_supervisor' => false,
+            'es_admin' => $esAdmin,
             'caja_defecto_id' => $cajaAsignada?->id,
             'sesion' => null,
+            'todas_cajas_activas' => $todasCajasActivas,
         ], Response::HTTP_OK);
     }
 
@@ -186,29 +237,29 @@ class CajaSesionController extends Controller
         $sucursal = $puntoVenta->sucursal ?: SiatSucursal::first();
 
         // 3. Validar / renovar CUFD para este punto de venta ante el SIAT
+        $codigoPv = (int) $puntoVenta->codigo_punto_venta;
+        $cuisCodigo = SiatCuis::getVigente((int) $sucursal->id, $puntoVenta->id, $codigoPv);
+
         $cufdVigente = SiatCufd::where('id_sucursal', $sucursal->id)
             ->where('id_punto_venta', $puntoVenta->id)
             ->where('fecha_vigencia', '>', Carbon::now())
             ->latest('id')
             ->first();
 
-        if (!$cufdVigente) {
-            $cuis = SiatCuis::where('id_sucursal', $sucursal->id)
-                ->where('id_punto_venta', $puntoVenta->id)
-                ->where('fecha_vigencia', '>', Carbon::now())
-                ->latest('id')
-                ->first();
-            $cuisCodigo = $cuis ? $cuis->codigo : 'CUIS_EMAPAP_DEFAULT';
-
-            $respCufd = $this->siatSoapService->solicitarCufd($cuisCodigo, (int) $sucursal->codigo_sucursal, (int) $puntoVenta->codigo_punto_venta);
+        // Si no tiene CUFD o si fue creado en fecha anterior, renovarlo con el SIN
+        if (!$cufdVigente || ($cufdVigente->fecha_vigencia && $cufdVigente->fecha_vigencia->diffInHours(Carbon::now()) > 24)) {
+            $respCufd = $this->siatSoapService->solicitarCufd($cuisCodigo, (int) $sucursal->codigo_sucursal, $codigoPv);
             if (!empty($respCufd['success'])) {
-                SiatCufd::create([
+                $cufdVigente = SiatCufd::create([
                     'id_sucursal' => $sucursal->id,
                     'id_punto_venta' => $puntoVenta->id,
                     'codigo' => $respCufd['cufd'],
                     'codigo_control' => $respCufd['codigo_control'],
                     'direccion' => $respCufd['direccion'] ?? $sucursal->direccion,
                     'fecha_vigencia' => Carbon::parse($respCufd['fecha_vigencia']),
+                    '_estado' => 'ACTIVO',
+                    '_transaccion' => 'APERTURA_TURNO',
+                    '_usuario_creacion' => $userId,
                 ]);
             }
         }
@@ -254,17 +305,27 @@ class CajaSesionController extends Controller
     public function resumenArqueo(Request $request): JsonResponse
     {
         $userId = $request->user()?->id ?? 1;
+        $idSesion = $request->input('id_sesion') ?? $request->input('sesion_id');
+        $idPuntoVenta = $request->input('id_punto_venta') ?? $request->input('punto_venta_id');
 
-        $sesion = CajaSesion::with(['puntoVenta', 'sucursal', 'cajero', 'movimientos'])
-            ->where('id_cajero', $userId)
-            ->where('estado', 'ABIERTA')
-            ->latest('id')
-            ->first();
+        $query = CajaSesion::with(['puntoVenta', 'sucursal', 'cajero', 'movimientos'])
+            ->where('estado', 'ABIERTA');
+
+        if (!empty($idSesion)) {
+            $sesion = (clone $query)->where('id', (int) $idSesion)->first();
+        } elseif (!empty($idPuntoVenta)) {
+            $sesion = (clone $query)->where('id_punto_venta', (int) $idPuntoVenta)->latest('id')->first();
+        } else {
+            $sesion = (clone $query)->where('id_cajero', $userId)->latest('id')->first();
+            if (!$sesion) {
+                $sesion = (clone $query)->latest('id')->first();
+            }
+        }
 
         if (!$sesion) {
             return response()->json([
                 'success' => false,
-                'message' => 'No tiene un turno de caja abierto en este momento.',
+                'message' => 'No se encontró un turno de caja abierto en este momento.',
             ], Response::HTTP_NOT_FOUND);
         }
 

@@ -51,7 +51,41 @@ class FirmaDigitalService
             $signer->setReferenceUri(''); // Enveloped signature sobre el nodo raíz
             $signer->loadPfxFile($path, $pass);
 
-            return $signer->signXml($xmlContent, DigestAlgorithmType::SHA256);
+            $signedXml = $signer->signXml($xmlContent, DigestAlgorithmType::SHA256);
+
+            // Cumplimiento estricto con el esquema XSD del SIN (RND 102100000011 / Anexo 33):
+            // El nodo <KeyInfo> debe contener <X509Data><X509Certificate>...</X509Certificate></X509Data>
+            // y no debe incluir el elemento <KeyValue>, el cual es rechazado por el validador XSD del SIN.
+            try {
+                $pfxContent = file_get_contents($path);
+                $certs = [];
+                if (openssl_pkcs12_read($pfxContent, $certs, $pass) && !empty($certs['cert'])) {
+                    $certClean = preg_replace('/-----BEGIN CERTIFICATE-----|-----END CERTIFICATE-----|\r|\n/', '', $certs['cert']);
+
+                    $dom = new \DOMDocument();
+                    $dom->preserveWhiteSpace = false;
+                    $dom->formatOutput = true;
+                    if ($dom->loadXML($signedXml)) {
+                        $keyInfos = $dom->getElementsByTagName('KeyInfo');
+                        if ($keyInfos->length > 0) {
+                            $ki = $keyInfos->item(0);
+                            while ($ki->hasChildNodes()) {
+                                $ki->removeChild($ki->firstChild);
+                            }
+                            $x509Data = $dom->createElement('X509Data');
+                            $x509Cert = $dom->createElement('X509Certificate', $certClean);
+                            $x509Data->appendChild($x509Cert);
+                            $ki->appendChild($x509Data);
+
+                            $signedXml = $dom->saveXML();
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Si falla la reestructuración de KeyInfo, se conserva la firma original
+            }
+
+            return $signedXml;
         } catch (Exception $e) {
             throw new Exception("Error al realizar la firma digital XMLDSig: " . $e->getMessage(), (int) $e->getCode(), $e);
         }

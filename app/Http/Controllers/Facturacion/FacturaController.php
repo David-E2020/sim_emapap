@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Facturacion\ClienteFactura;
 use App\Models\Facturacion\Factura;
 use App\Models\Facturacion\FacturaDetalle;
+use App\Models\Facturacion\EventoSignificativo;
 use App\Models\Facturacion\ProductoServicioFactura;
 use App\Models\Facturacion\SiatCufd;
 use App\Models\Facturacion\SiatCuis;
@@ -704,6 +705,10 @@ class FacturaController extends Controller
 
         if ($factura->xml_firmado_path && Storage::disk('local')->exists($factura->xml_firmado_path)) {
             $xmlContent = Storage::disk('local')->get($factura->xml_firmado_path);
+            if (str_contains($xmlContent, '<KeyValue>')) {
+                $xmlContent = $this->firmaDigitalService->firmarXml($this->xmlFacturaService->construirXml($factura));
+                Storage::disk('local')->put($factura->xml_firmado_path, $xmlContent);
+            }
         } else {
             $xmlContent = $this->xmlFacturaService->construirXml($factura);
         }
@@ -761,25 +766,77 @@ class FacturaController extends Controller
                 : null;
 
             if (empty($codigoEvento)) {
-                $respEv = $this->siatSoapService->registrarEventoSignificativo(
-                    (int) ($evento?->codigo_evento ?? 1),
-                    $evento?->descripcion ?? 'Contingencia operativa regularizada',
-                    $evento?->fecha_inicio ?? $factura->fecha_emision,
-                    $evento?->fecha_fin ?? now(),
-                    $cufd,
+                $cufdActual = SiatCufd::latest('id')->first()?->codigo ?? $cufd;
+
+                // 1. Consultar si ya existe un evento significativo registrado en el SIN para la fecha de emisión
+                $consEv = $this->siatSoapService->consultarEventosSignificativos(
                     $cuis,
-                    $cufd,
+                    $cufdActual,
+                    $factura->fecha_emision,
                     $sucursal,
                     $puntoVenta
                 );
-                $codigoEvento = !empty($respEv['codigo_recepcion_evento'])
-                    ? (int) $respEv['codigo_recepcion_evento']
-                    : (int) ($evento?->codigo_evento ?? 1);
 
-                if ($evento && !empty($respEv['codigo_recepcion_evento'])) {
-                    $evento->update(['codigo_recepcion_evento' => $respEv['codigo_recepcion_evento']]);
+                if (!empty($consEv['success']) && !empty($consEv['eventos'])) {
+                    $evSin = $consEv['eventos'][0];
+                    $codigoEvento = !empty($evSin['codigoRecepcionEventoSignificativo'])
+                        ? (int) $evSin['codigoRecepcionEventoSignificativo']
+                        : null;
+                }
+
+                // 2. Si no existe ninguno en el SIN, registrar uno nuevo con ventana de tiempo segura
+                if (empty($codigoEvento)) {
+                    $fIni = Carbon::parse($factura->fecha_emision)->subMinutes(5);
+                    $fFin = Carbon::parse($factura->fecha_emision)->addMinutes(10);
+                    if ($fFin->isFuture()) {
+                        $fFin = now()->subMinute();
+                    }
+
+                    $respEv = $this->siatSoapService->registrarEventoSignificativo(
+                        (int) ($evento?->codigo_evento ?? 1),
+                        $evento?->descripcion ?? 'Contingencia operativa regularizada',
+                        $fIni,
+                        $fFin,
+                        $factura->cufd,
+                        $cuis,
+                        $cufdActual,
+                        $sucursal,
+                        $puntoVenta
+                    );
+
+                    if (!empty($respEv['codigo_recepcion_evento'])) {
+                        $codigoEvento = (int) $respEv['codigo_recepcion_evento'];
+                    }
+                }
+
+                // 3. Si se obtuvo el código oficial del SIN, persistir y vincular el EventoSignificativo local
+                if (!empty($codigoEvento)) {
+                    $eventoLoc = EventoSignificativo::firstOrCreate(
+                        ['codigo_recepcion_evento' => (string) $codigoEvento],
+                        [
+                            'id_sucursal' => $factura->id_sucursal ?? 1,
+                            'id_punto_venta' => $factura->id_punto_venta,
+                            'codigo_evento' => 1,
+                            'descripcion' => 'Contingencia regularizada en SIN',
+                            'cufd_evento' => $factura->cufd,
+                            'fecha_inicio' => $factura->fecha_emision,
+                            'fecha_fin' => now(),
+                            'estado_evento' => 'CERRADO',
+                        ]
+                    );
+                    $factura->id_evento_significativo = $eventoLoc->id;
+                    $factura->save();
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No se pudo obtener el Código de Recepción de Evento del SIN: ' . ($respEv['mensaje'] ?? 'El SIN no aprobó el registro de contingencia.'),
+                        'data' => $factura,
+                    ], Response::HTTP_OK);
                 }
             }
+
+            $docSector = (int) ($factura->codigo_documento_sector ?? 13);
+            $tipoFacturaDoc = (int) ($factura->tipo_factura_documento ?? 1);
 
             $resp = $this->siatSoapService->enviarPaqueteFacturas(
                 $binarioTarGz,
@@ -790,7 +847,9 @@ class FacturaController extends Controller
                 $cufd,
                 $sucursal,
                 $puntoVenta,
-                $evento?->cafc
+                $evento?->cafc,
+                $docSector,
+                $tipoFacturaDoc
             );
 
             if (app()->environment('testing') && empty($resp['success'])) {
@@ -810,7 +869,9 @@ class FacturaController extends Controller
                     $cuis,
                     $cufd,
                     $sucursal,
-                    $puntoVenta
+                    $puntoVenta,
+                    $docSector,
+                    $tipoFacturaDoc
                 );
 
                 if (!empty($valResp['success']) && ($valResp['codigo_descripcion'] ?? '') === 'VALIDADA') {

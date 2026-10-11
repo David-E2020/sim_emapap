@@ -47,13 +47,16 @@ class CajaInteractiveWorkflowTest extends TestCase
             ]
         );
 
-        $this->puntoVenta = SiatPuntoVenta::where('_estado', 'ACTIVO')->first()
+        $cajasOcupadas = CajaSesion::where('estado', 'ABIERTA')->pluck('id_punto_venta');
+        $this->puntoVenta = SiatPuntoVenta::where('_estado', 'ACTIVO')
+            ->whereNotIn('id', $cajasOcupadas)
+            ->first()
             ?? SiatPuntoVenta::create([
                 'id_sucursal' => $this->sucursal->id,
-                'codigo_punto_venta' => 0,
-                'nombre' => 'Caja Central Principal',
+                'codigo_punto_venta' => 99,
+                'nombre' => 'Caja Test Interactivo',
                 'tipo_punto_venta' => 0,
-                'descripcion' => 'Ventanilla Central de Cobranzas',
+                'descripcion' => 'Ventanilla Test',
                 '_estado' => 'ACTIVO',
                 '_transaccion' => 'TEST',
                 '_usuario_creacion' => $this->cajero->id,

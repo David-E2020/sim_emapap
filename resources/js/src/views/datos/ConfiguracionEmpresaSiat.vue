@@ -474,7 +474,27 @@
                     <tbody>
                       <tr v-for="ep in listaEndpoints" :key="ep.clave">
                         <td class="py-2">
-                          <div class="font-weight-bold text-subtitle-2">{{ ep.nombre }}</div>
+                          <div class="d-flex align-center">
+                            <span class="font-weight-bold text-subtitle-2">{{ ep.nombre }}</span>
+                            <v-chip
+                              v-if="ep.es_oficial_emapa"
+                              x-small
+                              color="primary"
+                              class="ml-2 font-weight-bold"
+                              outlined
+                            >
+                              OFICIAL EMAPAP
+                            </v-chip>
+                            <v-chip
+                              v-else
+                              x-small
+                              color="grey darken-1"
+                              class="ml-2"
+                              outlined
+                            >
+                              OPCIONAL / OTROS
+                            </v-chip>
+                          </div>
                           <div class="text-caption text-secondary">{{ ep.descripcion }}</div>
                         </td>
                         <td>
@@ -632,6 +652,160 @@
       </v-card>
     </v-dialog>
 
+    <!-- DIÁLOGO RESUMEN DE SINCRONIZACIÓN INTEGRAL CON IMPUESTOS NACIONALES -->
+    <v-dialog v-model="dialogoSincronizacion" max-width="640" persistent>
+      <v-card rounded="lg">
+        <v-card-title class="primary white--text py-3">
+          <v-icon left color="white">mdi-cloud-sync</v-icon>
+          <span class="text-subtitle-1 font-weight-bold">Sincronización y Validación SIAT</span>
+          <v-spacer></v-spacer>
+          <v-btn icon dark x-small @click="dialogoSincronizacion = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pt-4" v-if="diagnosticoResultado">
+          <v-alert
+            :color="diagnosticoResultado.comunicacion_ok ? 'success' : 'warning'"
+            text
+            dense
+            border="left"
+            class="mb-3"
+          >
+            <div class="text-subtitle-2 font-weight-bold">
+              {{ diagnosticoResultado.comunicacion_ok ? 'Configuración Guardada y Verificada con el SIN' : 'Guardado Local (SIN no disponible)' }}
+            </div>
+            <div class="text-caption">
+              Los parámetros fiscales se han actualizado y validado ante el Servicio de Impuestos Nacionales.
+            </div>
+          </v-alert>
+
+          <!-- AUTOAJUSTES NOTAS -->
+          <v-alert
+            v-if="diagnosticoResultado.modalidad_autoajustada || diagnosticoResultado.sistema_autoajustado"
+            type="info"
+            dense
+            text
+            class="text-caption mb-3"
+          >
+            <div v-if="diagnosticoResultado.modalidad_autoajustada">
+              <v-icon x-small color="info">mdi-auto-fix</v-icon> {{ diagnosticoResultado.modalidad_autoajustada }}
+            </div>
+            <div v-if="diagnosticoResultado.sistema_autoajustado">
+              <v-icon x-small color="info">mdi-auto-fix</v-icon> {{ diagnosticoResultado.sistema_autoajustado }}
+            </div>
+          </v-alert>
+
+          <!-- TABLA DE VERIFICACIONES -->
+          <v-simple-table dense class="border rounded">
+            <template v-slot:default>
+              <tbody>
+                <!-- 1. NIT Padrón SIN -->
+                <tr>
+                  <td class="font-weight-bold text-caption" style="width: 38%;">
+                    <v-icon x-small color="primary" class="mr-1">mdi-card-account-details</v-icon> Padrón Tributario NIT
+                  </td>
+                  <td>
+                    <div class="d-flex align-center flex-wrap gap-1">
+                      <v-chip
+                        x-small
+                        :color="diagnosticoResultado.nit_verificado ? 'success' : (diagnosticoResultado.nit_verificado === false ? 'error' : 'grey')"
+                        text-color="white"
+                        class="font-weight-bold mr-2"
+                      >
+                        {{ diagnosticoResultado.nit_verificado ? 'NIT VÁLIDO' : (diagnosticoResultado.nit_verificado === false ? 'OBSERVADO' : 'NO EVALUADO') }}
+                      </v-chip>
+                      <span class="text-caption text-secondary">{{ diagnosticoResultado.nit_mensaje || 'Consultado con el SIN' }}</span>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- 2. Comunicación SOAP -->
+                <tr>
+                  <td class="font-weight-bold text-caption">
+                    <v-icon x-small color="primary" class="mr-1">mdi-lan-connect</v-icon> Comunicación SOAP
+                  </td>
+                  <td>
+                    <v-chip x-small :color="diagnosticoResultado.comunicacion_ok ? 'success' : 'error'" text-color="white" class="font-weight-bold">
+                      {{ diagnosticoResultado.comunicacion_ok ? 'ESTABLECIDA Y AUTORIZADA' : 'FALLO DE CONEXIÓN' }}
+                    </v-chip>
+                  </td>
+                </tr>
+
+                <!-- 3. CUIS Oficial -->
+                <tr v-if="diagnosticoResultado.cuis">
+                  <td class="font-weight-bold text-caption">
+                    <v-icon x-small color="primary" class="mr-1">mdi-key-star</v-icon> CUIS Oficial (Matriz)
+                  </td>
+                  <td>
+                    <code class="font-weight-bold text-body-2">{{ diagnosticoResultado.cuis }}</code>
+                    <span class="text-caption text-success ml-2">● Vigente por 1 año</span>
+                  </td>
+                </tr>
+
+                <!-- 4. CUFD Diario -->
+                <tr v-if="diagnosticoResultado.cufd">
+                  <td class="font-weight-bold text-caption">
+                    <v-icon x-small color="primary" class="mr-1">mdi-shield-check</v-icon> CUFD Diario Generado
+                  </td>
+                  <td>
+                    <span class="text-caption font-weight-medium text-success">
+                      <v-icon x-small color="success">mdi-check-circle</v-icon> Generado y Activo para Facturación
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- 5. Reloj Oficial SIN -->
+                <tr v-if="diagnosticoResultado.reloj_sin">
+                  <td class="font-weight-bold text-caption">
+                    <v-icon x-small color="primary" class="mr-1">mdi-clock-check-outline</v-icon> Reloj Oficial del SIN
+                  </td>
+                  <td class="text-caption">
+                    {{ diagnosticoResultado.reloj_sin }}
+                  </td>
+                </tr>
+
+                <!-- 6. Catálogos SIN -->
+                <tr>
+                  <td class="font-weight-bold text-caption">
+                    <v-icon x-small color="primary" class="mr-1">mdi-book-sync</v-icon> Catálogos Oficiales
+                  </td>
+                  <td>
+                    <span class="text-caption" :class="diagnosticoResultado.catalogos_actualizados ? 'text-success font-weight-bold' : 'text-secondary'">
+                      {{ diagnosticoResultado.catalogos_actualizados ? '● Sincronizados y Actualizados' : 'Manteniendo Catálogos Locales' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+
+          <!-- ADVERTENCIAS SI HUBIERAN -->
+          <div v-if="diagnosticoResultado.advertencias && diagnosticoResultado.advertencias.length > 0" class="mt-3">
+            <v-alert
+              v-for="(adv, idx) in diagnosticoResultado.advertencias"
+              :key="idx"
+              dense
+              text
+              type="warning"
+              class="text-caption mb-1"
+            >
+              {{ adv }}
+            </v-alert>
+          </div>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer></v-spacer>
+          <v-btn color="primary" class="text-capitalize rounded-pill px-5 font-weight-bold" @click="dialogoSincronizacion = false">
+            Entendido
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- NOTIFICACIONES SNACKBAR -->
     <v-snackbar
       v-model="snackbar.show"
@@ -664,7 +838,9 @@ export default {
       loading: false,
       testingConnection: false,
       dialogConexion: false,
+      dialogoSincronizacion: false,
       resultadoConexion: null,
+      diagnosticoResultado: null,
       showPassword: false,
       archivoLogo: null,
       archivoCertificado: null,
@@ -704,6 +880,9 @@ export default {
     'form.codigo_ambiente'(nuevoAmbiente) {
       this.actualizarEndpointsSegunAmbiente(nuevoAmbiente);
     },
+    'form.token_delegado'(nuevoToken) {
+      this.analizarTokenEnTiempoReal(nuevoToken);
+    },
   },
 
   mounted() {
@@ -711,6 +890,27 @@ export default {
   },
 
   methods: {
+    analizarTokenEnTiempoReal(token) {
+      if (!token || typeof token !== 'string') return;
+      const parts = token.trim().split('.');
+      if (parts.length >= 2) {
+        try {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          if (payload) {
+            if (payload.codigoSistema && payload.codigoSistema !== this.form.codigo_sistema) {
+              this.form.codigo_sistema = payload.codigoSistema;
+            }
+            if (payload.subsistema === 'SFE' && this.form.codigo_modalidad !== 1) {
+              this.form.codigo_modalidad = 1;
+              this.mostrarNotificacion('Modalidad detectada del Token: 1 - Electrónica en Línea (SFE)', 'info', 'mdi-auto-fix');
+            } else if (payload.subsistema === 'SFC' && this.form.codigo_modalidad !== 2) {
+              this.form.codigo_modalidad = 2;
+              this.mostrarNotificacion('Modalidad detectada del Token: 2 - Computarizada en Línea (SFC)', 'info', 'mdi-auto-fix');
+            }
+          }
+        } catch (e) {}
+      }
+    },
     cargarConfiguracion() {
       this.loading = true;
       axios
@@ -879,13 +1079,17 @@ export default {
             'success',
             'mdi-check-circle-outline'
           );
+          if (response.data.diagnostico_sin) {
+            this.diagnosticoResultado = response.data.diagnostico_sin;
+            this.dialogoSincronizacion = true;
+          }
           // Limpiar inputs de archivo
           this.archivoLogo = null;
           this.archivoCertificado = null;
           this.cargarConfiguracion();
         })
         .catch(error => {
-          const mensaje = error.response?.data?.mensaje || error.message;
+          const mensaje = error.response?.data?.mensaje || error.response?.data?.message || error.message;
           this.mostrarNotificacion('Error al guardar: ' + mensaje, 'error', 'mdi-alert-circle-outline');
         })
         .finally(() => {

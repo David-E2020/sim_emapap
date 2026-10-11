@@ -61,6 +61,18 @@ class CajaSesion extends Model
         'fecha_cierre' => 'datetime',
     ];
 
+    protected $appends = [
+        'es_dia_anterior',
+    ];
+
+    public function getEsDiaAnteriorAttribute(): bool
+    {
+        if (!$this->fecha_apertura) {
+            return false;
+        }
+        return !Carbon::parse($this->fecha_apertura)->isToday();
+    }
+
     public function cajero(): BelongsTo
     {
         return $this->belongsTo(User::class, 'id_cajero');

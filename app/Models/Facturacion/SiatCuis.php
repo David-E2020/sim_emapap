@@ -59,10 +59,31 @@ class SiatCuis extends Model
                 ->first();
         }
 
-        if (!$cuis) {
-            $cuis = static::where('id_sucursal', $idSucursal)->latest('id')->first();
+        if ($cuis) {
+            return (string) $cuis->codigo;
         }
 
-        return $cuis ? (string) $cuis->codigo : '6D4A1883';
+        // Si no existe localmente en BD, consultar dinámicamente al SIN
+        try {
+            $soap = app(\App\Services\Facturacion\SiatSoapService::class);
+            $res = $soap->solicitarCuis(0, $codigoPuntoVenta);
+            if (!empty($res['success']) && !empty($res['cuis'])) {
+                $vigencia = !empty($res['fecha_vigencia']) ? \Carbon\Carbon::parse($res['fecha_vigencia']) : \Carbon\Carbon::now()->addYear();
+                $nuevo = static::create([
+                    'id_sucursal' => $idSucursal,
+                    'id_punto_venta' => $idPuntoVenta,
+                    'codigo' => $res['cuis'],
+                    'fecha_vigencia' => $vigencia,
+                    '_estado' => 'ACTIVO',
+                    '_transaccion' => 'AUTO_SYNC_SIN',
+                    '_usuario_creacion' => auth()->id() ?? 1,
+                ]);
+                return (string) $nuevo->codigo;
+            }
+        } catch (\Throwable $e) {
+            // Error al consultar SIAT
+        }
+
+        return '';
     }
 }

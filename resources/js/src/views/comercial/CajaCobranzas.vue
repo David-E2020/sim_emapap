@@ -21,6 +21,17 @@
                 </v-icon>
                 {{ tieneSesionActiva ? 'VENTANILLA ACTIVA' : 'VENTANILLA EN ESPERA' }}
               </v-chip>
+
+              <v-chip
+                v-if="esSupervisor && tieneSesionActiva"
+                x-small
+                color="indigo darken-2"
+                text-color="white"
+                class="font-weight-bold my-1 ml-1"
+              >
+                <v-icon left x-small color="amber accent-2">mdi-shield-check</v-icon>
+                MODO SUPERVISIÓN
+              </v-chip>
             </div>
             <span class="text-caption text-secondary">
               Cobranza ágil de consumo de agua, convenios y emisión en línea de Factura SIAT (Sector 13 - Servicios Básicos)
@@ -43,11 +54,12 @@
 
             <v-btn
               small
-              color="warning darken-1"
+              :color="esSupervisor ? 'indigo darken-2' : 'warning darken-1'"
               class="rounded-pill font-weight-medium text-white elevation-1 mr-2 my-1"
               @click="mostrarModalCierre = true"
             >
-              <v-icon left x-small>mdi-lock-check</v-icon> Cerrar Turno / Arqueo
+              <v-icon left x-small>{{ esSupervisor ? 'mdi-shield-lock' : 'mdi-lock-check' }}</v-icon>
+              {{ esSupervisor ? 'Cierre / Arqueo Supervisor' : 'Cerrar Turno / Arqueo' }}
             </v-btn>
           </template>
 
@@ -73,6 +85,49 @@
         </div>
       </div>
     </v-card>
+
+    <!-- BANNER DE SUPERVISIÓN DE VENTANILLA -->
+    <v-alert
+      v-if="esSupervisor && tieneSesionActiva && sesionActiva"
+      color="indigo darken-3"
+      dark
+      dense
+      class="mb-4 rounded-lg elevation-2"
+    >
+      <div class="d-flex align-center justify-space-between flex-wrap">
+        <div class="d-flex align-center my-1">
+          <v-icon left color="amber accent-2">mdi-shield-account</v-icon>
+          <div class="text-body-2">
+            <strong>MODO SUPERVISIÓN DE VENTANILLA:</strong>
+            Estás auditando el <strong>{{ sesionActiva.punto_venta ? sesionActiva.punto_venta.nombre : 'Punto de Venta' }}</strong>
+            operado por <strong>{{ sesionActiva.cajero ? sesionActiva.cajero.name : 'Cajero' }}</strong>.
+          </div>
+        </div>
+        <div class="d-flex align-center my-1" v-if="todasCajasActivas && todasCajasActivas.length > 1">
+          <span class="text-caption mr-2 font-weight-bold">Cambiar Ventanilla:</span>
+          <v-select
+            dense
+            outlined
+            dark
+            hide-details
+            :items="todasCajasActivas"
+            item-value="id_punto_venta"
+            item-text="nombre_punto_venta"
+            v-model="puntoVentaSeleccionadoId"
+            @change="cambiarPuntoSupervision"
+            style="max-width: 250px;"
+            class="text-caption"
+          >
+            <template v-slot:item="{ item }">
+              <div class="text-caption">
+                <strong>{{ item.nombre_punto_venta }}</strong> ({{ item.cajero_nombre }})
+                <v-chip v-if="item.es_dia_anterior" x-small color="error" class="ml-1" outlined>Rezagada</v-chip>
+              </div>
+            </template>
+          </v-select>
+        </div>
+      </div>
+    </v-alert>
 
     <!-- ALERTA BLOQUEANTE: TURNO REZAGADO DE FECHA ANTERIOR -->
     <v-alert
@@ -768,14 +823,26 @@
         <p class="text-body-2 text-secondary mb-5" style="max-width: 520px; margin: 0 auto;">
           Para habilitar la cobranza de consumo de agua potable, registrar cuotas y emitir facturas electrónicas oficiales en línea con el SIAT, debe realizar la apertura formal de su turno indicando el fondo de gaveta inicial.
         </p>
-        <v-btn
-          color="primary"
-          class="rounded-pill font-weight-bold text-white elevation-2 px-6"
-          large
-          @click="mostrarModalApertura = true"
-        >
-          <v-icon left>mdi-lock-open-variant</v-icon> ABRIR TURNO DE CAJA AHORA
-        </v-btn>
+        <div class="d-flex justify-center flex-wrap align-center">
+          <v-btn
+            color="primary"
+            class="rounded-pill font-weight-bold text-white elevation-2 px-6 ma-1"
+            large
+            @click="mostrarModalApertura = true"
+          >
+            <v-icon left>mdi-lock-open-variant</v-icon> ABRIR TURNO DE CAJA AHORA
+          </v-btn>
+
+          <v-btn
+            v-if="esAdmin && todasCajasActivas && todasCajasActivas.length > 0"
+            color="indigo darken-2"
+            class="rounded-pill font-weight-bold text-white elevation-2 px-6 ma-1"
+            large
+            @click="supervisarCaja(todasCajasActivas[0].id_punto_venta)"
+          >
+            <v-icon left>mdi-shield-account</v-icon> SUPERVISAR CAJA ACTIVA ({{ todasCajasActivas[0].cajero_nombre }})
+          </v-btn>
+        </div>
       </v-card>
     </div>
 
@@ -1005,6 +1072,10 @@ export default {
       esSesionDiaAnterior: false,
       cajaDefectoId: null,
       cargandoSesion: false,
+      esSupervisor: false,
+      esAdmin: false,
+      todasCajasActivas: [],
+      puntoVentaSeleccionadoId: null,
       mostrarModalApertura: false,
       mostrarModalCierre: false,
       mostrarModalMovimiento: false,
@@ -1129,9 +1200,17 @@ export default {
         }
       },
     },
+    '$route.query.punto_venta_id': {
+      handler(newPvId) {
+        if (newPvId) {
+          this.verificarEstadoSesion(newPvId);
+        }
+      },
+    },
   },
   mounted() {
-    this.verificarEstadoSesion();
+    const qPvId = this.$route.query.punto_venta_id;
+    this.verificarEstadoSesion(qPvId);
     const qCod = this.$route.query.codigo;
     if (qCod) {
       this.codigoBusqueda = qCod;
@@ -1166,19 +1245,39 @@ export default {
         return String(fecha);
       }
     },
-    async verificarEstadoSesion() {
+    async verificarEstadoSesion(forzarPuntoVentaId = null) {
       this.cargandoSesion = true;
       try {
-        const res = await axios.get('/api/comercial/caja-sesiones/estado-actual');
+        const pvId = forzarPuntoVentaId || this.$route.query.punto_venta_id || null;
+        const sesId = this.$route.query.sesion_id || null;
+        const params = {};
+        if (pvId) params.punto_venta_id = pvId;
+        if (sesId) params.sesion_id = sesId;
+
+        const res = await axios.get('/api/comercial/caja-sesiones/estado-actual', { params });
         this.tieneSesionActiva = !!res.data?.tiene_sesion_activa;
         this.esSesionDiaAnterior = !!res.data?.es_dia_anterior;
         this.sesionActiva = res.data?.sesion || null;
         this.cajaDefectoId = res.data?.caja_defecto_id || null;
+        this.esSupervisor = !!res.data?.es_supervisor;
+        this.esAdmin = !!res.data?.es_admin;
+        this.todasCajasActivas = res.data?.todas_cajas_activas || [];
+
+        if (this.sesionActiva && this.sesionActiva.id_punto_venta) {
+          this.puntoVentaSeleccionadoId = this.sesionActiva.id_punto_venta;
+        }
       } catch (e) {
         console.error('Error al verificar sesión de caja:', e);
       } finally {
         this.cargandoSesion = false;
       }
+    },
+    cambiarPuntoSupervision(nuevoPvId) {
+      if (!nuevoPvId) return;
+      this.verificarEstadoSesion(nuevoPvId);
+    },
+    supervisarCaja(pvId) {
+      this.verificarEstadoSesion(pvId);
     },
     alAbrirSesion(sesion) {
       this.sesionActiva = sesion;

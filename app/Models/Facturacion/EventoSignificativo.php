@@ -18,6 +18,7 @@ class EventoSignificativo extends Model
         'id_sucursal',
         'id_punto_venta',
         'codigo_evento',
+        'codigo_recepcion_evento',
         'descripcion',
         'cufd_evento',
         'fecha_inicio',

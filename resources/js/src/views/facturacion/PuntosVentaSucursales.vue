@@ -76,8 +76,20 @@
                 </v-list-item-title>
                 <v-list-item-subtitle class="text-caption">
                   <span class="text-success font-weight-bold">● CUFD Vigente</span> |
-                  <span v-if="pv.sesion_activa" class="success--text font-weight-bold">
-                    <v-icon x-small color="success">mdi-lock-open-variant</v-icon> Turno #{{ pv.sesion_activa.numero_sesion }} ({{ pv.sesion_activa.cajero ? pv.sesion_activa.cajero.name : 'En curso' }})
+                  <span v-if="pv.sesion_activa" :class="pv.sesion_activa.es_dia_anterior ? 'error--text font-weight-bold' : 'success--text font-weight-bold'">
+                    <v-icon x-small :color="pv.sesion_activa.es_dia_anterior ? 'error' : 'success'">
+                      {{ pv.sesion_activa.es_dia_anterior ? 'mdi-alert-circle' : 'mdi-lock-open-variant' }}
+                    </v-icon>
+                    Turno #{{ pv.sesion_activa.numero_sesion }} ({{ pv.sesion_activa.cajero ? pv.sesion_activa.cajero.name : 'En curso' }})
+                    <v-chip
+                      v-if="pv.sesion_activa.es_dia_anterior"
+                      x-small
+                      color="error"
+                      class="ml-1 font-weight-bold"
+                      outlined
+                    >
+                      <v-icon x-small left>mdi-alert</v-icon> Jornada Anterior Pendiente
+                    </v-chip>
                   </span>
                   <span v-else class="grey--text">
                     <v-icon x-small color="grey">mdi-lock-outline</v-icon> Caja Cerrada
@@ -93,11 +105,18 @@
                 <!-- Ir a Cobranzas / Ventanilla -->
                 <v-tooltip bottom>
                   <template v-slot:activator="{ on, attrs }">
-                    <v-btn icon small color="primary" v-bind="attrs" v-on="on" :to="{ path: '/facturacion/caja' }">
-                      <v-icon small>mdi-cash-register</v-icon>
+                    <v-btn
+                      icon
+                      small
+                      :color="pv.sesion_activa && pv.sesion_activa.es_dia_anterior ? 'error' : 'primary'"
+                      v-bind="attrs"
+                      v-on="on"
+                      :to="{ path: '/facturacion/caja', query: { punto_venta_id: pv.id } }"
+                    >
+                      <v-icon small>{{ pv.sesion_activa && pv.sesion_activa.es_dia_anterior ? 'mdi-cash-register-alert' : 'mdi-cash-register' }}</v-icon>
                     </v-btn>
                   </template>
-                  <span>Ir a Ventanilla de Cobranzas</span>
+                  <span>{{ pv.sesion_activa ? 'Supervisar / Ir a Ventanilla de Cobranzas' : 'Ir a Ventanilla de Cobranzas' }}</span>
                 </v-tooltip>
 
                 <!-- Asignar Cajero Habitual -->

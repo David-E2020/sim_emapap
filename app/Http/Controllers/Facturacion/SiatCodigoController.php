@@ -167,20 +167,21 @@ class SiatCodigoController extends Controller
         // 2. Solicitar CUIS ante el SIN
         $resCuis = $this->siatSoapService->solicitarCuis((int) $sucursal->codigo_sucursal, 0);
         $cuisCodigo = null;
-        if (!empty($resCuis['success'])) {
+        if (!empty($resCuis['success']) && !empty($resCuis['cuis'])) {
             $cuisCodigo = $resCuis['cuis'];
+            $vigencia = !empty($resCuis['fecha_vigencia']) ? Carbon::parse($resCuis['fecha_vigencia']) : Carbon::now()->addYear();
             SiatCuis::create([
                 'id_sucursal' => $sucursal->id,
                 'id_punto_venta' => null,
                 'codigo' => $cuisCodigo,
-                'fecha_vigencia' => Carbon::parse($resCuis['fecha_vigencia']),
+                'fecha_vigencia' => $vigencia,
                 '_estado' => 'ACTIVO',
                 '_transaccion' => 'REG_SUC_CUIS',
                 '_usuario_creacion' => auth()->id() ?? 1,
             ]);
         } elseif (($resCuis['codigo_error'] ?? 0) === 980) {
             $cuisExistente = SiatCuis::where('id_sucursal', $sucursal->id)->whereNull('id_punto_venta')->latest('id')->first();
-            $cuisCodigo = $cuisExistente ? $cuisExistente->codigo : '6D4A1883';
+            $cuisCodigo = $cuisExistente ? $cuisExistente->codigo : null;
         }
 
         // 3. Solicitar CUFD ante el SIN si se obtuvo el CUIS
@@ -390,12 +391,13 @@ class SiatCodigoController extends Controller
             (int) $puntoVenta->codigo_punto_venta
         );
 
-        if ($resCuis['success']) {
+        if (!empty($resCuis['success']) && !empty($resCuis['cuis'])) {
+            $vigencia = !empty($resCuis['fecha_vigencia']) ? Carbon::parse($resCuis['fecha_vigencia']) : Carbon::now()->addYear();
             SiatCuis::create([
                 'id_sucursal' => $puntoVenta->id_sucursal,
                 'id_punto_venta' => $puntoVenta->id,
                 'codigo' => $resCuis['cuis'],
-                'fecha_vigencia' => Carbon::now()->addYear(),
+                'fecha_vigencia' => $vigencia,
                 '_estado' => 'ACTIVO',
                 '_transaccion' => 'RENOV_CUIS',
                 '_usuario_creacion' => auth()->id() ?? 1,
@@ -404,22 +406,26 @@ class SiatCodigoController extends Controller
             return response()->json([
                 'success' => true,
                 'cuis' => $resCuis['cuis'],
-                'message' => 'CUIS obtenido y renovado satisfactoriamente ante el SIN.',
+                'message' => !empty($resCuis['es_existente'])
+                    ? 'CUIS vigente recuperado y sincronizado exitosamente desde el SIN.'
+                    : 'CUIS obtenido y renovado satisfactoriamente ante el SIN.',
             ], Response::HTTP_OK);
         }
 
-        // Si el SIN indica que ya existe un CUIS vigente (código 980)
+        // Si el SIN indica que ya existe un CUIS vigente (código 980) pero no devolvió el código
         if (($resCuis['codigo_error'] ?? null) === 980 || str_contains($resCuis['mensaje'] ?? '', 'EXISTE UN CUIS VIGENTE')) {
             $cuisVigente = SiatCuis::where('id_punto_venta', $puntoVenta->id)
                 ->where('_estado', 'ACTIVO')
                 ->latest('id')
                 ->first();
 
-            return response()->json([
-                'success' => true,
-                'cuis' => $cuisVigente ? $cuisVigente->codigo : null,
-                'message' => 'El punto de venta ya cuenta con un CUIS vigente y habilitado ante el SIN.',
-            ], Response::HTTP_OK);
+            if ($cuisVigente) {
+                return response()->json([
+                    'success' => true,
+                    'cuis' => $cuisVigente->codigo,
+                    'message' => 'El punto de venta ya cuenta con un CUIS vigente y habilitado ante el SIN.',
+                ], Response::HTTP_OK);
+            }
         }
 
         return response()->json([

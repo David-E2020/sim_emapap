@@ -65,13 +65,13 @@ class RenovarCufdCommand extends Command
             foreach ($puntos as $punto) {
                 $this->line("Procesando Sucursal: {$sucursal->nombre} [{$sucursal->codigo_sucursal}] | Punto de Venta: {$punto->nombre} [{$punto->codigo_punto_venta}]");
 
-                // Obtener CUIS vigente
-                $cuisActivo = SiatCuis::where('id_sucursal', $sucursal->id)
-                    ->where('_estado', 'ACTIVO')
-                    ->latest('id')
-                    ->first();
+                // Obtener CUIS vigente dinámico
+                $cuisCodigo = SiatCuis::getVigente($sucursal->id, $punto->id ?? null, (int) $punto->codigo_punto_venta);
 
-                $cuisCodigo = $cuisActivo ? $cuisActivo->codigo : '6D4A1883';
+                if (empty($cuisCodigo)) {
+                    $this->error("No se pudo obtener un CUIS válido para la sucursal {$sucursal->codigo_sucursal} / punto {$punto->codigo_punto_venta}. Omitiendo.");
+                    continue;
+                }
 
                 $resultado = $soapService->solicitarCufd(
                     $cuisCodigo,

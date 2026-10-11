@@ -6,7 +6,10 @@ namespace App\Http\Controllers\Datos;
 
 use App\Http\Controllers\Controller;
 use App\Models\Facturacion\ConfiguracionEmpresa;
+use App\Models\Facturacion\SiatCuis;
+use App\Models\Facturacion\SiatCufd;
 use App\Services\Facturacion\SiatSoapService;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,60 +40,76 @@ class ConfiguracionEmpresaController extends Controller
 
         $catalogoEndpoints = [
             [
+                'clave' => 'servicio_basico',
+                'nombre' => '1. Factura de Servicios Básicos (Oficial EMAPAP)',
+                'descripcion' => 'WSDL principal para emisión y contingencia de agua potable y alcantarillado (Sector 13).',
+                'url_piloto' => $endpointsPiloto['servicio_basico'] ?? 'https://pilotosiatservicios.impuestos.gob.bo/v2/ServicioFacturacionServicioBasico?wsdl',
+                'url_produccion' => $endpointsProduccion['servicio_basico'] ?? 'https://siatrest.impuestos.gob.bo/v2/ServicioFacturacionServicioBasico?wsdl',
+                'url_actual' => $endpointsActivos['servicio_basico'] ?? '',
+                'es_oficial_emapa' => true,
+            ],
+            [
                 'clave' => 'sincronizacion',
-                'nombre' => 'Facturación Sincronización',
-                'descripcion' => 'Catálogos, actividades económicas, productos/servicios SIN, leyendas y reloj oficial.',
+                'nombre' => '2. Facturación Sincronización',
+                'descripcion' => 'Catálogos SIN, actividades económicas, productos/servicios homologados y reloj oficial.',
                 'url_piloto' => $endpointsPiloto['sincronizacion'] ?? '',
                 'url_produccion' => $endpointsProduccion['sincronizacion'] ?? '',
                 'url_actual' => $endpointsActivos['sincronizacion'] ?? '',
+                'es_oficial_emapa' => true,
             ],
             [
                 'clave' => 'codigos',
-                'nombre' => 'Facturación Códigos',
-                'descripcion' => 'Obtención y renovación periódica de CUIS (Código Único) y CUFD (Diario).',
+                'nombre' => '3. Facturación Códigos',
+                'descripcion' => 'Obtención y renovación periódica de credenciales CUIS (anual) y CUFD (diario).',
                 'url_piloto' => $endpointsPiloto['codigos'] ?? '',
                 'url_produccion' => $endpointsProduccion['codigos'] ?? '',
                 'url_actual' => $endpointsActivos['codigos'] ?? '',
+                'es_oficial_emapa' => true,
             ],
             [
                 'clave' => 'operaciones',
-                'nombre' => 'Facturación Operaciones',
-                'descripcion' => 'Gestión de puntos de venta y registro de eventos significativos de contingencia.',
+                'nombre' => '4. Facturación Operaciones',
+                'descripcion' => 'Puntos de venta y registro oficial de Eventos Significativos de Contingencia.',
                 'url_piloto' => $endpointsPiloto['operaciones'] ?? '',
                 'url_produccion' => $endpointsProduccion['operaciones'] ?? '',
                 'url_actual' => $endpointsActivos['operaciones'] ?? '',
+                'es_oficial_emapa' => true,
             ],
             [
                 'clave' => 'compra_venta',
-                'nombre' => 'Servicio Facturación Compra-Venta General',
-                'descripcion' => 'Recepción sincrónica/asincrónica, consulta y anulación ordinaria de facturas.',
+                'nombre' => 'Compra-Venta General (Sector 1 - General)',
+                'descripcion' => 'Para comercio de bienes y tiendas ordinarias. No aplicable a servicios de agua potable.',
                 'url_piloto' => $endpointsPiloto['compra_venta'] ?? '',
                 'url_produccion' => $endpointsProduccion['compra_venta'] ?? '',
                 'url_actual' => $endpointsActivos['compra_venta'] ?? '',
+                'es_oficial_emapa' => false,
             ],
             [
                 'clave' => 'computarizada',
-                'nombre' => 'Servicio Facturación Computarizada en Línea',
-                'descripcion' => 'Emisión directa en modalidad computarizada mediante código de control y hash.',
+                'nombre' => 'Modalidad Computarizada en Línea (Alternativa)',
+                'descripcion' => 'Válido solo si no se usa firma digital ADSIB (EMAPAP está configurado en Electrónica).',
                 'url_piloto' => $endpointsPiloto['computarizada'] ?? '',
                 'url_produccion' => $endpointsProduccion['computarizada'] ?? '',
                 'url_actual' => $endpointsActivos['computarizada'] ?? '',
+                'es_oficial_emapa' => false,
             ],
             [
                 'clave' => 'electronica',
-                'nombre' => 'Servicio Facturación Electrónica en Línea',
-                'descripcion' => 'Emisión directa en modalidad electrónica con firma digital XMLDSig (.p12).',
+                'nombre' => 'Electrónica en Línea Genérica (Antiguo/General)',
+                'descripcion' => 'Endpoint genérico de compra-venta electrónica. En SIAT v2 para agua se usa el Servicio Básico.',
                 'url_piloto' => $endpointsPiloto['electronica'] ?? '',
                 'url_produccion' => $endpointsProduccion['electronica'] ?? '',
                 'url_actual' => $endpointsActivos['electronica'] ?? '',
+                'es_oficial_emapa' => false,
             ],
             [
                 'clave' => 'qr',
-                'nombre' => 'Portal de Consulta QR Oficial del SIN',
-                'descripcion' => 'Enlace base para validación en línea de facturas por parte de clientes y abonados.',
+                'nombre' => 'Portal de Verificación QR SIN (Consulta Ciudadana)',
+                'descripcion' => 'Enlace web público para consulta de facturas al escanear el código QR del recibo.',
                 'url_piloto' => $endpointsPiloto['qr'] ?? '',
                 'url_produccion' => $endpointsProduccion['qr'] ?? '',
                 'url_actual' => $endpointsActivos['qr'] ?? '',
+                'es_oficial_emapa' => false,
             ],
         ];
 
@@ -163,34 +182,76 @@ class ConfiguracionEmpresaController extends Controller
 
         $config = ConfiguracionEmpresa::getActiva();
 
+        $nitFormulario = trim((string) $request->input('nit'));
+        $codSistemaFormulario = trim((string) $request->input('codigo_sistema'));
+        $modalidadFormulario = (int) $request->input('codigo_modalidad');
+        $tokenInput = trim((string) ($request->input('token_delegado') ?? $config->token_delegado ?? ''));
+
+        $modalidadAutoAjustada = null;
+        $sistemaAutoAjustado = null;
+
+        // 1. Validación Cruzada Token SIAT vs Identidad Institucional
+        if (!empty($tokenInput)) {
+            $tokenNit = SiatSoapService::extractNitFromToken($tokenInput);
+            $tokenSistema = SiatSoapService::extractCodigoSistemaFromToken($tokenInput);
+            $tokenSubsistema = SiatSoapService::extractSubsistemaFromToken($tokenInput);
+
+            // Validar que el NIT de Identidad Institucional coincida con el NIT del Token
+            if ($tokenNit && $nitFormulario && (string) $tokenNit !== (string) $nitFormulario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Discrepancia fiscal detectada: El NIT de Identidad Institucional ({$nitFormulario}) no coincide con el NIT delegado contenido en el Token SIAT ({$tokenNit}). Debe registrar el mismo NIT.",
+                    'mensaje' => "Discrepancia fiscal detectada: El NIT de Identidad Institucional ({$nitFormulario}) no coincide con el NIT delegado contenido en el Token SIAT ({$tokenNit}). Debe registrar el mismo NIT.",
+                    'token_nit' => $tokenNit,
+                    'formulario_nit' => $nitFormulario,
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            // Si el código de sistema difiere del token, auto-sincronizarlo con el real del token
+            if ($tokenSistema && $codSistemaFormulario !== $tokenSistema) {
+                $sistemaAutoAjustado = "Código de Sistema sincronizado automáticamente con el Token ({$tokenSistema}).";
+                $codSistemaFormulario = $tokenSistema;
+            }
+
+            // Si el subsistema del token define la modalidad, auto-ajustarla:
+            // SFE => Electrónica en Línea (Modalidad 1), SFC => Computarizada en Línea (Modalidad 2)
+            if ($tokenSubsistema === 'SFE' && $modalidadFormulario !== 1) {
+                $modalidadFormulario = 1;
+                $modalidadAutoAjustada = 'Modalidad autoajustada a "1 - Electrónica en Línea" según el Token (SFE).';
+            } elseif ($tokenSubsistema === 'SFC' && $modalidadFormulario !== 2) {
+                $modalidadFormulario = 2;
+                $modalidadAutoAjustada = 'Modalidad autoajustada a "2 - Computarizada en Línea" según el Token (SFC).';
+            }
+        }
+
         $data = [
             'razon_social' => trim($request->input('razon_social')),
             'nombre_comercial' => trim((string) ($request->input('nombre_comercial') ?? $request->input('razon_social'))),
-            'nit' => trim($request->input('nit')),
+            'nit' => $nitFormulario,
             'telefono' => $request->input('telefono'),
             'correo' => $request->input('correo'),
             'direccion' => trim($request->input('direccion')),
             'municipio' => trim($request->input('municipio')),
             'codigo_ambiente' => (int) $request->input('codigo_ambiente'),
-            'codigo_modalidad' => (int) $request->input('codigo_modalidad'),
-            'codigo_sistema' => trim($request->input('codigo_sistema')),
+            'codigo_modalidad' => $modalidadFormulario,
+            'codigo_sistema' => $codSistemaFormulario,
             '_usuario_modificacion' => auth()->id() ?? 1,
             '_fecha_modificacion' => now(),
             '_transaccion' => 'ACTUALIZAR',
         ];
 
-        // 1. Actualizar Token Delegado si fue remitido
+        // 2. Actualizar Token Delegado si fue remitido
         if ($request->has('token_delegado')) {
-            $data['token_delegado'] = trim((string) $request->input('token_delegado'));
+            $data['token_delegado'] = $tokenInput;
         }
 
-        // 2. Actualizar Contraseña del Certificado .p12 solo si se proveyó una nueva
+        // 3. Actualizar Contraseña del Certificado .p12 solo si se proveyó una nueva
         $passwordP12 = $request->input('password_p12') ?? $request->input('certificado_password');
         if (!empty($passwordP12)) {
             $data['password_p12'] = $passwordP12;
         }
 
-        // 3. Procesar subida de Certificado Digital .p12
+        // 4. Procesar subida de Certificado Digital .p12
         $archivoCert = $request->file('archivo_p12') ?? $request->file('certificado_p12');
         if ($archivoCert) {
             $certDir = storage_path('app/siat/certs');
@@ -202,7 +263,7 @@ class ConfiguracionEmpresaController extends Controller
             $data['certificado_p12_path'] = 'storage/app/siat/certs/' . $fileName;
         }
 
-        // 4. Procesar subida de Logo Institucional
+        // 5. Procesar subida de Logo Institucional
         $archivoLogo = $request->file('archivo_logo') ?? $request->file('logo');
         if ($archivoLogo) {
             $logoDir = public_path('images/logos');
@@ -214,7 +275,7 @@ class ConfiguracionEmpresaController extends Controller
             $data['logo_path'] = '/images/logos/' . $logoName;
         }
 
-        // 5. Procesar personalización de Endpoints WSDL si fue remitida
+        // 6. Procesar personalización de Endpoints WSDL si fue remitida
         if ($request->has('endpoints_personalizados')) {
             $endpointsInput = $request->input('endpoints_personalizados');
             if (is_string($endpointsInput)) {
@@ -227,11 +288,119 @@ class ConfiguracionEmpresaController extends Controller
 
         $config->update($data);
 
+        // 7. Diagnóstico y Sincronización en vivo con Impuestos Nacionales
+        $diagnosticoSin = [
+            'comunicacion_ok' => false,
+            'nit_verificado' => null,
+            'nit_mensaje' => null,
+            'cuis' => null,
+            'cufd' => null,
+            'reloj_sin' => null,
+            'catalogos_actualizados' => false,
+            'modalidad_autoajustada' => $modalidadAutoAjustada,
+            'sistema_autoajustado' => $sistemaAutoAjustado,
+            'advertencias' => [],
+        ];
+
+        try {
+            $overrides = [
+                'nit' => $data['nit'],
+                'codigo_sistema' => $data['codigo_sistema'],
+                'modalidad' => $data['codigo_modalidad'],
+                'ambiente' => $data['codigo_ambiente'],
+                'token_delegado' => $data['token_delegado'] ?? $config->token_delegado,
+            ];
+            $soapService = new SiatSoapService($overrides);
+            $resCom = $soapService->verificarComunicacion();
+
+            if (!empty($resCom['success'])) {
+                $diagnosticoSin['comunicacion_ok'] = true;
+
+                // A. Sincronizar Fecha y Hora del SIN
+                $resHora = $soapService->sincronizarFechaHora();
+                if (!empty($resHora['success'])) {
+                    $diagnosticoSin['reloj_sin'] = $resHora['fecha_hora'] ?? null;
+                }
+
+                // B. Solicitar y actualizar CUIS oficial Punto 0
+                $resCuis = $soapService->solicitarCuis(0, 0);
+                $cuisCodigo = null;
+
+                if (!empty($resCuis['success']) && !empty($resCuis['cuis'])) {
+                    $cuisCodigo = (string) $resCuis['cuis'];
+                    $vigencia = !empty($resCuis['fecha_vigencia']) ? Carbon::parse($resCuis['fecha_vigencia']) : Carbon::now()->addYear();
+
+                    SiatCuis::create([
+                        'id_sucursal' => 1,
+                        'id_punto_venta' => 1,
+                        'codigo' => $cuisCodigo,
+                        'fecha_vigencia' => $vigencia,
+                        '_estado' => 'ACTIVO',
+                        '_transaccion' => 'CONFIG_EMPRESA',
+                        '_usuario_creacion' => auth()->id() ?? 1,
+                    ]);
+                    SiatCuis::create([
+                        'id_sucursal' => 1,
+                        'id_punto_venta' => null,
+                        'codigo' => $cuisCodigo,
+                        'fecha_vigencia' => $vigencia,
+                        '_estado' => 'ACTIVO',
+                        '_transaccion' => 'CONFIG_EMPRESA',
+                        '_usuario_creacion' => auth()->id() ?? 1,
+                    ]);
+                } elseif (($resCuis['codigo_error'] ?? null) === 980 || str_contains($resCuis['mensaje'] ?? '', 'EXISTE UN CUIS VIGENTE')) {
+                    $cuisVigente = SiatCuis::where('id_sucursal', 1)->where('_estado', 'ACTIVO')->latest('id')->first();
+                    $cuisCodigo = $cuisVigente?->codigo;
+                }
+
+                if ($cuisCodigo) {
+                    $diagnosticoSin['cuis'] = $cuisCodigo;
+
+                    // C. Solicitar y actualizar CUFD Diario para Punto 0
+                    $resCufd = $soapService->solicitarCufd($cuisCodigo, 0, 0);
+                    if (!empty($resCufd['success'])) {
+                        $diagnosticoSin['cufd'] = $resCufd['cufd'] ?? null;
+                        SiatCufd::create([
+                            'id_sucursal' => 1,
+                            'id_punto_venta' => 1,
+                            'codigo' => $resCufd['cufd'],
+                            'codigo_control' => $resCufd['codigo_control'],
+                            'direccion' => $resCufd['direccion'] ?? $data['direccion'],
+                            'fecha_vigencia' => Carbon::parse($resCufd['fecha_vigencia']),
+                            '_estado' => 'ACTIVO',
+                            '_transaccion' => 'CONFIG_EMPRESA',
+                            '_usuario_creacion' => auth()->id() ?? 1,
+                        ]);
+                    }
+
+                    // D. Verificar NIT ante el padrón del SIN
+                    $resNit = $soapService->verificarNit($cuisCodigo, $data['nit'], 0);
+                    $diagnosticoSin['nit_verificado'] = $resNit['valido'] ?? false;
+                    $diagnosticoSin['nit_mensaje'] = $resNit['mensaje'] ?? ($resNit['valido'] ? 'NIT Activo en el Padrón del SIN' : 'NIT No válido');
+
+                    // E. Sincronizar catálogo esencial (sectores autorizados)
+                    try {
+                        $resAct = $soapService->sincronizarParametricas('sincronizarListaActividadesDocumentoSector', $cuisCodigo, 0, 0);
+                        if (!empty($resAct['success'])) {
+                            $diagnosticoSin['catalogos_actualizados'] = true;
+                        }
+                    } catch (\Throwable $e) {}
+                } else {
+                    $diagnosticoSin['advertencias'][] = 'No se pudo obtener CUIS: ' . ($resCuis['mensaje'] ?? 'Respuesta no exitosa del SIN');
+                }
+            } else {
+                $diagnosticoSin['advertencias'][] = 'No se pudo contactar al servidor del SIN: ' . ($resCom['mensaje'] ?? 'Error desconocido');
+            }
+        } catch (\Throwable $e) {
+            $diagnosticoSin['advertencias'][] = 'Servidores del SIN no disponibles en este momento: ' . $e->getMessage();
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Configuración institucional y parámetros SIAT actualizados exitosamente.',
-            'mensaje' => 'Configuración institucional y parámetros SIAT actualizados exitosamente.',
+            'message' => 'Configuración guardada y sincronizada exitosamente con Impuestos Nacionales.',
+            'mensaje' => 'Configuración guardada y sincronizada exitosamente con Impuestos Nacionales.',
             'data' => $config->fresh(),
+            'diagnostico_sin' => $diagnosticoSin,
         ], Response::HTTP_OK);
     }
 

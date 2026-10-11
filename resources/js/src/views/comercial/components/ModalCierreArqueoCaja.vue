@@ -256,7 +256,8 @@ export default {
     },
     async cargarResumenArqueo() {
       try {
-        const res = await axios.get('/api/comercial/caja-sesiones/resumen-arqueo');
+        const params = this.sesion ? { id_sesion: this.sesion.id } : {};
+        const res = await axios.get('/api/comercial/caja-sesiones/resumen-arqueo', { params });
         if (res.data?.data?.totales) {
           this.totales = res.data.data.totales;
         }

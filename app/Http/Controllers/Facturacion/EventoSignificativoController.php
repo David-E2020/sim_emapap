@@ -225,6 +225,10 @@ class EventoSignificativoController extends Controller
             $evento->update(['codigo_recepcion_evento' => $respEventoSin['codigo_recepcion_evento']]);
         }
 
+        $primerFactura = $facturas->first();
+        $docSector = (int) ($primerFactura?->codigo_documento_sector ?? 13);
+        $tipoFacturaDoc = (int) ($primerFactura?->tipo_factura_documento ?? 1);
+
         // 3. Enviar paquete al SIAT vía SOAP
         $respSiat = $this->siatSoapService->enviarPaqueteFacturas(
             $binarioTarGz,
@@ -235,7 +239,9 @@ class EventoSignificativoController extends Controller
             $cufd,
             $sucursal,
             $puntoVenta,
-            $evento->cafc
+            $evento->cafc,
+            $docSector,
+            $tipoFacturaDoc
         );
 
         $paquete = FacturaPaquete::create([
@@ -263,7 +269,7 @@ class EventoSignificativoController extends Controller
      */
     public function validarPaquete(int $paqueteId): JsonResponse
     {
-        $paquete = FacturaPaquete::with('eventoSignificativo')->findOrFail($paqueteId);
+        $paquete = FacturaPaquete::with(['eventoSignificativo', 'eventoSignificativo.facturas'])->findOrFail($paqueteId);
         $evento = $paquete->eventoSignificativo;
 
         $codigoPv = $evento->puntoVenta ? (int) $evento->puntoVenta->codigo_punto_venta : 0;
@@ -274,12 +280,18 @@ class EventoSignificativoController extends Controller
         $sucursal = $evento->sucursal ? (int) $evento->sucursal->codigo_sucursal : 0;
         $puntoVenta = $evento->puntoVenta ? (int) $evento->puntoVenta->codigo_punto_venta : 0;
 
+        $primerFactura = $evento->facturas->first();
+        $docSector = (int) ($primerFactura?->codigo_documento_sector ?? 13);
+        $tipoFacturaDoc = (int) ($primerFactura?->tipo_factura_documento ?? 1);
+
         $res = $this->siatSoapService->validarPaqueteFacturas(
             $paquete->codigo_recepcion_paquete,
             $cuis,
             $cufd,
             $sucursal,
-            $puntoVenta
+            $puntoVenta,
+            $docSector,
+            $tipoFacturaDoc
         );
 
         if ($res['success']) {

@@ -27,18 +27,20 @@ class SincronizarCatalogosCommand extends Command
         $cuis = $cuisModel ? $cuisModel->codigo : null;
         if (!$cuis) {
             $respCuis = $soapService->solicitarCuis(0, 0);
-            if (!empty($respCuis['success'])) {
+            if (!empty($respCuis['success']) && !empty($respCuis['cuis'])) {
                 $cuis = $respCuis['cuis'];
+                $vigencia = !empty($respCuis['fecha_vigencia']) ? \Carbon\Carbon::parse($respCuis['fecha_vigencia']) : \Carbon\Carbon::now()->addYear();
                 \App\Models\Facturacion\SiatCuis::create([
                     'id_sucursal' => 1,
                     'codigo' => $cuis,
-                    'fecha_vigencia' => \Carbon\Carbon::parse($respCuis['fecha_vigencia']),
+                    'fecha_vigencia' => $vigencia,
                     '_estado' => 'ACTIVO',
                     '_transaccion' => 'SYNC_CATALOGO',
                     '_usuario_creacion' => 1,
                 ]);
             } else {
-                $cuis = '6D4A1883'; // CUIS piloto conocido
+                $this->error('No se pudo obtener un CUIS válido del SIN para sincronizar catálogos: ' . ($respCuis['mensaje'] ?? 'Error desconocido'));
+                return self::FAILURE;
             }
         }
 
