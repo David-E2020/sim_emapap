@@ -269,6 +269,9 @@ class ConciliacionTributariaService
                         'cuf' => $cuf,
                         'fecha' => $sinItem['fecha_emision'],
                         'cliente' => $sinItem['cliente'],
+                        'nit' => $sinItem['nit'],
+                        'monto_sin' => $montoSin,
+                        'monto_sistema' => $montoDb,
                         'estado_sin' => $sinItem['estado'],
                         'estado_sistema' => $dbItem->estado_factura,
                         'motivo' => "El SIN indica estado {$sinItem['estado']}, pero en el sistema está como {$dbItem->estado_factura}.",
@@ -450,16 +453,28 @@ class ConciliacionTributariaService
                 'nota_excel' => 'Aclaración de planilla Excel: Si sumas la columna completa en Excel verás Bs ' . number_format($totalColumnaHExcel, 2, ',', '.') . ' (y Débito Bs ' . number_format($totalColumnaTExcel, 2, ',', '.') . ') porque suma ciegamente las ' . $totalAnuladasSin . ' anuladas (Bs ' . number_format($totalVentaSinAnuladas, 2, ',', '.') . '), pero ante Impuestos Nacionales solo se declara y paga por las facturas válidas.',
                 'accion_sugerida' => 'Presione el botón inferior "Importar Facturas Oficiales del SIN (' . count($registrosSin) . ')" para registrar las facturas válidas y anuladas, dejando el Libro de Ventas 100% cuadrado.',
             ];
-        } elseif (count($validasFaltantesEnSistema) === 0 && count($anuladasFaltantesEnSistema) > 0) {
+        } elseif (count($validasFaltantesEnSistema) === 0 && (count($anuladasFaltantesEnSistema) > 0 || count($diferenciasEstado) > 0)) {
+            $cantAusentes = count($anuladasFaltantesEnSistema);
+            $cantDiferenciasEstado = count($diferenciasEstado);
+            $totalAnuladasReq = $cantAusentes + $cantDiferenciasEstado;
+
+            $partesDesc = [];
+            if ($cantAusentes > 0) {
+                $partesDesc[] = "{$cantAusentes} facturas anuladas oficiales que FoxPro no guardó en ventas.DBF";
+            }
+            if ($cantDiferenciasEstado > 0) {
+                $partesDesc[] = "{$cantDiferenciasEstado} facturas registradas en el sistema como 'VALIDADA' que en el SIN figuran oficialmente como ANULADAS (con importe Bs 0.00 o cliente ANULADO)";
+            }
+
             $diagnostico = [
                 'tipo' => 'MIGRADO_SIN_ANULADAS',
                 'color' => 'warning',
-                'titulo' => '100% de facturas válidas coincidentes — Faltan ' . count($anuladasFaltantesEnSistema) . ' facturas anuladas',
-                'descripcion' => 'Las ' . $totalValidasSin . ' facturas válidas emitidas en el SIN coinciden con las registradas. Faltan las ' . count($anuladasFaltantesEnSistema) . ' facturas anuladas oficiales que FoxPro no guardó en ventas.DBF, y se identificaron ' . count($diferenciasDescuentoLey1886) . ' facturas con descuento Ley 1886 registradas en neto.',
+                'titulo' => "100% de facturas válidas coincidentes — {$totalAnuladasReq} facturas anuladas oficiales identificadas",
+                'descripcion' => 'Las ' . $totalValidasSin . ' facturas válidas emitidas en el SIN coinciden con las registradas. Se identificaron: ' . implode(' y ', $partesDesc) . ', además de ' . count($diferenciasDescuentoLey1886) . ' facturas con descuento Ley 1886 registradas en neto.',
                 'nota_excel' => null,
-                'accion_sugerida' => 'Haga clic en "Sincronizar y Regularizar con el SIN" para importar las ' . count($anuladasFaltantesEnSistema) . ' anuladas y estandarizar los desgloses brutos de la Ley 1886.',
+                'accion_sugerida' => "Haga clic en 'Sincronizar y Regularizar con el SIN' para importar las {$cantAusentes} anuladas ausentes, actualizar a ANULADA las {$cantDiferenciasEstado} facturas con divergencia de estado y estandarizar desgloses.",
             ];
-        } elseif (count($validasFaltantesEnSistema) === 0 && count($anuladasFaltantesEnSistema) === 0 && count($diferenciasDescuentoLey1886) === 0 && count($diferenciasMontos) === 0) {
+        } elseif (count($validasFaltantesEnSistema) === 0 && count($anuladasFaltantesEnSistema) === 0 && count($diferenciasEstado) === 0 && count($diferenciasDescuentoLey1886) === 0 && count($diferenciasMontos) === 0) {
             $diagnostico = [
                 'tipo' => 'CONCILIADO',
                 'color' => 'success',
@@ -555,9 +570,11 @@ class ConciliacionTributariaService
         $importarValidas = $opciones['importar_validas'] ?? ($analisis['kpis']['sistema']['total_registros'] === 0);
         $importarAnuladas = $opciones['importar_anuladas'] ?? true;
         $regularizarLey1886 = $opciones['regularizar_ley1886'] ?? true;
+        $regularizarEstados = $opciones['regularizar_estados'] ?? true;
 
         $validasInsertadas = 0;
         $anuladasInsertadas = 0;
+        $estadosActualizados = 0;
         $descuentosActualizados = 0;
         $basesActualizadas = 0;
 
@@ -572,10 +589,12 @@ class ConciliacionTributariaService
             $importarValidas,
             $importarAnuladas,
             $regularizarLey1886,
+            $regularizarEstados,
             $sucursal,
             $usuarioId,
             &$validasInsertadas,
             &$anuladasInsertadas,
+            &$estadosActualizados,
             &$descuentosActualizados,
             &$basesActualizadas
         ) {
@@ -720,9 +739,27 @@ class ConciliacionTributariaService
                     $basesActualizadas++;
                 }
             }
+
+            // 5. Regularizar estados fiscales de facturas con divergencia de estado con el SIN
+            if ($regularizarEstados && !empty($analisis['detalles']['diferencias_estado'])) {
+                foreach ($analisis['detalles']['diferencias_estado'] as $item) {
+                    $factura = Factura::where('cuf', $item['cuf'])->first();
+                    if ($factura) {
+                        $nuevoEstado = ($item['estado_sin'] === 'ANULADA') ? 'ANULADA' : 'VALIDADA';
+                        $factura->update([
+                            'estado_factura' => $nuevoEstado,
+                            'monto_total_sujeto_iva' => ($nuevoEstado === 'ANULADA') ? 0.00 : $factura->monto_total_sujeto_iva,
+                            '_transaccion' => 'REG_ESTADO_SIN',
+                            '_usuario_modificacion' => $usuarioId,
+                            '_fecha_modificacion' => $ahora,
+                        ]);
+                        $estadosActualizados++;
+                    }
+                }
+            }
         });
 
-        Log::info("Conciliación SIN completada exitosamente: {$validasInsertadas} válidas importadas, {$anuladasInsertadas} anuladas importadas, {$descuentosActualizados} descuentos regularizados.");
+        Log::info("Conciliación SIN completada exitosamente: {$validasInsertadas} válidas importadas, {$anuladasInsertadas} anuladas importadas, {$estadosActualizados} estados regularizados, {$descuentosActualizados} descuentos regularizados.");
 
         // Obtener nuevo resumen del período
         $periodo = $analisis['periodo'];
@@ -739,6 +776,7 @@ class ConciliacionTributariaService
         $mensajePartes = [];
         if ($validasInsertadas > 0) $mensajePartes[] = "{$validasInsertadas} facturas válidas importadas";
         if ($anuladasInsertadas > 0) $mensajePartes[] = "{$anuladasInsertadas} facturas anuladas importadas";
+        if ($estadosActualizados > 0) $mensajePartes[] = "{$estadosActualizados} estados fiscales regularizados a ANULADA";
         if ($descuentosActualizados > 0) $mensajePartes[] = "{$descuentosActualizados} facturas con descuento Ley 1886 regularizadas";
         if ($basesActualizadas > 0) $mensajePartes[] = "{$basesActualizadas} bases imponibles regularizadas (descuento de tasas no sujetas a IVA)";
 
@@ -751,6 +789,7 @@ class ConciliacionTributariaService
             'mensaje' => $mensaje,
             'validas_insertadas' => $validasInsertadas,
             'anuladas_insertadas' => $anuladasInsertadas,
+            'estados_actualizados' => $estadosActualizados,
             'descuentos_actualizados' => $descuentosActualizados,
             'nuevos_totales' => [
                 'total_registros' => (int) ($metricasNuevas->total_registros ?? 0),

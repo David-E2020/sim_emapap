@@ -511,6 +511,9 @@
                   <v-chip color="warning darken-1" text-color="white" small class="font-weight-bold" v-if="resultadoConciliacion.kpis.resumen_cotejo.anuladas_faltantes > 0">
                     <v-icon left x-small>mdi-alert-circle-outline</v-icon> {{ resultadoConciliacion.kpis.resumen_cotejo.anuladas_faltantes }} Anuladas ausentes
                   </v-chip>
+                  <v-chip color="orange darken-3" text-color="white" small class="font-weight-bold" v-if="resultadoConciliacion.kpis.resumen_cotejo.diferencias_estado > 0">
+                    <v-icon left x-small>mdi-swap-horizontal</v-icon> {{ resultadoConciliacion.kpis.resumen_cotejo.diferencias_estado }} Divergencias de estado
+                  </v-chip>
                   <v-chip color="info" text-color="white" small class="font-weight-bold" v-if="resultadoConciliacion.kpis.resumen_cotejo.diferencias_ley1886 > 0">
                     <v-icon left x-small>mdi-account-supervisor</v-icon> {{ resultadoConciliacion.kpis.resumen_cotejo.diferencias_ley1886 }} Descuentos Ley 1886
                   </v-chip>
@@ -704,6 +707,16 @@
                     Anuladas en SIN ausentes en Sistema
                   </v-badge>
                 </v-tab>
+                <v-tab class="text-capitalize font-weight-bold" v-if="resultadoConciliacion.detalles.diferencias_estado && resultadoConciliacion.detalles.diferencias_estado.length > 0">
+                  <v-badge
+                    :content="resultadoConciliacion.detalles.diferencias_estado.length.toString()"
+                    :value="resultadoConciliacion.detalles.diferencias_estado.length"
+                    color="orange darken-3"
+                    inline
+                  >
+                    Diferencias de Estado Fiscal
+                  </v-badge>
+                </v-tab>
                 <v-tab class="text-capitalize font-weight-bold">
                   <v-badge
                     :content="resultadoConciliacion.detalles.diferencias_ley1886.length.toString()"
@@ -817,6 +830,55 @@
                   </div>
                 </v-tab-item>
 
+                <!-- TAB DIVERGENCIAS DE ESTADO FISCAL (SI APLICA) -->
+                <v-tab-item v-if="resultadoConciliacion.detalles.diferencias_estado && resultadoConciliacion.detalles.diferencias_estado.length > 0">
+                  <div class="pa-3">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <div class="text-caption font-weight-bold text-secondary">
+                        Facturas registradas en el sistema con estado diferente al reporte oficial del SIN (requieren regularización a ANULADA):
+                      </div>
+                      <v-btn
+                        color="orange darken-3"
+                        small
+                        dark
+                        class="font-weight-bold rounded-pill elevation-1"
+                        :loading="cargandoSincronizacion"
+                        @click="confirmarSincronizacion"
+                      >
+                        <v-icon left small>mdi-check-decagram</v-icon> Regularizar Estados a ANULADA
+                      </v-btn>
+                    </div>
+
+                    <v-data-table
+                      :headers="headersDiferenciasEstado"
+                      :items="resultadoConciliacion.detalles.diferencias_estado"
+                      dense
+                      :items-per-page="10"
+                      class="elevation-0"
+                    >
+                      <template v-slot:item.numero_factura="{ item }">
+                        <span class="font-weight-bold primary--text">#{{ item.numero_factura }}</span>
+                      </template>
+                      <template v-slot:item.estado_sin="{ item }">
+                        <v-chip x-small color="error" text-color="white" class="font-weight-bold">
+                          <v-icon left x-small>mdi-close-circle</v-icon> {{ item.estado_sin }}
+                        </v-chip>
+                      </template>
+                      <template v-slot:item.estado_sistema="{ item }">
+                        <v-chip x-small color="warning darken-2" text-color="white" class="font-weight-bold">
+                          <v-icon left x-small>mdi-alert</v-icon> {{ item.estado_sistema }}
+                        </v-chip>
+                      </template>
+                      <template v-slot:item.monto_sistema="{ item }">
+                        <span class="font-weight-bold">Bs {{ formatoMoneda(item.monto_sistema) }}</span>
+                      </template>
+                      <template v-slot:item.motivo="{ item }">
+                        <span class="text-caption text-secondary">{{ item.motivo }}</span>
+                      </template>
+                    </v-data-table>
+                  </div>
+                </v-tab-item>
+
                 <!-- TAB 2: LEY 1886 -->
                 <v-tab-item>
                   <div class="pa-3">
@@ -925,7 +987,7 @@
 
           <div class="d-flex gap-2">
             <v-btn
-              v-if="resultadoConciliacion && ((resultadoConciliacion.detalles.validas_faltantes && resultadoConciliacion.detalles.validas_faltantes.length > 0) || resultadoConciliacion.detalles.anuladas_faltantes.length > 0 || resultadoConciliacion.detalles.diferencias_ley1886.length > 0)"
+              v-if="resultadoConciliacion && ((resultadoConciliacion.detalles.validas_faltantes && resultadoConciliacion.detalles.validas_faltantes.length > 0) || resultadoConciliacion.detalles.anuladas_faltantes.length > 0 || (resultadoConciliacion.detalles.diferencias_estado && resultadoConciliacion.detalles.diferencias_estado.length > 0) || resultadoConciliacion.detalles.diferencias_ley1886.length > 0)"
               color="success darken-1"
               dark
               class="font-weight-bold rounded-pill elevation-2"
@@ -967,6 +1029,10 @@
             <li class="mb-1" v-if="resultadoConciliacion.detalles.anuladas_faltantes && resultadoConciliacion.detalles.anuladas_faltantes.length > 0">
               <strong>Importar {{ resultadoConciliacion.detalles.anuladas_faltantes.length }} facturas anuladas oficiales:</strong>
               Se registrarán con su CUF original del SIAT y base imponible Bs 0.00 para cuadrar el Libro de Ventas.
+            </li>
+            <li class="mb-1" v-if="resultadoConciliacion.detalles.diferencias_estado && resultadoConciliacion.detalles.diferencias_estado.length > 0">
+              <strong>Regularizar {{ resultadoConciliacion.detalles.diferencias_estado.length }} facturas con estado discrepante:</strong>
+              Se corregirá el estado de estas facturas a ANULADA y su base imponible a Bs 0.00 según el registro oficial del SIN.
             </li>
             <li class="mb-1" v-if="resultadoConciliacion.detalles.diferencias_ley1886 && resultadoConciliacion.detalles.diferencias_ley1886.length > 0">
               <strong>Ajustar {{ resultadoConciliacion.detalles.diferencias_ley1886.length }} facturas Ley 1886:</strong>
@@ -1092,6 +1158,17 @@ export default {
         { text: 'CUF del SIN', value: 'cuf_sin', width: '160px' },
         { text: 'Total Venta', value: 'monto_total', align: 'end', width: '100px' },
         { text: 'Diagnóstico Reemisión', value: 'explicacion' },
+      ],
+
+      headersDiferenciasEstado: [
+        { text: 'N° Factura', value: 'numero_factura', align: 'center', width: '90px' },
+        { text: 'Fecha', value: 'fecha', width: '100px' },
+        { text: 'NIT / C.I.', value: 'nit', width: '90px' },
+        { text: 'Cliente', value: 'cliente' },
+        { text: 'Estado en SIN', value: 'estado_sin', align: 'center', width: '130px' },
+        { text: 'Estado en Sistema', value: 'estado_sistema', align: 'center', width: '130px' },
+        { text: 'Monto en Sistema', value: 'monto_sistema', align: 'end', width: '120px' },
+        { text: 'Motivo', value: 'motivo' },
       ],
 
       headersLey1886: [
@@ -1290,6 +1367,7 @@ export default {
           formData.append('importar_validas', '1');
           formData.append('importar_anuladas', '1');
           formData.append('regularizar_ley1886', '1');
+          formData.append('regularizar_estados', '1');
           if (this.filtroCotejoFechaDesde) {
             formData.append('fecha_desde', this.filtroCotejoFechaDesde);
           }
@@ -1305,6 +1383,7 @@ export default {
             importar_validas: true,
             importar_anuladas: true,
             regularizar_ley1886: true,
+            regularizar_estados: true,
             fecha_desde: this.filtroCotejoFechaDesde || null,
             fecha_hasta: this.filtroCotejoFechaHasta || null,
           });

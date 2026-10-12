@@ -116,6 +116,7 @@ class ConciliacionTributariaController extends Controller
             $opciones = [
                 'importar_anuladas' => $request->boolean('importar_anuladas', true),
                 'regularizar_ley1886' => $request->boolean('regularizar_ley1886', true),
+                'regularizar_estados' => $request->boolean('regularizar_estados', true),
                 'fecha_desde' => $request->input('fecha_desde'),
                 'fecha_hasta' => $request->input('fecha_hasta'),
             ];

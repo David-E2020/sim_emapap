@@ -946,6 +946,12 @@ class FoxProMigradorService
                 $descuentos = (float) ($r['DESCTOS'] ?? 0.00);
                 $montoSujetoIva = max(0, $montoTotal - $excento);
 
+                $nombreRaw = trim($r['NOMBRE'] ?? '');
+                $nombreUpper = strtoupper($nombreRaw);
+                $esAnuladaDbf = !empty($r['_deleted'])
+                    || str_contains($nombreUpper, 'ANULAD')
+                    || ($montoTotal <= 0 && (str_contains($nombreUpper, 'ANUL') || empty($nombreRaw)));
+
                 $batchFacturas[] = [
                     'id_sucursal' => $sucursal->id,
                     'id_punto_venta' => null,
@@ -962,13 +968,13 @@ class FoxProMigradorService
                     'tipo_emision' => 1,
                     'tipo_factura_documento' => 1,
                     'codigo_documento_sector' => 13, // Servicios Básicos
-                    'nombre_razon_social' => trim($r['NOMBRE'] ?? '') ?: 'CLIENTE GENERAL',
+                    'nombre_razon_social' => $nombreRaw ?: ($esAnuladaDbf ? 'ANULADO' : 'CLIENTE GENERAL'),
                     'numero_documento' => trim($r['RUC'] ?? '') ?: '0',
                     'complemento' => trim($r['ALFANUMERI'] ?? '') ?: null,
                     'codigo_tipo_documento_identidad' => 1,
                     'codigo_metodo_pago' => 1,
                     'monto_total' => $montoTotal,
-                    'monto_total_sujeto_iva' => $montoSujetoIva,
+                    'monto_total_sujeto_iva' => $esAnuladaDbf ? 0.00 : $montoSujetoIva,
                     'monto_descuento' => $descuentos,
                     'monto_gift_card' => 0.00,
                     'codigo_moneda' => 1,
@@ -978,7 +984,7 @@ class FoxProMigradorService
                     'detalle_otros_pagos_no_sujeto_iva' => trim($r['OTROSCB'] ?? '') ?: null,
                     'leyenda' => 'Ley N° 453: Los servicios deben prestarse en condiciones de inocuidad, calidad y seguridad.',
                     'usuario_emision' => 'migracion_foxpro',
-                    'estado_factura' => !empty($r['_deleted']) ? 'ANULADA' : 'VALIDADA',
+                    'estado_factura' => $esAnuladaDbf ? 'ANULADA' : 'VALIDADA',
                     '_estado' => 'ACTIVO',
                     '_transaccion' => 'MIGRACION',
                     '_usuario_creacion' => 1,
