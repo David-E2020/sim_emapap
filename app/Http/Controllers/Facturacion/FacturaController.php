@@ -473,13 +473,19 @@ class FacturaController extends Controller
         $totalBaseDebitoValidas = 0.0;
         $totalDebitoValidas = 0.0;
 
+        $vistosPdf = [];
         foreach ($facturas as $f) {
             $st = strtoupper((string) $f->estado_factura);
             $esDup = ($st === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]))
                 || (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
             $f->es_duplicada = $esDup;
             if ($esDup) {
-                $totalDuplicadas++;
+                $keyDup = !empty($f->numero_factura) ? "N_{$f->numero_factura}" : "C_{$f->cuf}";
+                if (isset($vistosPdf[$keyDup])) {
+                    $totalDuplicadas++;
+                } else {
+                    $vistosPdf[$keyDup] = true;
+                }
             }
 
             if ($st === 'ANULADA' || $st === 'CANCELLED') {
@@ -500,6 +506,9 @@ class FacturaController extends Controller
                 $totalBaseDebitoValidas += $base;
                 $totalDebitoValidas += round($base * 0.13, 2);
             }
+        }
+        if ($totalDuplicadas === 0 && count($dupsNumeros) > 0) {
+            $totalDuplicadas = count($dupsNumeros);
         }
 
         $filtrosAplicados = [

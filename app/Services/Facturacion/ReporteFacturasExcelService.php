@@ -69,6 +69,7 @@ class ReporteFacturasExcelService
         $totalAnuladas = 0;
         $totalContingencia = 0;
         $totalDuplicadas = 0;
+        $vistosNumeros = [];
         $montoTotalValidadas = 0.0;
         $totalTasasValidas = 0.0;
         $totalBaseDebitoValidas = 0.0;
@@ -76,11 +77,22 @@ class ReporteFacturasExcelService
 
         foreach ($facturas as $f) {
             $st = strtoupper((string) $f->estado_factura);
-            $esDup = ($st === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]))
-                || (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
+            $esNumDup = ($st === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]));
+            $esCufDup = (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
+            $esDup = $esNumDup || $esCufDup;
             $f->es_duplicada = $esDup;
+
+            $keyDup = !empty($f->numero_factura) ? "N_{$f->numero_factura}" : "C_{$f->cuf}";
             if ($esDup) {
-                $totalDuplicadas++;
+                if (isset($vistosNumeros[$keyDup])) {
+                    $f->es_segunda_emision = true;
+                    $totalDuplicadas++;
+                } else {
+                    $vistosNumeros[$keyDup] = true;
+                    $f->es_segunda_emision = false;
+                }
+            } else {
+                $f->es_segunda_emision = false;
             }
 
             if ($st === 'ANULADA' || $st === 'CANCELLED') {
@@ -102,6 +114,9 @@ class ReporteFacturasExcelService
                 $totalTasasValidas += $tasas;
                 $totalBaseDebitoValidas += $base;
             }
+        }
+        if ($totalDuplicadas === 0 && count($dupsNumeros) > 0) {
+            $totalDuplicadas = count($dupsNumeros);
         }
         $totalDebitoValidas = round($totalBaseDebitoValidas * 0.13, 2);
 
@@ -242,9 +257,11 @@ class ReporteFacturasExcelService
         ]);
         $sheet->getRowDimension(8)->setRowHeight(28);
 
-        // 4. FILAS DE DATOS (Fila 9 en adelante)
+        // 4. FILAS DE DATOS (Fila 9 en adelante) - ALTO RENDIMIENTO
         $row = 9;
         $startDataRow = $row;
+        $filasDuplicadas = [];
+        $filasAnuladas = [];
 
         foreach ($facturas as $index => $f) {
             $esAnulada = in_array(strtoupper((string) $f->estado_factura), ['ANULADA', 'CANCELLED'], true);
@@ -259,7 +276,17 @@ class ReporteFacturasExcelService
             $tasas = $esAnulada ? 0.00 : (($f->tasa_aseo !== null && (float) $f->tasa_aseo > 0) ? (float) $f->tasa_aseo : max(0.00, round($totalVenta - $baseFiscal - $descuento, 2)));
             $debitoFiscal = round($baseFiscal * 0.13, 2);
 
-            $alertaTexto = $esDup ? "⚠ DUPLICADA (REV. N° {$f->numero_factura})" : ($esAnulada ? 'ANULADA' : 'CONFORME');
+            if ($esDup) {
+                $alertaTexto = !empty($f->es_segunda_emision)
+                    ? "⚠ DUPLICADA (2DA EMISIÓN - A REVISAR)"
+                    : "⚠ N° REPETIDO (1RA EMISIÓN)";
+                $filasDuplicadas[] = $row;
+            } elseif ($esAnulada) {
+                $alertaTexto = 'ANULADA';
+                $filasAnuladas[] = $row;
+            } else {
+                $alertaTexto = 'CONFORME';
+            }
 
             $sheet->setCellValue("A{$row}", $index + 1);
             $sheet->setCellValue("B{$row}", $f->numero_factura);
@@ -279,39 +306,46 @@ class ReporteFacturasExcelService
             $sheet->setCellValueExplicit("P{$row}", (string) $f->cuf, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("Q{$row}", $alertaTexto, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 
-            $bgRow = $esDup ? 'FFF0F0' : (($row % 2 === 0) ? 'F9FBFC' : 'FFFFFF');
-            $sheet->getStyle("A{$row}:Q{$row}")->applyFromArray([
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgRow]],
+            $row++;
+        }
+
+        $lastDataRow = $row - 1;
+
+        // Estilos masivos por rango (ultra-rápido, no consume memoria celda a celda)
+        if ($lastDataRow >= $startDataRow) {
+            $sheet->getStyle("A{$startDataRow}:Q{$lastDataRow}")->applyFromArray([
                 'borders' => [
-                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => ($esDup ? 'EF9A9A' : 'E0E0E0')]],
+                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E0E0E0']],
                 ],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
             ]);
 
-            $sheet->getStyle("A{$row}:G{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("H{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-            $sheet->getStyle("I{$row}:J{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("K{$row}:O{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("P{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-            $sheet->getStyle("Q{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("A{$startDataRow}:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("H{$startDataRow}:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            $sheet->getStyle("I{$startDataRow}:J{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("K{$startDataRow}:O{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("P{$startDataRow}:P{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            $sheet->getStyle("Q{$startDataRow}:Q{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-            $sheet->getStyle("K{$row}:O{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle("K{$startDataRow}:O{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0.00');
 
-            if ($esDup) {
-                $sheet->getStyle("B{$row}")->getFont()->getColor()->setRGB('C62828');
-                $sheet->getStyle("B{$row}")->getFont()->setBold(true);
-                $sheet->getStyle("Q{$row}")->getFont()->getColor()->setRGB('C62828');
-                $sheet->getStyle("Q{$row}")->getFont()->setBold(true);
-            } elseif ($esAnulada) {
-                $sheet->getStyle("A{$row}:Q{$row}")->getFont()->getColor()->setRGB('9E9E9E');
-                $sheet->getStyle("I{$row}")->getFont()->getColor()->setRGB('C62828');
-                $sheet->getStyle("I{$row}")->getFont()->setBold(true);
-            } else {
-                $sheet->getStyle("Q{$row}")->getFont()->getColor()->setRGB('2E7D32');
+            // Formatear específicamente filas observadas
+            foreach ($filasDuplicadas as $rDup) {
+                $sheet->getStyle("A{$rDup}:Q{$rDup}")->applyFromArray([
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFF0F0']],
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'EF9A9A']]],
+                ]);
+                $sheet->getStyle("B{$rDup}")->getFont()->getColor()->setRGB('C62828');
+                $sheet->getStyle("B{$rDup}")->getFont()->setBold(true);
+                $sheet->getStyle("Q{$rDup}")->getFont()->getColor()->setRGB('C62828');
+                $sheet->getStyle("Q{$rDup}")->getFont()->setBold(true);
             }
 
-            $sheet->getRowDimension($row)->setRowHeight(20);
-            $row++;
+            foreach ($filasAnuladas as $rAnul) {
+                $sheet->getStyle("A{$rAnul}:Q{$rAnul}")->getFont()->getColor()->setRGB('9E9E9E');
+                $sheet->getStyle("I{$rAnul}")->getFont()->getColor()->setRGB('C62828');
+                $sheet->getStyle("I{$rAnul}")->getFont()->setBold(true);
+            }
         }
 
         $lastDataRow = $row - 1;
@@ -719,6 +753,9 @@ class ReporteFacturasExcelService
 
         $rowL = 5;
         $startDataRowL = $rowL;
+        $filasDuplicadasL = [];
+        $filasAnuladasL = [];
+        $vistosRcv = [];
 
         foreach ($facturas as $idx => $f) {
             $esAnulada = in_array(strtoupper((string) $f->estado_factura), ['ANULADA', 'CANCELLED'], true);
@@ -734,7 +771,22 @@ class ReporteFacturasExcelService
 
             $estadoSin = $esAnulada ? 'A' : (((int) $f->tipo_emision === 2) ? 'E' : 'V');
             $fechaFmt = $f->fecha_emision ? Carbon::parse($f->fecha_emision)->format('d/m/Y') : '-';
-            $alertaFiscal = $esDup ? '⚠ DUPLICADA' : 'CONFORME';
+
+            if ($esDup) {
+                $keyR = !empty($f->numero_factura) ? "N_{$f->numero_factura}" : "C_{$f->cuf}";
+                if (isset($vistosRcv[$keyR])) {
+                    $alertaFiscal = '⚠ DUPLICADA (2DA EMISIÓN)';
+                } else {
+                    $vistosRcv[$keyR] = true;
+                    $alertaFiscal = '⚠ N° REPETIDO (1RA EMISIÓN)';
+                }
+                $filasDuplicadasL[] = $rowL;
+            } elseif ($esAnulada) {
+                $alertaFiscal = 'ANULADA';
+                $filasAnuladasL[] = $rowL;
+            } else {
+                $alertaFiscal = 'CONFORME';
+            }
 
             $sheetLibro->setCellValue("A{$rowL}", $idx + 1);
             $sheetLibro->setCellValue("B{$rowL}", 1);
@@ -760,37 +812,43 @@ class ReporteFacturasExcelService
             $sheetLibro->setCellValue("V{$rowL}", $estadoSin);
             $sheetLibro->setCellValueExplicit("W{$rowL}", $alertaFiscal, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 
-            $bgRow = $esDup ? 'FFF0F0' : (($rowL % 2 === 0) ? 'F9FBFC' : 'FFFFFF');
-            $sheetLibro->getStyle("A{$rowL}:W{$rowL}")->applyFromArray([
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgRow]],
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => ($esDup ? 'EF9A9A' : 'E0E0E0')]]],
+            $rowL++;
+        }
+
+        $lastRowL = $rowL - 1;
+
+        // Estilos masivos por rango en Hoja 2 (ultra-rápido)
+        if ($lastRowL >= $startDataRowL) {
+            $sheetLibro->getStyle("A{$startDataRowL}:W{$lastRowL}")->applyFromArray([
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E0E0E0']]],
                 'font' => ['size' => 8.5],
+                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
             ]);
 
-            $sheetLibro->getStyle("A{$rowL}:D{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheetLibro->getStyle("E{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-            $sheetLibro->getStyle("F{$rowL}:G{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheetLibro->getStyle("H{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-            $sheetLibro->getStyle("I{$rowL}:U{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheetLibro->getStyle("V{$rowL}:W{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheetLibro->getStyle("A{$startDataRowL}:D{$lastRowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheetLibro->getStyle("E{$startDataRowL}:E{$lastRowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            $sheetLibro->getStyle("F{$startDataRowL}:G{$lastRowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheetLibro->getStyle("H{$startDataRowL}:H{$lastRowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            $sheetLibro->getStyle("I{$startDataRowL}:U{$lastRowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheetLibro->getStyle("V{$startDataRowL}:W{$lastRowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheetLibro->getStyle("I{$startDataRowL}:U{$lastRowL}")->getNumberFormat()->setFormatCode('#,##0.00');
 
-            $sheetLibro->getStyle("I{$rowL}:U{$rowL}")->getNumberFormat()->setFormatCode('#,##0.00');
-
-            if ($esDup) {
-                $sheetLibro->getStyle("D{$rowL}")->getFont()->getColor()->setRGB('C62828');
-                $sheetLibro->getStyle("D{$rowL}")->getFont()->setBold(true);
-                $sheetLibro->getStyle("W{$rowL}")->getFont()->getColor()->setRGB('C62828');
-                $sheetLibro->getStyle("W{$rowL}")->getFont()->setBold(true);
-            } elseif ($esAnulada) {
-                $sheetLibro->getStyle("A{$rowL}:W{$rowL}")->getFont()->getColor()->setRGB('9E9E9E');
-                $sheetLibro->getStyle("V{$rowL}")->getFont()->getColor()->setRGB('C62828');
-                $sheetLibro->getStyle("V{$rowL}")->getFont()->setBold(true);
-            } else {
-                $sheetLibro->getStyle("W{$rowL}")->getFont()->getColor()->setRGB('2E7D32');
+            foreach ($filasDuplicadasL as $rDupL) {
+                $sheetLibro->getStyle("A{$rDupL}:W{$rDupL}")->applyFromArray([
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFF0F0']],
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'EF9A9A']]],
+                ]);
+                $sheetLibro->getStyle("D{$rDupL}")->getFont()->getColor()->setRGB('C62828');
+                $sheetLibro->getStyle("D{$rDupL}")->getFont()->setBold(true);
+                $sheetLibro->getStyle("W{$rDupL}")->getFont()->getColor()->setRGB('C62828');
+                $sheetLibro->getStyle("W{$rDupL}")->getFont()->setBold(true);
             }
 
-            $sheetLibro->getRowDimension($rowL)->setRowHeight(18);
-            $rowL++;
+            foreach ($filasAnuladasL as $rAnulL) {
+                $sheetLibro->getStyle("A{$rAnulL}:W{$rAnulL}")->getFont()->getColor()->setRGB('9E9E9E');
+                $sheetLibro->getStyle("V{$rAnulL}")->getFont()->getColor()->setRGB('C62828');
+                $sheetLibro->getStyle("V{$rAnulL}")->getFont()->setBold(true);
+            }
         }
 
         $lastRowL = $rowL - 1;

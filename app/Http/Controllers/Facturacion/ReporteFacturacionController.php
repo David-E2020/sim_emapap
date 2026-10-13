@@ -171,7 +171,10 @@ class ReporteFacturacionController extends Controller
                       ->where('estado_factura', 'VALIDADA');
               });
         });
-        $cantidadDuplicadas = (clone $dupsQuery)->count();
+        $totalRegistrosDuplicados = (clone $dupsQuery)->count();
+        $totalNumerosDuplicados = count($dupsNumeros);
+        // La cantidad fiscal de facturas duplicadas es el excedente de emisiones a anular (15 facturas duplicadas)
+        $cantidadDuplicadas = $totalNumerosDuplicados > 0 ? $totalNumerosDuplicados : 0;
         $ejemplosDuplicados = (clone $dupsQuery)->distinct()->pluck('numero_factura')->take(10)->all();
 
         $resumen = [
@@ -181,7 +184,8 @@ class ReporteFacturacionController extends Controller
             'cantidad_anuladas' => $cantidadAnuladas,
             'cantidad_rechazadas' => $cantidadRechazadas,
             'cantidad_duplicadas' => $cantidadDuplicadas,
-            'total_numeros_duplicados' => count($dupsNumeros),
+            'total_registros_duplicados' => $totalRegistrosDuplicados,
+            'total_numeros_duplicados' => $totalNumerosDuplicados,
             'ejemplos_duplicados' => $ejemplosDuplicados,
             'total_facturado' => round($totalFacturado, 2),
             'total_tasas' => round($totalTasas, 2),
@@ -319,6 +323,7 @@ class ReporteFacturacionController extends Controller
             'auditoria_duplicados' => [
                 'cantidad_duplicadas' => $resumen['cantidad_duplicadas'] ?? 0,
                 'total_numeros_duplicados' => $resumen['total_numeros_duplicados'] ?? 0,
+                'total_registros_duplicados' => $resumen['total_registros_duplicados'] ?? 0,
                 'ejemplos_duplicados' => $resumen['ejemplos_duplicados'] ?? [],
             ],
             'data' => $facturas,

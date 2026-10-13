@@ -803,7 +803,7 @@
     </v-dialog>
 
     <!-- DIÁLOGO DE PROGRESO DE EXPORTACIÓN (EXCEL / PDF) -->
-    <v-dialog v-model="dialogoExportando" persistent max-width="480">
+    <v-dialog v-model="dialogoExportando" persistent max-width="480" :retain-focus="false">
       <v-card rounded="lg" class="pa-5">
         <div class="d-flex align-center mb-3">
           <v-avatar :color="formatoExportando === 'pdf' ? 'red darken-1' : 'green darken-2'" size="46" class="mr-3 elevation-2 text-white">
@@ -1074,6 +1074,7 @@ export default {
       nombreExcelReporte: 'Planilla_Facturas_EMAPAP.xlsx',
       exportando: false,
       dialogoExportando: false,
+      posicionScrollPrevio: 0,
       formatoExportando: 'excel',
       progresoExportacion: 0,
       mensajeProgresoExportacion: '',
@@ -1370,10 +1371,16 @@ export default {
     },
     iniciarProgresoExportacion(formato, mensajeInicial) {
       if (this.intervaloProgreso) clearInterval(this.intervaloProgreso);
+      this.posicionScrollPrevio = window.pageYOffset || document.documentElement.scrollTop || 0;
       this.formatoExportando = formato;
       this.progresoExportacion = 10;
       this.mensajeProgresoExportacion = mensajeInicial;
       this.dialogoExportando = true;
+      this.$nextTick(() => {
+        if (this.posicionScrollPrevio > 0) {
+          window.scrollTo(0, this.posicionScrollPrevio);
+        }
+      });
     },
     avanzarProgreso(pct, mensaje) {
       this.progresoExportacion = pct;
@@ -1386,6 +1393,11 @@ export default {
       }
       this.dialogoExportando = false;
       this.progresoExportacion = 0;
+      this.$nextTick(() => {
+        if (this.posicionScrollPrevio > 0) {
+          window.scrollTo(0, this.posicionScrollPrevio);
+        }
+      });
     },
     async descargarArchivoExcel(q, tipo = 'xlsx') {
       const extension = tipo === 'xlsx' ? 'xlsx' : 'csv';
@@ -1434,7 +1446,10 @@ export default {
         const blob = new Blob([res.data], { type: mime });
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.style.display = 'none';
+        link.style.position = 'fixed';
+        link.style.top = '-9999px';
+        link.style.left = '-9999px';
+        link.style.visibility = 'hidden';
         link.href = blobUrl;
         const hoy = new Date().toISOString().slice(0, 10);
         link.setAttribute('download', `Planilla_Facturas_EMAPAP_${hoy}.${extension}`);
