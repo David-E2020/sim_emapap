@@ -65,7 +65,7 @@ class FacturaController extends Controller
         $fechaFin = $request->input('fecha_fin');
 
         $query = Factura::with(['detalles', 'sucursal', 'puntoVenta', 'abonado', 'sesionCaja.cajero'])
-            ->orderByDesc('id');
+            ->orderByDesc('numero_factura');
 
         if (!empty($search)) {
             $searchTrim = trim((string) $search);
@@ -142,7 +142,32 @@ class FacturaController extends Controller
     public function index(Request $request): JsonResponse
     {
         $perPage = (int) $request->input('per_page', 15);
-        $paginator = $this->aplicarFiltrosFacturas($request)->paginate($perPage);
+        $queryBase = $this->aplicarFiltrosFacturas($request);
+        $paginator = (clone $queryBase)->paginate($perPage);
+
+        // Agregaciones de métricas tributarias y financieras según los filtros activos
+        $metricas = (clone $queryBase)->reorder()->selectRaw("
+            COUNT(*) as total_registros,
+            COUNT(CASE WHEN estado_factura = 'VALIDADA' AND (tipo_emision = 1 OR tipo_emision IS NULL) THEN 1 END) as cantidad_validas,
+            COUNT(CASE WHEN estado_factura IN ('CONTINGENCIA', 'OFFLINE_PENDIENTE', 'OFFLINE_REGULARIZADA') OR (tipo_emision = 2 AND estado_factura != 'ANULADA') THEN 1 END) as cantidad_contingencias,
+            COUNT(CASE WHEN estado_factura = 'ANULADA' THEN 1 END) as cantidad_anuladas,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total ELSE 0 END), 0) as total_facturado,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN GREATEST(0, (monto_total - monto_total_sujeto_iva - monto_descuento)) ELSE 0 END), 0) as total_tasas,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN monto_total_sujeto_iva ELSE 0 END), 0) as total_base_debito_fiscal,
+            COALESCE(SUM(CASE WHEN estado_factura != 'ANULADA' THEN ROUND((monto_total_sujeto_iva * 0.13)::numeric, 2) ELSE 0 END), 0) as total_debito_fiscal
+        ")->first();
+
+        $totalBase = round((float) ($metricas->total_base_debito_fiscal ?? 0), 2);
+        $resumen = [
+            'total_registros' => (int) ($metricas->total_registros ?? 0),
+            'cantidad_validas' => (int) ($metricas->cantidad_validas ?? 0),
+            'cantidad_contingencias' => (int) ($metricas->cantidad_contingencias ?? 0),
+            'cantidad_anuladas' => (int) ($metricas->cantidad_anuladas ?? 0),
+            'total_facturado' => round((float) ($metricas->total_facturado ?? 0), 2),
+            'total_tasas' => round((float) ($metricas->total_tasas ?? 0), 2),
+            'total_base_debito_fiscal' => $totalBase,
+            'total_debito_fiscal' => round($totalBase * 0.13, 2),
+        ];
 
         // Auditoría preventiva de duplicidad en CUFs (con caché de 5 minutos para alto rendimiento)
         $auditoriaCuf = Cache::remember('siat_auditoria_cufs_duplicados', 300, function () {
@@ -180,7 +205,51 @@ class FacturaController extends Controller
             'total' => $paginator->total(),
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
+            'resumen' => $resumen,
             'auditoria_cuf' => $auditoriaCuf,
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Consulta detallada y desglose tributario oficial de una factura individual.
+     */
+    public function show(int $id): JsonResponse
+    {
+        $factura = Factura::with([
+            'detalles.productoServicio',
+            'sucursal',
+            'puntoVenta',
+            'abonado.categoria',
+            'sesionCaja.cajero',
+        ])->findOrFail($id);
+
+        $montoTotal = (float) $factura->monto_total;
+        $montoSujetoIva = (float) $factura->monto_total_sujeto_iva;
+        $montoDescuento = (float) $factura->monto_descuento;
+        $montoTasas = max(0.00, round($montoTotal - $montoSujetoIva - $montoDescuento, 2));
+        $debitoFiscal = round($montoSujetoIva * 0.13, 2);
+
+        $desgloseFiscal = [
+            'monto_total' => $montoTotal,
+            'monto_total_sujeto_iva' => $montoSujetoIva,
+            'monto_descuento' => $montoDescuento,
+            'monto_descuento_ley_1886' => (float) ($factura->monto_descuento_ley_1886 ?? 0),
+            'monto_tasas' => $montoTasas,
+            'tasa_aseo' => (float) ($factura->tasa_aseo ?? 0),
+            'tasa_alumbrado' => (float) ($factura->tasa_alumbrado ?? 0),
+            'otras_tasas' => (float) ($factura->otras_tasas ?? 0),
+            'debito_fiscal_iva' => $debitoFiscal,
+            'ajuste_no_sujeto_iva' => (float) ($factura->ajuste_no_sujeto_iva ?? 0),
+            'ajuste_sujeto_iva' => (float) ($factura->ajuste_sujeto_iva ?? 0),
+            'otros_pagos_no_sujeto_iva' => (float) ($factura->otros_pagos_no_sujeto_iva ?? 0),
+            'consumo_periodo' => (float) ($factura->consumo_periodo ?? 0),
+            'beneficiario_ley_1886' => (bool) ($factura->beneficiario_ley_1886 ?? false),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $factura,
+            'desglose_fiscal' => $desgloseFiscal,
         ], Response::HTTP_OK);
     }
 
@@ -213,7 +282,7 @@ class FacturaController extends Controller
         }
 
         // Modo CSV delimitado por punto y coma (para descargas de volúmenes masivos de datos)
-        $queryCsv = $query->reorder('id', 'desc');
+        $queryCsv = $query->reorder('numero_factura', 'desc');
         $fecha = Carbon::now()->format('Ymd_His');
         $filename = "Bandeja_Facturas_EMAPAP_{$fecha}.csv";
 
@@ -277,7 +346,7 @@ class FacturaController extends Controller
         @ini_set('memory_limit', '512M');
         @ini_set('max_execution_time', '300');
 
-        $query = $this->aplicarFiltrosFacturas($request)->reorder('id', 'desc');
+        $query = $this->aplicarFiltrosFacturas($request)->reorder('numero_factura', 'desc');
 
         $totalRegistrosEnBd = (clone $query)->count();
         // Límite de seguridad para renderizado en PDF (máximo 3500 registros, aprox. 80 páginas)
@@ -297,17 +366,29 @@ class FacturaController extends Controller
         $totalAnuladas = 0;
         $totalContingencia = 0;
         $montoTotalValidadas = 0.0;
+        $totalTasasValidas = 0.0;
+        $totalBaseDebitoValidas = 0.0;
+        $totalDebitoValidas = 0.0;
 
         foreach ($facturas as $f) {
             $st = strtoupper((string) $f->estado_factura);
-            if ($st === 'VALIDADA' || $st === 'VALIDATED') {
-                $totalValidadas++;
-                $montoTotalValidadas += (float) $f->monto_total;
-            } elseif ($st === 'ANULADA' || $st === 'CANCELLED') {
+            if ($st === 'ANULADA' || $st === 'CANCELLED') {
                 $totalAnuladas++;
-            } elseif ($st === 'CONTINGENCIA' || (int) $f->tipo_emision === 2) {
-                $totalContingencia++;
-                $montoTotalValidadas += (float) $f->monto_total;
+            } else {
+                if ($st === 'VALIDADA' || $st === 'VALIDATED') {
+                    $totalValidadas++;
+                } elseif ($st === 'CONTINGENCIA' || (int) $f->tipo_emision === 2) {
+                    $totalContingencia++;
+                }
+                $tot = (float) $f->monto_total;
+                $base = (float) $f->monto_total_sujeto_iva;
+                $desc = (float) $f->monto_descuento;
+                $tasas = max(0.0, round($tot - $base - $desc, 2));
+
+                $montoTotalValidadas += $tot;
+                $totalTasasValidas += $tasas;
+                $totalBaseDebitoValidas += $base;
+                $totalDebitoValidas += round($base * 0.13, 2);
             }
         }
 
@@ -330,7 +411,10 @@ class FacturaController extends Controller
             'totalAnuladas' => $totalAnuladas,
             'totalContingencia' => $totalContingencia,
             'montoTotalValidadas' => $montoTotalValidadas,
-            'generadoPor' => auth()->user()?->name ?? 'Administración EMAPAP',
+            'totalTasasValidas' => $totalTasasValidas,
+            'totalBaseDebitoValidas' => $totalBaseDebitoValidas,
+            'totalDebitoValidas' => $totalDebitoValidas,
+            'generadoPor' => auth()->user()?->name ?? 'Administración EMAPA',
             'fechaImpresion' => Carbon::now()->format('d/m/Y H:i:s'),
         ])->render();
 

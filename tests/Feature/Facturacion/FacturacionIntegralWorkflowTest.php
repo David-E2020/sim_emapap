@@ -168,6 +168,7 @@ class FacturacionIntegralWorkflowTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$this->token}")
             ->postJson('/api/facturacion/facturas', $payload);
 
+
         $response->assertStatus(201)
             ->assertJson([
                 'success' => true,

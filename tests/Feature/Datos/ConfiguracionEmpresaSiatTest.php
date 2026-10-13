@@ -5,11 +5,14 @@ namespace Tests\Feature\Datos;
 use App\Models\Facturacion\ConfiguracionEmpresa;
 use App\Models\User;
 use App\Services\Facturacion\SiatSoapService;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ConfiguracionEmpresaSiatTest extends TestCase
 {
+    use DatabaseTransactions;
+
     protected $token;
     protected $admin;
 

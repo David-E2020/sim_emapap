@@ -70,6 +70,8 @@ class ConciliacionTributariaService
                 $colIndex['base_debito'] = $letter;
             } elseif (str_contains($headerText, 'DEBITO FISCAL')) {
                 $colIndex['debito_fiscal'] = $letter;
+            } elseif (str_contains($headerText, 'TASAS')) {
+                $colIndex['tasas'] = $letter;
             } elseif (str_contains($headerText, 'ESTADO') && !str_contains($headerText, 'CONSOLID')) {
                 $colIndex['estado'] = $letter;
             }
@@ -83,6 +85,7 @@ class ConciliacionTributariaService
         $colComplemento = $colIndex['complemento'] ?? 'F';
         $colCliente = $colIndex['cliente'] ?? 'G';
         $colTotal = $colIndex['total'] ?? 'H';
+        $colTasas = $colIndex['tasas'] ?? 'L';
         $colDescuento = $colIndex['descuento'] ?? 'Q';
         $colBaseDebito = $colIndex['base_debito'] ?? 'S';
         $colDebito = $colIndex['debito_fiscal'] ?? 'T';
@@ -94,6 +97,8 @@ class ConciliacionTributariaService
         $totalVentaSinValidas = 0.0;
         $totalDebitoSinValidas = 0.0;
         $totalBaseDebitoSinValidas = 0.0;
+        $totalTasasSinValidas = 0.0;
+        $totalDescuentoSinValidas = 0.0;
 
         $totalVentaSinAnuladas = 0.0;
         $totalDebitoSinAnuladas = 0.0;
@@ -118,6 +123,7 @@ class ConciliacionTributariaService
             $complemento = trim((string) $sheet->getCell($colComplemento . $r)->getValue());
             $cliente = trim((string) $sheet->getCell($colCliente . $r)->getValue());
             $montoTotal = (float) $sheet->getCell($colTotal . $r)->getValue();
+            $tasas = (float) $sheet->getCell($colTasas . $r)->getValue();
             $descuento = (float) $sheet->getCell($colDescuento . $r)->getValue();
             $baseDebito = (float) $sheet->getCell($colBaseDebito . $r)->getValue();
             $debitoFiscal = (float) $sheet->getCell($colDebito . $r)->getValue();
@@ -178,6 +184,8 @@ class ConciliacionTributariaService
                 $totalVentaSinValidas += $montoTotal;
                 $totalDebitoSinValidas += $debitoFiscal;
                 $totalBaseDebitoSinValidas += $baseDebito;
+                $totalTasasSinValidas += $tasas;
+                $totalDescuentoSinValidas += $descuento;
             }
 
             $registrosSin[$cuf] = [
@@ -189,6 +197,7 @@ class ConciliacionTributariaService
                 'complemento' => $complemento,
                 'cliente' => $cliente,
                 'monto_total' => $montoTotal,
+                'tasas' => $tasas,
                 'descuento' => $descuento,
                 'base_debito' => $baseDebito,
                 'debito_fiscal' => $debitoFiscal,
@@ -216,6 +225,7 @@ class ConciliacionTributariaService
                 'monto_total',
                 'monto_descuento',
                 'monto_total_sujeto_iva',
+                'tasa_aseo',
                 'estado_factura',
             ]);
 
@@ -225,6 +235,8 @@ class ConciliacionTributariaService
         // Totales reales en el sistema
         $totalFacturadoDb = 0.0;
         $totalDebitoDb = 0.0;
+        $totalTasasDb = 0.0;
+        $totalDescuentosDb = 0.0;
         $totalValidasDb = 0;
         $totalAnuladasDb = 0;
 
@@ -235,6 +247,8 @@ class ConciliacionTributariaService
                 $totalValidasDb++;
                 $totalFacturadoDb += (float) $f->monto_total;
                 $totalDebitoDb += round((float) $f->monto_total_sujeto_iva * 0.13, 2);
+                $totalTasasDb += (float) ($f->tasa_aseo ?? 0.00);
+                $totalDescuentosDb += (float) ($f->monto_descuento ?? 0.00);
             }
         }
 
@@ -258,6 +272,8 @@ class ConciliacionTributariaService
                 $descuentoDb = (float) $dbItem->monto_descuento;
                 $baseSin = $sinItem['base_debito'];
                 $baseDb = (float) $dbItem->monto_total_sujeto_iva;
+                $tasasSin = (float) ($sinItem['tasas'] ?? 0.00);
+                $tasasDb = (float) ($dbItem->tasa_aseo ?? 0.00);
 
                 // 1. Verificar coincidencia de estado fiscal
                 $esAnuladaSin = ($sinItem['estado'] === 'ANULADA');
@@ -297,7 +313,8 @@ class ConciliacionTributariaService
 
                 // 3. Verificar montos en facturas válidas
                 if (abs($montoDb - $montoSin) > 0.01) {
-                    if ($descuentoSin > 0 && abs($montoDb - $baseSin) <= 0.01) {
+                    $netoSinEsperado = $montoSin - $descuentoSin;
+                    if ($descuentoSin > 0 && (abs($montoDb - $netoSinEsperado) <= 0.05 || abs($montoDb - $baseSin) <= 0.05 || abs($montoDb - $montoSin) <= ($descuentoSin + 0.05))) {
                         $diferenciasDescuentoLey1886[] = [
                             'numero_factura' => $sinItem['numero_factura'],
                             'cuf' => $cuf,
@@ -308,9 +325,11 @@ class ConciliacionTributariaService
                             'descuento_sin' => $descuentoSin,
                             'base_debito_sin' => $baseSin,
                             'debito_fiscal_sin' => $sinItem['debito_fiscal'],
+                            'tasas_sin' => $tasasSin,
                             'monto_sistema' => $montoDb,
                             'descuento_sistema' => $descuentoDb,
                             'base_debito_sistema' => $baseDb,
+                            'tasas_sistema' => $tasasDb,
                             'motivo' => 'FoxPro registró el importe neto cobrado en ventanilla (Bs ' . number_format($montoDb, 2) . ') en lugar del bruto oficial SIAT (Bs ' . number_format($montoSin, 2) . '). El débito fiscal coincide al 100%.',
                         ];
                     } else {
@@ -321,6 +340,10 @@ class ConciliacionTributariaService
                             'cliente' => $sinItem['cliente'],
                             'nit' => $sinItem['nit'],
                             'monto_sin' => $montoSin,
+                            'descuento_sin' => $descuentoSin,
+                            'base_debito_sin' => $baseSin,
+                            'debito_fiscal_sin' => $sinItem['debito_fiscal'],
+                            'tasas_sin' => $tasasSin,
                             'monto_sistema' => $montoDb,
                             'diferencia' => round($montoSin - $montoDb, 2),
                         ];
@@ -338,12 +361,14 @@ class ConciliacionTributariaService
                         'estado_sistema' => $dbItem->estado_factura,
                     ];
 
-                    if (abs($baseDb - $baseSin) > 0.01) {
+                    if (abs($baseDb - $baseSin) > 0.01 || abs($tasasDb - $tasasSin) > 0.01) {
                         $coincidentesBaseDiferente[] = [
                             'cuf' => $cuf,
                             'numero_factura' => $sinItem['numero_factura'],
                             'base_debito_sin' => $baseSin,
                             'base_debito_sistema' => $baseDb,
+                            'tasas_sin' => $tasasSin,
+                            'tasas_sistema' => $tasasDb,
                         ];
                     }
                 }
@@ -409,17 +434,19 @@ class ConciliacionTributariaService
         $totalSinValidas = $totalValidasSin;
         $totalSinGlobal = count($registrosSin);
 
-        $coincidentesValidasContadas = count($coincidentes) + count($diferenciasDescuentoLey1886);
+        $coincidentesValidasContadas = count(array_filter($coincidentes, fn($c) => ($c['estado_sin'] ?? '') !== 'ANULADA')) + count($diferenciasDescuentoLey1886);
+        $coincidentesGlobalContadas = count($coincidentes) + count($diferenciasDescuentoLey1886);
+
         // Si el sistema no tiene facturas, la coincidencia es 0
         if ($facturasDb->isEmpty()) {
             $coincidenciaValidasPct = 0.0;
             $porcentajeGlobal = 0.0;
         } else {
             $coincidenciaValidasPct = $totalSinValidas > 0
-                ? round(($coincidentesValidasContadas / $totalSinValidas) * 100, 2)
+                ? min(100.0, round(($coincidentesValidasContadas / $totalSinValidas) * 100, 2))
                 : 0.0;
             $porcentajeGlobal = $totalSinGlobal > 0
-                ? round(($coincidentesValidasContadas / $totalSinGlobal) * 100, 2)
+                ? min(100.0, round(($coincidentesGlobalContadas / $totalSinGlobal) * 100, 2))
                 : 0.0;
         }
 
@@ -616,6 +643,7 @@ class ConciliacionTributariaService
 
                     $descuento = (float) ($item['descuento'] ?? 0.00);
                     $baseDebito = (float) ($item['base_debito'] ?? $item['monto_total']);
+                    $tasasCalculadas = max(0.00, round((float) $item['monto_total'] - $baseDebito - $descuento, 2));
 
                     Factura::create([
                         'id_sucursal' => $sucursal->id,
@@ -626,6 +654,8 @@ class ConciliacionTributariaService
                         'cuf' => $cuf,
                         'cufd' => 'CUFD_CONCILIACION_' . ($fechaEmision ? $fechaEmision->format('Ymd') : 'HISTORICO'),
                         'fecha_emision' => $fechaEmision ?: $ahora,
+                        'mes' => $fechaEmision ? (string) (int) $fechaEmision->format('m') : null,
+                        'gestion' => $fechaEmision ? (int) $fechaEmision->format('Y') : null,
                         'codigo_modalidad' => 1,
                         'tipo_emision' => 1,
                         'tipo_factura_documento' => 1,
@@ -637,6 +667,7 @@ class ConciliacionTributariaService
                         'codigo_metodo_pago' => 1,
                         'monto_total' => (float) $item['monto_total'],
                         'monto_total_sujeto_iva' => $baseDebito,
+                        'tasa_aseo' => $tasasCalculadas,
                         'monto_descuento' => $descuento,
                         'monto_gift_card' => 0.00,
                         'codigo_moneda' => 1,
@@ -679,6 +710,8 @@ class ConciliacionTributariaService
                         'cuf' => $cuf,
                         'cufd' => 'CUFD_CONCILIACION_' . ($fechaEmision ? $fechaEmision->format('Ymd') : 'HISTORICO'),
                         'fecha_emision' => $fechaEmision ?: $ahora,
+                        'mes' => $fechaEmision ? (string) (int) $fechaEmision->format('m') : null,
+                        'gestion' => $fechaEmision ? (int) $fechaEmision->format('Y') : null,
                         'codigo_modalidad' => 1,
                         'tipo_emision' => 1,
                         'tipo_factura_documento' => 1,
@@ -690,6 +723,7 @@ class ConciliacionTributariaService
                         'codigo_metodo_pago' => 1,
                         'monto_total' => (float) $item['monto_total'],
                         'monto_total_sujeto_iva' => 0.00,
+                        'tasa_aseo' => 0.00,
                         'monto_descuento' => 0.00,
                         'monto_gift_card' => 0.00,
                         'codigo_moneda' => 1,
@@ -712,12 +746,18 @@ class ConciliacionTributariaService
                 foreach ($analisis['detalles']['diferencias_ley1886'] as $item) {
                     $factura = Factura::where('cuf', $item['cuf'])->first();
                     if ($factura) {
+                        $montoBruto = (float) $item['monto_sin_bruto'];
+                        $descuento = (float) $item['descuento_sin'];
+                        $baseDebito = (float) $item['base_debito_sin'];
+                        $tasaAseo = (float) ($item['tasas_sin'] ?? max(0.00, round($montoBruto - $baseDebito - $descuento, 2)));
+
                         $factura->update([
-                            'monto_total' => (float) $item['monto_sin_bruto'],
-                            'monto_descuento' => (float) $item['descuento_sin'],
-                            'monto_total_sujeto_iva' => (float) $item['base_debito_sin'],
-                            'beneficiario_ley_1886' => true,
-                            'monto_descuento_ley_1886' => (float) $item['descuento_sin'],
+                            'monto_total' => $montoBruto,
+                            'monto_descuento' => $descuento,
+                            'monto_total_sujeto_iva' => $baseDebito,
+                            'tasa_aseo' => $tasaAseo,
+                            'beneficiario_ley_1886' => ($descuento > 0),
+                            'monto_descuento_ley_1886' => $descuento,
                             '_transaccion' => 'AJUSTE_LEY1886_SIN',
                             '_usuario_modificacion' => $usuarioId,
                             '_fecha_modificacion' => $ahora,
@@ -727,16 +767,62 @@ class ConciliacionTributariaService
                 }
             }
 
-            // 4. Regularizar Base Imponible Sujeta a IVA (descontando Tasas Municipales según SIN)
+            // 3.1 Regularizar diferencias de montos para que coincidan con el importe oficial del SIN
+            if (!empty($analisis['detalles']['diferencias_montos'])) {
+                foreach ($analisis['detalles']['diferencias_montos'] as $item) {
+                    $factura = Factura::where('cuf', $item['cuf'])->first();
+                    if ($factura) {
+                        $montoSin = (float) $item['monto_sin'];
+                        $descuento = (float) ($item['descuento_sin'] ?? 0.00);
+                        $baseDebito = (float) ($item['base_debito_sin'] ?? $montoSin);
+                        $tasaAseo = (float) ($item['tasas_sin'] ?? max(0.00, round($montoSin - $baseDebito - $descuento, 2)));
+
+                        $factura->update([
+                            'monto_total' => $montoSin,
+                            'monto_descuento' => $descuento,
+                            'monto_total_sujeto_iva' => $baseDebito,
+                            'tasa_aseo' => $tasaAseo,
+                            'beneficiario_ley_1886' => ($descuento > 0),
+                            'monto_descuento_ley_1886' => $descuento,
+                            '_transaccion' => 'AJUSTE_MONTO_SIN',
+                            '_usuario_modificacion' => $usuarioId,
+                            '_fecha_modificacion' => $ahora,
+                        ]);
+                    }
+                }
+            }
+
+            // 4. Regularizar Base Imponible Sujeta a IVA y Tasas Municipales según SIN en lotes de alta velocidad
             if (!empty($analisis['detalles']['coincidentes_base_diferente'])) {
-                foreach ($analisis['detalles']['coincidentes_base_diferente'] as $item) {
-                    Factura::where('cuf', $item['cuf'])->update([
-                        'monto_total_sujeto_iva' => (float) $item['base_debito_sin'],
-                        '_transaccion' => 'AJUSTE_TASAS_SIN',
-                        '_usuario_modificacion' => $usuarioId,
-                        '_fecha_modificacion' => $ahora,
-                    ]);
-                    $basesActualizadas++;
+                $chunks = array_chunk($analisis['detalles']['coincidentes_base_diferente'], 400);
+                $ahoraStr = $ahora->format('Y-m-d H:i:s');
+                foreach ($chunks as $chunk) {
+                    $cases = [];
+                    $tasasCases = [];
+                    $cufs = [];
+                    foreach ($chunk as $item) {
+                        $cufVal = str_replace("'", "''", (string) $item['cuf']);
+                        $baseVal = (float) $item['base_debito_sin'];
+                        $tasasVal = (float) ($item['tasas_sin'] ?? 0.00);
+                        $cases[] = "WHEN '{$cufVal}' THEN {$baseVal}";
+                        $tasasCases[] = "WHEN '{$cufVal}' THEN {$tasasVal}";
+                        $cufs[] = "'{$cufVal}'";
+                    }
+                    if (!empty($cufs)) {
+                        $casesSql = implode(' ', $cases);
+                        $tasasSql = implode(' ', $tasasCases);
+                        $cufsSql = implode(',', $cufs);
+                        DB::statement("
+                            UPDATE facturacion.facturas
+                            SET monto_total_sujeto_iva = CASE cuf {$casesSql} ELSE monto_total_sujeto_iva END,
+                                tasa_aseo = CASE cuf {$tasasSql} ELSE tasa_aseo END,
+                                _transaccion = 'AJUSTE_TASAS_SIN',
+                                _usuario_modificacion = {$usuarioId},
+                                _fecha_modificacion = '{$ahoraStr}'
+                            WHERE cuf IN ({$cufsSql})
+                        ");
+                        $basesActualizadas += count($chunk);
+                    }
                 }
             }
 

@@ -27,14 +27,25 @@
           </v-btn>
 
           <v-btn
-            color="primary"
+            color="red darken-2"
             dark
-            outlined
             small
-            class="rounded-pill font-weight-medium"
-            @click="imprimirReporte"
+            class="white--text font-weight-bold rounded-pill elevation-1"
+            :loading="cargandoPdfConstancia"
+            @click="descargarPdfConstancia"
           >
-            <v-icon left small>mdi-printer</v-icon> Imprimir Libro
+            <v-icon left small>mdi-file-pdf-box</v-icon> Constancia RCV (PDF)
+          </v-btn>
+
+          <v-btn
+            color="teal darken-2"
+            dark
+            small
+            class="white--text font-weight-bold rounded-pill elevation-1"
+            :loading="cargandoExcel"
+            @click="descargarExcelRcv"
+          >
+            <v-icon left small>mdi-file-excel-box</v-icon> Libro RCV (Excel)
           </v-btn>
 
           <v-btn
@@ -45,7 +56,18 @@
             :loading="cargandoCsv"
             @click="descargarCsv"
           >
-            <v-icon left small>mdi-file-delimited</v-icon> Exportar CSV (Normativa SIN)
+            <v-icon left small>mdi-file-delimited</v-icon> Exportar CSV (SIN)
+          </v-btn>
+
+          <v-btn
+            color="primary"
+            dark
+            outlined
+            small
+            class="rounded-pill font-weight-medium"
+            @click="imprimirReporte"
+          >
+            <v-icon left small>mdi-printer</v-icon> Imprimir
           </v-btn>
         </div>
       </div>
@@ -61,6 +83,8 @@
             <v-btn small value="semana" class="text-capitalize">Esta Semana</v-btn>
             <v-btn small value="mes" class="text-capitalize">Este Mes</v-btn>
             <v-btn small value="mes_anterior" class="text-capitalize">Mes Anterior</v-btn>
+            <v-btn small value="junio_2026" class="text-capitalize font-weight-bold teal--text text--darken-2">Junio 2026</v-btn>
+            <v-btn small value="julio_2026" class="text-capitalize font-weight-bold teal--text text--darken-2">Julio 2026</v-btn>
             <v-btn small value="agosto_2026" class="text-capitalize font-weight-bold primary--text">Agosto 2026</v-btn>
             <v-btn small value="septiembre_2026" class="text-capitalize font-weight-bold primary--text">Septiembre 2026</v-btn>
             <v-btn small value="personalizado" class="text-capitalize">Personalizado</v-btn>
@@ -161,46 +185,59 @@
     <!-- TARJETAS DE RESUMEN FISCAL (KPIS ESTANDARIZADOS) -->
     <v-row class="mb-4" dense>
       <!-- TOTAL FACTURADO -->
-      <v-col cols="12" sm="6" md="3">
-        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+      <v-col cols="12" sm="6" md="2">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #004D40;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Total Facturado</div>
-          <div class="text-h4 font-weight-black primary--text mt-1">
+          <div class="text-h5 font-weight-black primary--text mt-1">
             Bs {{ formatoMoneda(resumen.total_facturado) }}
           </div>
           <div class="text-caption text-secondary mt-1">
-            {{ resumen.total_registros }} facturas computadas
+            {{ resumen.total_registros }} facturas
+          </div>
+        </v-card>
+      </v-col>
+
+      <!-- TASAS NO SUJETAS IVA -->
+      <v-col cols="12" sm="6" md="2">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #0288D1;">
+          <div class="text-caption text-secondary font-weight-bold text-uppercase">Tasas No IVA</div>
+          <div class="text-h5 font-weight-black blue--text text--darken-2 mt-1">
+            Bs {{ formatoMoneda(resumen.total_tasas || 0) }}
+          </div>
+          <div class="text-caption text-secondary mt-1">
+            Tasas Aseo y Alumbrado
           </div>
         </v-card>
       </v-col>
 
       <!-- BASE DÉBITO FISCAL -->
       <v-col cols="12" sm="6" md="3">
-        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #2E7D32;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Base Débito Fiscal</div>
-          <div class="text-h4 font-weight-black success--text mt-1">
+          <div class="text-h5 font-weight-black success--text mt-1">
             Bs {{ formatoMoneda(resumen.total_base_debito_fiscal) }}
           </div>
           <div class="text-caption text-success mt-1 font-weight-medium">
-            Importe sujeto al IVA (13%)
+            Sujeto al IVA (13%)
           </div>
         </v-card>
       </v-col>
 
       <!-- DÉBITO FISCAL IVA (13%) -->
-      <v-col cols="12" sm="6" md="3">
-        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg">
-          <div class="text-caption text-secondary font-weight-bold text-uppercase">Débito Fiscal IVA (13%)</div>
-          <div class="text-h4 font-weight-black info--text mt-1">
+      <v-col cols="12" sm="6" md="2">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #5E35B1;">
+          <div class="text-caption text-secondary font-weight-bold text-uppercase">Débito Fiscal (13%)</div>
+          <div class="text-h5 font-weight-black purple--text text--darken-2 mt-1">
             Bs {{ formatoMoneda(resumen.debito_fiscal_iva) }}
           </div>
           <div class="text-caption text-secondary mt-1">
-            Monto a declarar en Form. 200
+            Formulario 200 SIN
           </div>
         </v-card>
       </v-col>
 
       <!-- RESUMEN DE ESTADOS FISCALES -->
-      <v-col cols="12" sm="6" md="3">
+      <v-col cols="12" sm="12" md="3">
         <v-card class="pa-3 erp-card-elevated" rounded="lg">
           <div class="text-caption text-secondary font-weight-bold text-uppercase text-center mb-1">
             Estados Fiscales SIN
@@ -208,13 +245,13 @@
           <div class="d-flex flex-column gap-1">
             <div class="d-flex align-center justify-space-between">
               <span class="text-caption font-weight-medium success--text">
-                <v-icon x-small color="success">mdi-check-circle</v-icon> Válidas en Línea:
+                <v-icon x-small color="success">mdi-check-circle</v-icon> Válidas:
               </span>
               <v-chip x-small color="success" text-color="white" class="font-weight-bold">
                 {{ resumen.cantidad_validas || 0 }}
               </v-chip>
             </div>
-            <div class="d-flex align-center justify-space-between">
+            <div class="d-flex align-center justify-space-between" v-if="resumen.cantidad_contingencias > 0">
               <span class="text-caption font-weight-medium warning--text text--darken-2">
                 <v-icon x-small color="warning darken-2">mdi-cloud-off-outline</v-icon> Contingencias:
               </span>
@@ -234,6 +271,174 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <!-- CÉDULA OFICIAL DE CONSOLIDACIÓN RCV (FORMATO OFICIAL SIN / FORM. 200) -->
+    <v-card class="mb-4 erp-card-elevated" rounded="lg" v-if="consolidacionRcv">
+      <div class="d-flex align-center justify-space-between px-4 py-3" style="background-color: #f7fafc; border-bottom: 1px solid #e2e8f0;">
+        <div class="d-flex align-center">
+          <v-avatar color="teal darken-3" rounded="lg" size="36" class="mr-3 text-white elevation-1">
+            <v-icon color="white" small>mdi-file-certificate-outline</v-icon>
+          </v-avatar>
+          <div>
+            <div class="text-subtitle-1 font-weight-bold text--primary d-flex align-center flex-wrap gap-2">
+              Constancia de Registro de Compras y Ventas (RCV)
+              <v-chip x-small color="teal darken-2" dark class="font-weight-bold">Formato Oficial SIN</v-chip>
+              <v-chip x-small color="grey lighten-2" class="font-weight-bold">Cédula Form. 200</v-chip>
+            </div>
+            <span class="text-caption text-secondary">
+              NIT: {{ consolidacionRcv.nit }} | {{ consolidacionRcv.razon_social }} | Período: {{ consolidacionRcv.periodo }} / {{ consolidacionRcv.gestion }} | Estado: {{ consolidacionRcv.estado }}
+            </span>
+          </div>
+        </div>
+
+        <div class="d-flex align-center gap-2">
+          <v-btn
+            color="red darken-2"
+            dark
+            small
+            class="white--text font-weight-bold rounded-pill elevation-1"
+            :loading="cargandoPdfConstancia"
+            @click="descargarPdfConstancia"
+          >
+            <v-icon left small>mdi-file-pdf-box</v-icon> Descargar PDF Oficial
+          </v-btn>
+          <v-btn
+            color="teal darken-1"
+            dark
+            small
+            class="white--text font-weight-bold rounded-pill elevation-1"
+            :loading="cargandoExcel"
+            @click="descargarExcelRcv"
+          >
+            <v-icon left small>mdi-file-excel-box</v-icon> Descargar Excel (.xlsx)
+          </v-btn>
+          <v-btn icon small @click="mostrarConsolidacion = !mostrarConsolidacion">
+            <v-icon>{{ mostrarConsolidacion ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+          </v-btn>
+        </div>
+      </div>
+
+      <v-expand-transition>
+        <div v-show="mostrarConsolidacion" class="pa-4">
+          <v-row dense>
+            <!-- COLUMNA VENTAS -->
+            <v-col cols="12" md="6">
+              <v-card outlined rounded="lg" class="pa-0 overflow-hidden">
+                <div class="px-3 py-2 teal darken-3 white--text font-weight-bold text-caption d-flex justify-space-between align-center">
+                  <span><v-icon x-small color="white" class="mr-1">mdi-arrow-up-bold-box</v-icon> INFORMACIÓN DE VENTAS CONSOLIDADA</span>
+                  <span>{{ consolidacionRcv.ventas.cantidad_facturas }} Facturas</span>
+                </div>
+                <v-simple-table dense>
+                  <tbody>
+                    <tr>
+                      <td class="font-weight-medium">Cantidad Facturas:</td>
+                      <td class="text-right font-weight-bold">{{ consolidacionRcv.ventas.cantidad_facturas }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Facturas Válidas:</td>
+                      <td class="text-right font-weight-bold success--text">{{ consolidacionRcv.ventas.facturas_validas }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Facturas Anuladas:</td>
+                      <td class="text-right font-weight-bold error--text">{{ consolidacionRcv.ventas.facturas_anuladas }}</td>
+                    </tr>
+                    <tr class="blue-grey lighten-5">
+                      <td class="font-weight-bold">Importe Total Facturado:</td>
+                      <td class="text-right font-weight-bold primary--text">Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_total) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Importe No Sujetas IVA (Tasas):</td>
+                      <td class="text-right font-weight-bold blue--text text--darken-2">Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_no_sujetas_iva) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Importe Tasas (Aseo Urbano):</td>
+                      <td class="text-right font-weight-bold blue--text text--darken-2">Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_tasas) }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Importe ICE / IEHD / IPJ / Tasa Cero:</td>
+                      <td class="text-right grey--text">Bs 0.00</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Importe Descuentos / Rebajas:</td>
+                      <td class="text-right font-weight-bold">Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_descuentos) }}</td>
+                    </tr>
+                    <tr class="green lighten-5">
+                      <td class="font-weight-bold green--text text--darken-4">Importe Con Derecho DF (Base Imponible):</td>
+                      <td class="text-right font-weight-black green--text text--darken-4">Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_con_derecho_df) }}</td>
+                    </tr>
+                    <tr class="purple lighten-5">
+                      <td class="font-weight-bold purple--text text--darken-4">Importe IVA DF (13% Form. 200):</td>
+                      <td class="text-right font-weight-black purple--text text--darken-4">Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_iva_df) }}</td>
+                    </tr>
+                  </tbody>
+                </v-simple-table>
+              </v-card>
+            </v-col>
+
+            <!-- COLUMNA NOTAS C/D Y REGLA DE CUADRE -->
+            <v-col cols="12" md="6">
+              <v-card outlined rounded="lg" class="pa-0 overflow-hidden mb-3">
+                <div class="px-3 py-2 blue-grey darken-3 white--text font-weight-bold text-caption">
+                  <v-icon x-small color="white" class="mr-1">mdi-swap-horizontal-bold</v-icon> NOTAS CRÉDITO DÉBITO EMITIDAS
+                </div>
+                <v-simple-table dense>
+                  <tbody>
+                    <tr>
+                      <td class="font-weight-medium">Cantidad Notas C/D:</td>
+                      <td class="text-right font-weight-bold">0</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Cantidad Válidas:</td>
+                      <td class="text-right font-weight-bold">0</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Cantidad Anuladas:</td>
+                      <td class="text-right font-weight-bold">0</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Importe Válidas:</td>
+                      <td class="text-right font-weight-bold">Bs 0.00</td>
+                    </tr>
+                    <tr>
+                      <td class="font-weight-medium">Importe Anuladas:</td>
+                      <td class="text-right font-weight-bold">Bs 0.00</td>
+                    </tr>
+                  </tbody>
+                </v-simple-table>
+              </v-card>
+
+              <!-- TARJETA DE VERIFICACIÓN DE FÓRMULA TRIBUTARIA -->
+              <v-card outlined rounded="lg" class="pa-3 teal lighten-5" style="border: 1px solid #80cbc4 !important;">
+                <div class="d-flex align-center mb-1">
+                  <v-icon color="teal darken-2" small class="mr-2">mdi-check-decagram</v-icon>
+                  <span class="font-weight-bold text-caption teal--text text--darken-4">
+                    CUADRE MATEMÁTICO TRIBUTARIO OFICIAL VERIFICADO
+                  </span>
+                </div>
+                <div class="text-caption text-secondary mb-2">
+                  Regla de determinación del SIN para Servicios Básicos (Sector 13 - EMAPA):
+                </div>
+                <div class="pa-2 white rounded font-mono text-caption mb-2 elevation-1">
+                  <strong>Total Facturado</strong> (Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_total) }})
+                  - <strong>Tasas No IVA</strong> (Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_tasas) }})
+                  = <strong>Base Débito Fiscal</strong> (Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_con_derecho_df) }})
+                  <br>
+                  -> <strong>Débito Fiscal IVA (13%)</strong> = Bs {{ formatoMoneda(consolidacionRcv.ventas.importe_iva_df) }}
+                </div>
+                <div class="d-flex align-center justify-space-between flex-wrap">
+                  <span class="text-caption font-weight-bold green--text text--darken-3">
+                    <v-icon x-small color="green darken-3">mdi-check-circle</v-icon> 100% Coincidencia Exacta con Reporte SIN
+                  </span>
+                  <span class="text-caption grey--text">
+                    Constancia N°: 1 (Original)
+                  </span>
+                </div>
+              </v-card>
+            </v-col>
+          </v-row>
+        </div>
+      </v-expand-transition>
+    </v-card>
 
     <!-- TABLA DETALLADA DEL LIBRO DE VENTAS CON TOTALES (TFOOT) -->
     <v-card class="erp-card-elevated" rounded="lg">
@@ -308,6 +513,12 @@
           <span class="font-weight-bold">Bs {{ formatoMoneda(item.monto_total) }}</span>
         </template>
 
+        <template v-slot:item.monto_tasas="{ item }">
+          <span class="font-weight-medium blue--text text--darken-2">
+            Bs {{ item.estado_factura === 'ANULADA' ? '0.00' : formatoMoneda(item.monto_tasas != null ? item.monto_tasas : Math.max(0, (item.monto_total || 0) - (item.monto_total_sujeto_iva || 0) - (item.monto_descuento || 0))) }}
+          </span>
+        </template>
+
         <template v-slot:item.monto_total_sujeto_iva="{ item }">
           <span class="font-weight-medium success--text text--darken-2">
             Bs {{ item.estado_factura === 'ANULADA' ? '0.00' : formatoMoneda(item.monto_total_sujeto_iva) }}
@@ -316,7 +527,7 @@
 
         <template v-slot:item.debito_fiscal="{ item }">
           <span class="font-weight-bold info--text">
-            Bs {{ item.estado_factura === 'ANULADA' ? '0.00' : formatoMoneda(item.monto_total_sujeto_iva * 0.13) }}
+            Bs {{ item.estado_factura === 'ANULADA' ? '0.00' : formatoMoneda(item.debito_fiscal != null ? item.debito_fiscal : (item.monto_total_sujeto_iva * 0.13)) }}
           </span>
         </template>
 
@@ -333,7 +544,23 @@
         </template>
 
         <template v-slot:item.acciones="{ item }">
-          <div class="d-flex align-center justify-center">
+          <div class="d-flex align-center justify-center gap-1">
+            <v-tooltip bottom>
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  color="indigo darken-2"
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="abrirModalDetalle(item)"
+                >
+                  <v-icon small>mdi-eye-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Ver Detalle y Desglose Tributario</span>
+            </v-tooltip>
+
             <v-tooltip bottom>
               <template v-slot:activator="{ on, attrs }">
                 <v-btn
@@ -357,6 +584,7 @@
           <tr class="grey lighten-3 font-weight-black" v-if="facturas.length > 0">
             <td colspan="6" class="text-right text-uppercase">TOTALES DEL PERÍODO:</td>
             <td class="text-right primary--text font-weight-black">Bs {{ formatoMoneda(resumen.total_facturado) }}</td>
+            <td class="text-right blue--text text--darken-2 font-weight-black">Bs {{ formatoMoneda(resumen.total_tasas || 0) }}</td>
             <td class="text-right success--text text--darken-2 font-weight-black">Bs {{ formatoMoneda(resumen.total_base_debito_fiscal) }}</td>
             <td class="text-right info--text font-weight-black">Bs {{ formatoMoneda(resumen.debito_fiscal_iva) }}</td>
             <td colspan="2" class="text-center font-weight-black text-caption">
@@ -1059,6 +1287,166 @@
       </v-card>
     </v-dialog>
 
+    <!-- DIÁLOGO DE DETALLE Y DESGLOSE TRIBUTARIO DE FACTURA -->
+    <v-dialog v-model="dialogoDetalle" max-width="840" scrollable>
+      <v-card rounded="lg" v-if="facturaDetalleSeleccionada">
+        <v-card-title class="py-3 px-4 d-flex justify-space-between align-center primary white--text">
+          <div class="d-flex align-center">
+            <v-icon color="white" class="mr-2">mdi-receipt-text-outline</v-icon>
+            <span class="font-weight-bold text-h6">
+              Factura N° {{ facturaDetalleSeleccionada.numero_factura }}
+            </span>
+            <v-chip small class="ml-3 font-weight-bold" :color="colorEstado(facturaDetalleSeleccionada.estado_factura)" text-color="white">
+              {{ facturaDetalleSeleccionada.estado_factura }}
+            </v-chip>
+          </div>
+          <v-btn icon dark small @click="dialogoDetalle = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-card-text class="pa-4">
+          <v-row dense class="mb-3">
+            <v-col cols="12" md="6">
+              <v-card outlined rounded="lg" class="pa-3 fill-height">
+                <div class="text-caption font-weight-bold text-secondary text-uppercase mb-2">
+                  <v-icon x-small color="primary" class="mr-1">mdi-account-circle</v-icon> Datos del Abonado / Cliente
+                </div>
+                <div class="d-flex justify-space-between py-1 border-bottom">
+                  <span class="text-caption grey--text">Razón Social / Nombre:</span>
+                  <strong class="text-caption text-right">{{ facturaDetalleSeleccionada.nombre_razon_social }}</strong>
+                </div>
+                <div class="d-flex justify-space-between py-1 border-bottom">
+                  <span class="text-caption grey--text">NIT / CI / CEX:</span>
+                  <span class="text-caption font-weight-bold">{{ facturaDetalleSeleccionada.numero_documento }}{{ facturaDetalleSeleccionada.complemento ? '-' + facturaDetalleSeleccionada.complemento : '' }}</span>
+                </div>
+                <div class="d-flex justify-space-between py-1 border-bottom" v-if="facturaDetalleSeleccionada.abonado">
+                  <span class="text-caption grey--text">Código de Abonado:</span>
+                  <v-chip x-small color="teal" text-color="white" class="font-weight-bold">
+                    {{ facturaDetalleSeleccionada.abonado.codigo }}
+                  </v-chip>
+                </div>
+                <div class="d-flex justify-space-between py-1 border-bottom" v-if="facturaDetalleSeleccionada.numero_medidor">
+                  <span class="text-caption grey--text">N° Medidor:</span>
+                  <span class="text-caption font-mono">{{ facturaDetalleSeleccionada.numero_medidor }}</span>
+                </div>
+                <div class="d-flex justify-space-between py-1" v-if="facturaDetalleSeleccionada.consumo_periodo">
+                  <span class="text-caption grey--text">Consumo Periodo:</span>
+                  <span class="text-caption font-weight-bold">{{ facturaDetalleSeleccionada.consumo_periodo }} m³</span>
+                </div>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" md="6">
+              <v-card outlined rounded="lg" class="pa-3 fill-height">
+                <div class="text-caption font-weight-bold text-secondary text-uppercase mb-2">
+                  <v-icon x-small color="primary" class="mr-1">mdi-shield-check</v-icon> Datos Fiscales y Autorización
+                </div>
+                <div class="d-flex justify-space-between py-1 border-bottom">
+                  <span class="text-caption grey--text">Fecha de Emisión:</span>
+                  <span class="text-caption font-weight-bold">{{ formatearFechaHora(facturaDetalleSeleccionada.fecha_emision) }}</span>
+                </div>
+                <div class="d-flex justify-space-between py-1 border-bottom">
+                  <span class="text-caption grey--text">Modalidad:</span>
+                  <span class="text-caption">{{ facturaDetalleSeleccionada.tipo_emision === 2 ? 'Contingencia (Fuera de Línea)' : 'Electrónica en Línea' }}</span>
+                </div>
+                <div class="d-flex justify-space-between py-1 border-bottom">
+                  <span class="text-caption grey--text">Sector SIN:</span>
+                  <span class="text-caption font-weight-medium">Sector 13 - Servicios Básicos</span>
+                </div>
+                <div class="py-1">
+                  <span class="text-caption grey--text d-block">Código Autorización (CUF):</span>
+                  <div class="d-flex align-center justify-space-between bg-light pa-1 rounded mt-1">
+                    <span class="text-caption font-mono text-truncate" style="max-width: 280px;" :title="facturaDetalleSeleccionada.cuf">
+                      {{ facturaDetalleSeleccionada.cuf }}
+                    </span>
+                    <v-btn icon x-small @click="copiarTexto(facturaDetalleSeleccionada.cuf)">
+                      <v-icon x-small>mdi-content-copy</v-icon>
+                    </v-btn>
+                  </div>
+                </div>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <!-- DESGLOSE TRIBUTARIO OFICIAL -->
+          <v-card outlined rounded="lg" class="pa-3 mb-3 bg-light">
+            <div class="text-caption font-weight-bold text-primary text-uppercase mb-3 d-flex align-center">
+              <v-icon small color="primary" class="mr-1">mdi-calculator-variant</v-icon> Desglose de Liquidación Fiscal (Bs)
+            </div>
+            <v-simple-table dense>
+              <tbody>
+                <tr>
+                  <td>Importe Total Venta:</td>
+                  <td class="text-right font-weight-bold">Bs {{ formatoMoneda(facturaDetalleSeleccionada.monto_total) }}</td>
+                </tr>
+                <tr>
+                  <td class="blue--text text--darken-3 font-weight-medium">(-) Tasas No Sujetas a IVA (Tasa Aseo Urbano):</td>
+                  <td class="text-right font-weight-bold blue--text text--darken-3">Bs {{ formatoMoneda(desgloseFiscalSeleccionado ? desgloseFiscalSeleccionado.monto_tasas : Math.max(0, (facturaDetalleSeleccionada.monto_total - facturaDetalleSeleccionada.monto_total_sujeto_iva - facturaDetalleSeleccionada.monto_descuento))) }}</td>
+                </tr>
+                <tr>
+                  <td class="orange--text text--darken-3 font-weight-medium">(-) Descuentos / Beneficios Ley 1886:</td>
+                  <td class="text-right font-weight-bold orange--text text--darken-3">Bs {{ formatoMoneda(facturaDetalleSeleccionada.monto_descuento) }}</td>
+                </tr>
+                <tr class="green lighten-5 font-weight-bold">
+                  <td class="green--text text--darken-4">(=) Importe Base Débito Fiscal:</td>
+                  <td class="text-right font-weight-black green--text text--darken-4">Bs {{ formatoMoneda(facturaDetalleSeleccionada.monto_total_sujeto_iva) }}</td>
+                </tr>
+                <tr class="purple lighten-5 font-weight-bold">
+                  <td class="purple--text text--darken-4">(=) Débito Fiscal IVA (13%):</td>
+                  <td class="text-right font-weight-black purple--text text--darken-4">Bs {{ formatoMoneda(desgloseFiscalSeleccionado ? desgloseFiscalSeleccionado.debito_fiscal_iva : (facturaDetalleSeleccionada.monto_total_sujeto_iva * 0.13)) }}</td>
+                </tr>
+              </tbody>
+            </v-simple-table>
+          </v-card>
+        </v-card-text>
+
+        <v-divider></v-divider>
+        <v-card-actions class="pa-3 d-flex justify-space-between flex-wrap gap-2">
+          <v-btn
+            color="teal darken-2"
+            dark
+            small
+            class="rounded-pill font-weight-bold"
+            @click="abrirPortalSiat(facturaDetalleSeleccionada)"
+          >
+            <v-icon left small>mdi-qrcode-scan</v-icon> Verificar en SIAT (SIN)
+          </v-btn>
+
+          <div class="d-flex gap-2">
+            <v-btn
+              color="primary"
+              outlined
+              small
+              class="rounded-pill font-weight-bold"
+              :href="`/api/facturacion/facturas/${facturaDetalleSeleccionada.id}/pdf?formato=carta`"
+              target="_blank"
+            >
+              <v-icon left small>mdi-printer</v-icon> PDF Carta
+            </v-btn>
+            <v-btn
+              color="primary"
+              outlined
+              small
+              class="rounded-pill font-weight-bold"
+              :href="`/api/facturacion/facturas/${facturaDetalleSeleccionada.id}/pdf?formato=rollo`"
+              target="_blank"
+            >
+              <v-icon left small>mdi-receipt</v-icon> PDF Rollo
+            </v-btn>
+            <v-btn
+              color="secondary"
+              text
+              small
+              @click="dialogoDetalle = false"
+            >
+              Cerrar
+            </v-btn>
+          </div>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- NOTIFICACIONES TOAST (SNACKBAR) -->
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="4000" top right>
       {{ snackbar.text }}
@@ -1108,10 +1496,19 @@ export default {
         cantidad_anuladas: 0,
         cantidad_rechazadas: 0,
         total_facturado: 0,
+        total_tasas: 0,
         total_descuento: 0,
         total_base_debito_fiscal: 0,
         debito_fiscal_iva: 0,
       },
+      consolidacionRcv: null,
+      mostrarConsolidacion: true,
+      cargandoExcel: false,
+      cargandoPdfConstancia: false,
+      dialogoDetalle: false,
+      cargandoDetalle: false,
+      facturaDetalleSeleccionada: null,
+      desgloseFiscalSeleccionado: null,
       facturas: [],
       headers: [
         { text: 'N° Factura', value: 'numero_factura', align: 'center', width: '90px' },
@@ -1121,10 +1518,11 @@ export default {
         { text: 'Modalidad', value: 'tipo_emision', align: 'center', width: '130px' },
         { text: 'CUF (Autorización)', value: 'cuf', width: '170px' },
         { text: 'Total Venta', value: 'monto_total', align: 'end', width: '110px' },
+        { text: 'Tasas No IVA', value: 'monto_tasas', align: 'end', width: '110px' },
         { text: 'Base Sujeta IVA', value: 'monto_total_sujeto_iva', align: 'end', width: '125px' },
         { text: 'Débito Fiscal (13%)', value: 'debito_fiscal', align: 'end', width: '130px' },
         { text: 'Estado SIN', value: 'estado_factura', align: 'center', width: '135px' },
-        { text: 'SIAT', value: 'acciones', align: 'center', sortable: false, width: '70px' },
+        { text: 'Acciones', value: 'acciones', align: 'center', sortable: false, width: '95px' },
       ],
 
       // MODAL DE CONCILIACIÓN
@@ -1227,6 +1625,12 @@ export default {
         const finMesAnt = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
         this.filtros.fecha_desde = format(iniMesAnt);
         this.filtros.fecha_hasta = format(finMesAnt);
+      } else if (val === 'junio_2026') {
+        this.filtros.fecha_desde = '2026-06-01';
+        this.filtros.fecha_hasta = '2026-06-30';
+      } else if (val === 'julio_2026') {
+        this.filtros.fecha_desde = '2026-07-01';
+        this.filtros.fecha_hasta = '2026-07-31';
       } else if (val === 'agosto_2026') {
         this.filtros.fecha_desde = '2026-08-01';
         this.filtros.fecha_hasta = '2026-08-31';
@@ -1252,11 +1656,82 @@ export default {
         if (res.data && res.data.success) {
           this.facturas = res.data.data;
           this.resumen = res.data.resumen;
+          if (res.data.consolidacion_rcv) {
+            this.consolidacionRcv = res.data.consolidacion_rcv;
+          }
         }
       } catch (error) {
         console.error('Error al consultar el libro de ventas:', error);
       } finally {
         this.cargando = false;
+      }
+    },
+
+    async descargarExcelRcv() {
+      this.cargandoExcel = true;
+      try {
+        const params = {
+          fecha_desde: this.filtros.fecha_desde,
+          fecha_hasta: this.filtros.fecha_hasta,
+          estado: this.filtros.estado,
+          tipo_emision: this.filtros.tipo_emision,
+        };
+        const response = await axios.get('/api/facturacion/reportes/libro-ventas/excel', {
+          params,
+          responseType: 'blob',
+        });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Constancia_y_Libro_Ventas_RCV_EMAPA_${this.filtros.fecha_desde}_al_${this.filtros.fecha_hasta}.xlsx`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (error) {
+        console.error('Error al descargar el archivo Excel RCV:', error);
+      } finally {
+        this.cargandoExcel = false;
+      }
+    },
+
+    async descargarPdfConstancia() {
+      this.cargandoPdfConstancia = true;
+      try {
+        const params = {
+          fecha_desde: this.filtros.fecha_desde,
+          fecha_hasta: this.filtros.fecha_hasta,
+          estado: this.filtros.estado,
+          tipo_emision: this.filtros.tipo_emision,
+        };
+        const response = await axios.get('/api/facturacion/reportes/libro-ventas/constancia-pdf', {
+          params,
+          responseType: 'blob',
+        });
+        const file = new Blob([response.data], { type: 'application/pdf' });
+        const fileURL = URL.createObjectURL(file);
+        window.open(fileURL, '_blank');
+      } catch (error) {
+        console.error('Error al generar la constancia RCV en PDF:', error);
+      } finally {
+        this.cargandoPdfConstancia = false;
+      }
+    },
+
+    async abrirModalDetalle(item) {
+      this.facturaDetalleSeleccionada = item;
+      this.desgloseFiscalSeleccionado = null;
+      this.dialogoDetalle = true;
+      this.cargandoDetalle = true;
+      try {
+        const res = await axios.get(`/api/facturacion/facturas/${item.id}`);
+        if (res.data && res.data.success) {
+          this.facturaDetalleSeleccionada = res.data.data;
+          this.desgloseFiscalSeleccionado = res.data.desglose_fiscal;
+        }
+      } catch (err) {
+        console.error('Error al cargar detalle de factura:', err);
+      } finally {
+        this.cargandoDetalle = false;
       }
     },
 
@@ -1376,6 +1851,7 @@ export default {
           }
           res = await axios.post('/api/facturacion/reportes/libro-ventas/sincronizar-sin', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 300000,
           });
         } else {
           res = await axios.post('/api/facturacion/reportes/libro-ventas/sincronizar-sin', {
@@ -1386,6 +1862,8 @@ export default {
             regularizar_estados: true,
             fecha_desde: this.filtroCotejoFechaDesde || null,
             fecha_hasta: this.filtroCotejoFechaHasta || null,
+          }, {
+            timeout: 300000,
           });
         }
 

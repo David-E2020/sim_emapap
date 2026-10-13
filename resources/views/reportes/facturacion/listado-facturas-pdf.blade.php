@@ -187,59 +187,73 @@
     <!-- TARJETAS DE RESUMEN KPI -->
     <table class="kpi-table">
         <tr>
-            <td style="width: 20%; padding-right: 4px;">
+            <td style="width: 14%; padding-right: 3px;">
                 <div class="kpi-card">
                     <div class="kpi-title">Total Facturas</div>
                     <div class="kpi-value">{{ count($facturas) }}</div>
                 </div>
             </td>
-            <td style="width: 20%; padding: 0 4px;">
+            <td style="width: 14%; padding: 0 3px;">
                 <div class="kpi-card">
                     <div class="kpi-title">Validadas SIN</div>
                     <div class="kpi-value success">{{ $totalValidadas }}</div>
                 </div>
             </td>
-            <td style="width: 20%; padding: 0 4px;">
+            <td style="width: 14%; padding: 0 3px;">
                 <div class="kpi-card">
                     <div class="kpi-title">Contingencia</div>
                     <div class="kpi-value warning">{{ $totalContingencia }}</div>
                 </div>
             </td>
-            <td style="width: 20%; padding: 0 4px;">
+            <td style="width: 14%; padding: 0 3px;">
                 <div class="kpi-card">
                     <div class="kpi-title">Anuladas</div>
                     <div class="kpi-value danger">{{ $totalAnuladas }}</div>
                 </div>
             </td>
-            <td style="width: 20%; padding-left: 4px;">
+            <td style="width: 15%; padding: 0 3px;">
                 <div class="kpi-card">
-                    <div class="kpi-title">Total Facturado (Bs)</div>
+                    <div class="kpi-title">Total Venta</div>
                     <div class="kpi-value success">Bs {{ number_format($montoTotalValidadas, 2) }}</div>
+                </div>
+            </td>
+            <td style="width: 14%; padding: 0 3px;">
+                <div class="kpi-card">
+                    <div class="kpi-title">Tasas No IVA</div>
+                    <div class="kpi-value" style="color: #0277bd;">Bs {{ number_format($totalTasasValidas ?? 0, 2) }}</div>
+                </div>
+            </td>
+            <td style="width: 15%; padding-left: 3px;">
+                <div class="kpi-card">
+                    <div class="kpi-title">Base Débito (13%)</div>
+                    <div class="kpi-value success">Bs {{ number_format($totalBaseDebitoValidas ?? 0, 2) }}</div>
                 </div>
             </td>
         </tr>
     </table>
 
     @if(isset($totalRegistrosEnBd) && $totalRegistrosEnBd > count($facturas))
-        <div style="background-color: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #f57f17; padding: 5px 8px; margin-bottom: 8px; border-radius: 3px; font-size: 8px; color: #5d4037;">
+        <div style="background-color: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #f57f17; padding: 4px 6px; margin-bottom: 6px; border-radius: 3px; font-size: 8px; color: #5d4037;">
             <strong>Nota de Paginación:</strong> Mostrando las primeras {{ number_format(count($facturas)) }} facturas de un total de {{ number_format($totalRegistrosEnBd) }} registros en base de datos. Para volúmenes históricos masivos sin límite de páginas, utilice la exportación oficial a <strong>Excel (.xlsx)</strong>.
         </div>
     @endif
 
-    <!-- TABLA DE DOCUMENTOS -->
+    <!-- TABLA DE DOCUMENTOS CON DESGLOSE TRIBUTARIO -->
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 28px;" class="text-center">#</th>
-                <th style="width: 60px;">N° FACTURA</th>
-                <th style="width: 95px;">FECHA EMISIÓN</th>
-                <th style="width: 65px;" class="text-center">ABONADO</th>
-                <th style="width: 75px;">DOC / NIT</th>
+                <th style="width: 22px;" class="text-center">#</th>
+                <th style="width: 50px;">N° FACTURA</th>
+                <th style="width: 75px;">FECHA EMISIÓN</th>
+                <th style="width: 45px;" class="text-center">ABONADO</th>
+                <th style="width: 60px;">DOC / NIT</th>
                 <th>CLIENTE / RAZÓN SOCIAL</th>
-                <th style="width: 70px;" class="text-center">ESTADO SIN</th>
-                <th style="width: 70px;" class="text-center">EMISIÓN</th>
-                <th style="width: 70px;" class="text-right">TOTAL (BS)</th>
-                <th style="width: 140px;">C.U.F.</th>
+                <th style="width: 55px;" class="text-center">ESTADO SIN</th>
+                <th style="width: 55px;" class="text-right">TOTAL (BS)</th>
+                <th style="width: 50px;" class="text-right">TASAS NO IVA</th>
+                <th style="width: 55px;" class="text-right">BASE DÉBITO</th>
+                <th style="width: 50px;" class="text-right">IVA 13%</th>
+                <th style="width: 100px;">C.U.F.</th>
             </tr>
         </thead>
         <tbody>
@@ -255,11 +269,17 @@
                     } elseif ($f->estado_factura === 'OBSERVADA') {
                         $badgeClass = 'badge-danger';
                     }
-                    $cufTruncado = $f->cuf ? (substr($f->cuf, 0, 10) . '...' . substr($f->cuf, -8)) : '-';
+                    $cufTruncado = $f->cuf ? (substr($f->cuf, 0, 8) . '...' . substr($f->cuf, -6)) : '-';
+
+                    $tot = $esAnulada ? 0.00 : (float) $f->monto_total;
+                    $base = $esAnulada ? 0.00 : (float) $f->monto_total_sujeto_iva;
+                    $desc = $esAnulada ? 0.00 : (float) $f->monto_descuento;
+                    $tasas = $esAnulada ? 0.00 : max(0.00, round($tot - $base - $desc, 2));
+                    $debito = round($base * 0.13, 2);
                 @endphp
                 <tr>
                     <td class="text-center">{{ $index + 1 }}</td>
-                    <td class="font-bold" style="color: #004d40;">N° {{ $f->numero_factura }}</td>
+                    <td class="font-bold" style="color: #004d40;">#{{ $f->numero_factura }}</td>
                     <td>{{ $f->fecha_emision ? \Carbon\Carbon::parse($f->fecha_emision)->format('d/m/Y H:i') : '-' }}</td>
                     <td class="text-center font-bold">
                         {{ $f->abonado ? $f->abonado->codigo : '-' }}
@@ -269,17 +289,23 @@
                     <td class="text-center">
                         <span class="badge {{ $badgeClass }}">{{ $f->estado_factura }}</span>
                     </td>
-                    <td class="text-center">
-                        {{ (int) $f->tipo_emision === 2 ? 'Contingencia' : 'En Línea' }}
-                    </td>
                     <td class="text-right font-bold" style="{{ $esAnulada ? 'color: #999; text-decoration: line-through;' : '' }}">
-                        Bs {{ number_format((float) $f->monto_total, 2) }}
+                        {{ number_format($tot, 2) }}
                     </td>
-                    <td style="font-family: monospace; font-size: 7px; color: #555;">{{ $cufTruncado }}</td>
+                    <td class="text-right" style="color: #0277bd;">
+                        {{ number_format($tasas, 2) }}
+                    </td>
+                    <td class="text-right font-bold" style="color: #2e7d32;">
+                        {{ number_format($base, 2) }}
+                    </td>
+                    <td class="text-right font-bold" style="color: #4527a0;">
+                        {{ number_format($debito, 2) }}
+                    </td>
+                    <td style="font-family: monospace; font-size: 6.5px; color: #555;">{{ $cufTruncado }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="10" class="text-center" style="padding: 15px; color: #666;">
+                    <td colspan="12" class="text-center" style="padding: 15px; color: #666;">
                         No se encontraron facturas con los criterios de búsqueda seleccionados.
                     </td>
                 </tr>
@@ -287,9 +313,18 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="8" class="text-right font-bold">MONTO TOTAL VÁLIDO / EFECTIVO (BS):</td>
-                <td class="text-right font-bold" style="color: #004d40; font-size: 9.5px;">
-                    Bs {{ number_format($montoTotalValidadas, 2) }}
+                <td colspan="7" class="text-right font-bold">TOTALES VÁLIDOS COMPUTADOS (BS):</td>
+                <td class="text-right font-bold" style="color: #004d40; font-size: 8.5px;">
+                    {{ number_format($montoTotalValidadas, 2) }}
+                </td>
+                <td class="text-right font-bold" style="color: #0277bd; font-size: 8.5px;">
+                    {{ number_format($totalTasasValidas ?? 0, 2) }}
+                </td>
+                <td class="text-right font-bold" style="color: #2e7d32; font-size: 8.5px;">
+                    {{ number_format($totalBaseDebitoValidas ?? 0, 2) }}
+                </td>
+                <td class="text-right font-bold" style="color: #4527a0; font-size: 8.5px;">
+                    {{ number_format($totalDebitoValidas ?? 0, 2) }}
                 </td>
                 <td></td>
             </tr>

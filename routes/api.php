@@ -455,6 +455,7 @@ Route::group(['middleware' => ['jwt.auth']], function () {
             Route::get('facturas', [FacturaController::class, 'index']);
             Route::get('facturas/exportar-pdf', [FacturaController::class, 'exportarPdf']);
             Route::get('facturas/exportar-excel', [FacturaController::class, 'exportarExcel']);
+            Route::get('facturas/{id}', [FacturaController::class, 'show']);
             Route::post('facturas', [FacturaController::class, 'store']);
             Route::post('facturas/emision-masiva', [FacturaController::class, 'emisionMasiva']);
             Route::post('facturas/{id}/anular', [FacturaController::class, 'anular']);
@@ -510,6 +511,8 @@ Route::group(['middleware' => ['jwt.auth']], function () {
         Route::group(['middleware' => ['check.permission:facturacion.libro_ventas.ver']], function () {
             Route::get('reportes/libro-ventas', [ReporteFacturacionController::class, 'libroVentas']);
             Route::get('reportes/libro-ventas/csv', [ReporteFacturacionController::class, 'exportarCsvLibroVentas']);
+            Route::get('reportes/libro-ventas/excel', [ReporteFacturacionController::class, 'exportarExcelLibroVentas']);
+            Route::get('reportes/libro-ventas/constancia-pdf', [ReporteFacturacionController::class, 'exportarPdfConstanciaRcv']);
             Route::get('reportes/ventas-mensuales', [ReporteFacturacionController::class, 'ventasMensuales']);
 
             // Cotejador y Conciliador Tributario SIN vs SIM-EMAPAP
