@@ -232,6 +232,12 @@
         </tr>
     </table>
 
+    @if(!empty($totalDuplicadas) && $totalDuplicadas > 0)
+        <div style="background-color: #ffebee; border: 1px solid #ef5350; border-left: 4px solid #c62828; padding: 5px 8px; margin-bottom: 6px; border-radius: 3px; font-size: 8.5px; color: #b71c1c;">
+            <strong>⚠ ALERTA FISCAL:</strong> Se han detectado <strong>{{ $totalDuplicadas }} registros de facturas duplicadas</strong> en esta planilla. Las filas señaladas con la etiqueta <strong>[⚠ DUPLICADA]</strong> corresponden a números de factura correlativos repetidos en la gestión y deben ser auditadas para anulación manual por el operador.
+        </div>
+    @endif
+
     @if(isset($totalRegistrosEnBd) && $totalRegistrosEnBd > count($facturas))
         <div style="background-color: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #f57f17; padding: 4px 6px; margin-bottom: 6px; border-radius: 3px; font-size: 8px; color: #5d4037;">
             <strong>Nota de Paginación:</strong> Mostrando las primeras {{ number_format(count($facturas)) }} facturas de un total de {{ number_format($totalRegistrosEnBd) }} registros en base de datos. Para volúmenes históricos masivos sin límite de páginas, utilice la exportación oficial a <strong>Excel (.xlsx)</strong>.
@@ -243,7 +249,7 @@
         <thead>
             <tr>
                 <th style="width: 22px;" class="text-center">#</th>
-                <th style="width: 50px;">N° FACTURA</th>
+                <th style="width: 75px;">N° FACTURA</th>
                 <th style="width: 75px;">FECHA EMISIÓN</th>
                 <th style="width: 45px;" class="text-center">ABONADO</th>
                 <th style="width: 60px;">DOC / NIT</th>
@@ -261,6 +267,7 @@
                 @php
                     $esAnulada = in_array($f->estado_factura, ['ANULADA', 'CANCELLED'], true);
                     $esContingencia = in_array($f->estado_factura, ['CONTINGENCIA', 'OFFLINE_PENDIENTE', 'OFFLINE_REGULARIZADA'], true) || (int) $f->tipo_emision === 2;
+                    $esDup = (bool) ($f->es_duplicada ?? false);
                     $badgeClass = 'badge-success';
                     if ($esAnulada) {
                         $badgeClass = 'badge-danger';
@@ -277,9 +284,14 @@
                     $tasas = $esAnulada ? 0.00 : max(0.00, round($tot - $base - $desc, 2));
                     $debito = round($base * 0.13, 2);
                 @endphp
-                <tr>
+                <tr style="{{ $esDup ? 'background-color: #fff0f0;' : '' }}">
                     <td class="text-center">{{ $index + 1 }}</td>
-                    <td class="font-bold" style="color: #004d40;">#{{ $f->numero_factura }}</td>
+                    <td class="font-bold" style="{{ $esDup ? 'color: #c62828;' : 'color: #004d40;' }}">
+                        #{{ $f->numero_factura }}
+                        @if($esDup)
+                            <span class="badge badge-danger" style="margin-left: 2px;">⚠ DUP</span>
+                        @endif
+                    </td>
                     <td>{{ $f->fecha_emision ? \Carbon\Carbon::parse($f->fecha_emision)->format('d/m/Y H:i') : '-' }}</td>
                     <td class="text-center font-bold">
                         {{ $f->abonado ? $f->abonado->codigo : '-' }}
@@ -288,6 +300,9 @@
                     <td class="font-bold">{{ $f->nombre_razon_social }}</td>
                     <td class="text-center">
                         <span class="badge {{ $badgeClass }}">{{ $f->estado_factura }}</span>
+                        @if($esDup)
+                            <span class="badge badge-danger" style="display: block; margin-top: 1px; font-size: 6.5px;">DUPLICADA</span>
+                        @endif
                     </td>
                     <td class="text-right font-bold" style="{{ $esAnulada ? 'color: #999; text-decoration: line-through;' : '' }}">
                         {{ number_format($tot, 2) }}

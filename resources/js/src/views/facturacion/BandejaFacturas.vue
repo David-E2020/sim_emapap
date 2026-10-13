@@ -257,14 +257,14 @@
       <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-2" style="border-top: 1px dashed #e0e0e0;">
         <div class="d-flex align-center flex-wrap gap-2">
           <v-chip
-            v-if="auditoriaCuf.cufs_duplicados === 0"
+            v-if="!(auditoriaCuf.total_duplicadas || auditoriaCuf.numeros_duplicados || auditoriaCuf.cufs_duplicados || auditoriaCuf.total_cufs_duplicados)"
             small
             color="green lighten-5"
             class="font-weight-medium text-caption green--text text--darken-3"
             outlined
           >
             <v-icon left x-small color="green darken-2">mdi-shield-check</v-icon>
-            Integridad SIAT: 100% CUFs Únicos (0 facturas duplicadas)
+            Integridad SIAT: 100% Facturas Únicas (0 facturas duplicadas)
           </v-chip>
 
           <v-chip
@@ -276,13 +276,13 @@
             @click="filtrarDuplicadas"
           >
             <v-icon left x-small color="red darken-2">mdi-alert-octagon</v-icon>
-            Alerta Fiscal: {{ auditoriaCuf.cufs_duplicados }} CUF(s) Duplicado(s) detectado(s) — Ver Duplicadas
+            Alerta Fiscal: {{ auditoriaCuf.total_duplicadas || auditoriaCuf.numeros_duplicados || auditoriaCuf.cufs_duplicados || auditoriaCuf.total_cufs_duplicados || 0 }} Factura(s) Duplicada(s) detectada(s) (ej: N° {{ (auditoriaCuf.ejemplos_numeros || []).slice(0, 3).join(', ') }}) — Ver Duplicadas
           </v-chip>
         </div>
 
         <div v-if="filtroEstado === 'DUPLICADAS'" class="text-caption red--text font-weight-bold d-flex align-center mt-1 mt-sm-0">
           <v-icon x-small color="red" class="mr-1">mdi-filter-variant</v-icon>
-          Mostrando únicamente facturas con CUFs duplicados
+          Mostrando únicamente facturas duplicadas (por CUF o N° correlativo validado)
           <v-btn x-small text color="primary" class="ml-2 font-weight-bold" @click="filtroEstado = 'TODOS'; cargarFacturas()">
             Quitar filtro
           </v-btn>
@@ -391,13 +391,13 @@
           <div class="d-flex flex-column py-1">
             <div class="d-flex align-center flex-wrap">
               <span class="font-weight-bold text-primary">N° {{ item.numero_factura }}</span>
-              <v-tooltip v-if="item.es_cuf_duplicado" bottom color="error">
+              <v-tooltip v-if="item.es_duplicada || item.es_cuf_duplicado" bottom color="error">
                 <template v-slot:activator="{ on, attrs }">
                   <v-chip v-bind="attrs" v-on="on" x-small color="error" class="ml-1 font-weight-bold">
                     <v-icon x-small left>mdi-alert</v-icon> DUPLICADA
                   </v-chip>
                 </template>
-                <span>Alerta: Este CUF se repite en más de un registro fiscal</span>
+                <span>Alerta Fiscal: Factura duplicada detectada (número repetido con estado VALIDADA o CUF redundante)</span>
               </v-tooltip>
             </div>
             <div class="d-flex align-center gap-1 mt-1 flex-wrap">
@@ -703,6 +703,17 @@
           Está a punto de anular la <strong>Factura N° {{ facturaSeleccionada.numero_factura }}</strong> emitida a nombre de <strong>{{ facturaSeleccionada.nombre_razon_social }}</strong> por Bs {{ parseFloat(facturaSeleccionada.monto_total || 0).toFixed(2) }}.
         </p>
 
+        <v-alert
+          v-if="facturaSeleccionada.es_duplicada"
+          dense
+          outlined
+          type="warning"
+          class="text-caption mb-3"
+        >
+          <strong>Atención:</strong> Esta factura está detectada como duplicada (N° {{ facturaSeleccionada.numero_factura }}). 
+          Se ha preseleccionado el motivo <strong>Código 4: FACTURA DUPLICADA</strong>. Verifique que no esté anulando el ejemplar impreso que el cliente tiene en su poder.
+        </v-alert>
+
         <v-select
           v-model="motivoAnulacionSeleccionado"
           :items="motivosAnulacion"
@@ -852,6 +863,23 @@
         </v-card-title>
 
         <v-card-text class="pa-4">
+          <v-alert
+            v-if="facturaDetalleSeleccionada.es_duplicada"
+            dense
+            color="red lighten-5"
+            class="red--text text--darken-3 text-caption mb-3"
+            outlined
+          >
+            <div class="d-flex align-center font-weight-bold mb-1">
+              <v-icon small color="red darken-2" class="mr-1">mdi-alert-octagon</v-icon>
+              Alerta de Duplicidad Fiscal Detectada (N° {{ facturaDetalleSeleccionada.numero_factura }})
+            </div>
+            <div>
+              Esta factura comparte número correlativo con otra factura en estado <strong>VALIDADA</strong> emitida en la misma gestión. 
+              Verifique los orígenes (Caja local vs. Conciliación SIN) para confirmar cuál ejemplar posee el usuario físicamente antes de anular la redundante.
+            </div>
+          </v-alert>
+
           <v-row dense class="mb-3">
             <v-col cols="12" md="6">
               <v-card outlined rounded="lg" class="pa-3 fill-height">
@@ -1579,7 +1607,7 @@ export default {
     },
     abrirDialogoAnulacion(factura) {
       this.facturaSeleccionada = factura;
-      this.motivoAnulacionSeleccionado = 1;
+      this.motivoAnulacionSeleccionado = factura.es_duplicada ? 4 : 1;
       this.esAnulacionAdministrativa = false;
       this.nroResolucion = '';
       this.fechaResolucion = '';

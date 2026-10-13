@@ -7,6 +7,7 @@ namespace App\Services\Facturacion;
 use App\Models\Facturacion\ConfiguracionEmpresa;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -44,9 +45,30 @@ class ReporteFacturasExcelService
         $totalRegistrosEnBd = (clone $query)->count();
         $facturas = $query->reorder('numero_factura', 'desc')->limit($limite)->get();
 
+        $gestionActual = (int) date('Y');
+        $dupsNumeros = DB::table('facturacion.facturas')
+            ->where('estado_factura', 'VALIDADA')
+            ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
+            ->groupBy('numero_factura')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('numero_factura')
+            ->flip()
+            ->all();
+
+        $dupsCuf = DB::table('facturacion.facturas')
+            ->whereNotNull('cuf')
+            ->whereRaw("cuf NOT LIKE 'SFV%'")
+            ->whereRaw('LENGTH(cuf) >= 42')
+            ->groupBy('cuf')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('cuf')
+            ->flip()
+            ->all();
+
         $totalValidadas = 0;
         $totalAnuladas = 0;
         $totalContingencia = 0;
+        $totalDuplicadas = 0;
         $montoTotalValidadas = 0.0;
         $totalTasasValidas = 0.0;
         $totalBaseDebitoValidas = 0.0;
@@ -54,6 +76,13 @@ class ReporteFacturasExcelService
 
         foreach ($facturas as $f) {
             $st = strtoupper((string) $f->estado_factura);
+            $esDup = ($st === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]))
+                || (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
+            $f->es_duplicada = $esDup;
+            if ($esDup) {
+                $totalDuplicadas++;
+            }
+
             if ($st === 'ANULADA' || $st === 'CANCELLED') {
                 $totalAnuladas++;
             } else {
@@ -90,7 +119,7 @@ class ReporteFacturasExcelService
         $sheet->setShowGridLines(true);
 
         // 1. CABECERA INSTITUCIONAL (Filas 1 a 3)
-        $sheet->mergeCells('A1:P1');
+        $sheet->mergeCells('A1:Q1');
         $sheet->setCellValue('A1', "{$razonSocial} (NIT: {$nitEmpresa})");
         $sheet->getStyle('A1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 14, 'color' => ['rgb' => 'FFFFFF']],
@@ -99,7 +128,7 @@ class ReporteFacturasExcelService
         ]);
         $sheet->getRowDimension(1)->setRowHeight(32);
 
-        $sheet->mergeCells('A2:P2');
+        $sheet->mergeCells('A2:Q2');
         $sheet->setCellValue('A2', 'BANDEJA OFICIAL DE FACTURAS EMITIDAS - SISTEMA DE FACTURACIÓN ELECTRÓNICA SIAT');
         $sheet->getStyle('A2')->applyFromArray([
             'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => '004D40']],
@@ -119,13 +148,16 @@ class ReporteFacturasExcelService
         if ($totalRegistrosEnBd > count($facturas)) {
             $infoAuditoria .= " | [Mostrando " . number_format(count($facturas)) . " de " . number_format($totalRegistrosEnBd) . " registros]";
         }
+        if ($totalDuplicadas > 0) {
+            $infoAuditoria .= " | ⚠ ALERTA FISCAL: {$totalDuplicadas} facturas duplicadas detectadas en la selección";
+        }
 
-        $sheet->mergeCells('A3:P3');
+        $sheet->mergeCells('A3:Q3');
         $sheet->setCellValue('A3', $infoAuditoria);
         $sheet->getStyle('A3')->applyFromArray([
-            'font' => ['italic' => true, 'size' => 9, 'color' => ['rgb' => '546E7A']],
+            'font' => ['italic' => true, 'size' => 9, 'color' => ['rgb' => ($totalDuplicadas > 0 ? 'C62828' : '546E7A')]],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F5F7F8']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => ($totalDuplicadas > 0 ? 'FFEBEE' : 'F5F7F8')]],
         ]);
         $sheet->getRowDimension(3)->setRowHeight(20);
 
@@ -139,6 +171,7 @@ class ReporteFacturasExcelService
             ['cols' => 'L', 'colFin' => 'M', 'titulo' => 'TASAS NO IVA', 'valor' => 'Bs ' . number_format($totalTasasValidas, 2), 'color' => '0277BD', 'bg' => 'E1F5FE'],
             ['cols' => 'N', 'colFin' => 'O', 'titulo' => 'BASE DÉBITO FISCAL', 'valor' => 'Bs ' . number_format($totalBaseDebitoValidas, 2), 'color' => '2E7D32', 'bg' => 'E8F5E9'],
             ['cols' => 'P', 'colFin' => 'P', 'titulo' => 'IVA DF (13%)', 'valor' => 'Bs ' . number_format($totalDebitoValidas, 2), 'color' => '4527A0', 'bg' => 'EDE7F6'],
+            ['cols' => 'Q', 'colFin' => 'Q', 'titulo' => '⚠ DUPLICADAS', 'valor' => $totalDuplicadas, 'color' => ($totalDuplicadas > 0 ? 'C62828' : '2E7D32'), 'bg' => ($totalDuplicadas > 0 ? 'FFEBEE' : 'E8F5E9')],
         ];
 
         foreach ($kpiCols as $kpi) {
@@ -192,13 +225,14 @@ class ReporteFacturasExcelService
             'N' => 'DÉBITO FISCAL 13%',
             'O' => 'DESCUENTO (BS)',
             'P' => 'CÓDIGO AUTORIZACIÓN (CUF)',
+            'Q' => 'ALERTA / OBSERVACIÓN FISCAL',
         ];
 
         foreach ($headers as $col => $text) {
             $sheet->setCellValue("{$col}8", $text);
         }
 
-        $sheet->getStyle('A8:P8')->applyFromArray([
+        $sheet->getStyle('A8:Q8')->applyFromArray([
             'font' => ['bold' => true, 'size' => 9.5, 'color' => ['rgb' => 'FFFFFF']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '00695C']],
@@ -214,6 +248,7 @@ class ReporteFacturasExcelService
 
         foreach ($facturas as $index => $f) {
             $esAnulada = in_array(strtoupper((string) $f->estado_factura), ['ANULADA', 'CANCELLED'], true);
+            $esDup = (bool) ($f->es_duplicada ?? false);
             $tipoEmisionStr = ((int) $f->tipo_emision === 2) ? 'Contingencia' : 'En Línea';
             $codigoAbonado = $f->abonado ? (string) $f->abonado->codigo : '';
             $fechaFmt = $f->fecha_emision ? Carbon::parse($f->fecha_emision)->format('d/m/Y H:i') : '-';
@@ -223,6 +258,8 @@ class ReporteFacturasExcelService
             $descuento = $esAnulada ? 0.00 : (float) $f->monto_descuento;
             $tasas = $esAnulada ? 0.00 : (($f->tasa_aseo !== null && (float) $f->tasa_aseo > 0) ? (float) $f->tasa_aseo : max(0.00, round($totalVenta - $baseFiscal - $descuento, 2)));
             $debitoFiscal = round($baseFiscal * 0.13, 2);
+
+            $alertaTexto = $esDup ? "⚠ DUPLICADA (REV. N° {$f->numero_factura})" : ($esAnulada ? 'ANULADA' : 'CONFORME');
 
             $sheet->setCellValue("A{$row}", $index + 1);
             $sheet->setCellValue("B{$row}", $f->numero_factura);
@@ -240,12 +277,13 @@ class ReporteFacturasExcelService
             $sheet->setCellValue("N{$row}", $debitoFiscal);
             $sheet->setCellValue("O{$row}", $descuento);
             $sheet->setCellValueExplicit("P{$row}", (string) $f->cuf, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("Q{$row}", $alertaTexto, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 
-            $bgRow = ($row % 2 === 0) ? 'F9FBFC' : 'FFFFFF';
-            $sheet->getStyle("A{$row}:P{$row}")->applyFromArray([
+            $bgRow = $esDup ? 'FFF0F0' : (($row % 2 === 0) ? 'F9FBFC' : 'FFFFFF');
+            $sheet->getStyle("A{$row}:Q{$row}")->applyFromArray([
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgRow]],
                 'borders' => [
-                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E0E0E0']],
+                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => ($esDup ? 'EF9A9A' : 'E0E0E0')]],
                 ],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
             ]);
@@ -255,13 +293,21 @@ class ReporteFacturasExcelService
             $sheet->getStyle("I{$row}:J{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("K{$row}:O{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
             $sheet->getStyle("P{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            $sheet->getStyle("Q{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
             $sheet->getStyle("K{$row}:O{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
 
-            if ($esAnulada) {
-                $sheet->getStyle("A{$row}:P{$row}")->getFont()->getColor()->setRGB('9E9E9E');
+            if ($esDup) {
+                $sheet->getStyle("B{$row}")->getFont()->getColor()->setRGB('C62828');
+                $sheet->getStyle("B{$row}")->getFont()->setBold(true);
+                $sheet->getStyle("Q{$row}")->getFont()->getColor()->setRGB('C62828');
+                $sheet->getStyle("Q{$row}")->getFont()->setBold(true);
+            } elseif ($esAnulada) {
+                $sheet->getStyle("A{$row}:Q{$row}")->getFont()->getColor()->setRGB('9E9E9E');
                 $sheet->getStyle("I{$row}")->getFont()->getColor()->setRGB('C62828');
                 $sheet->getStyle("I{$row}")->getFont()->setBold(true);
+            } else {
+                $sheet->getStyle("Q{$row}")->getFont()->getColor()->setRGB('2E7D32');
             }
 
             $sheet->getRowDimension($row)->setRowHeight(20);
@@ -280,15 +326,19 @@ class ReporteFacturasExcelService
             $sheet->setCellValue("M{$row}", "=SUM(M{$startDataRow}:M{$lastDataRow})");
             $sheet->setCellValue("N{$row}", "=SUM(N{$startDataRow}:N{$lastDataRow})");
             $sheet->setCellValue("O{$row}", "=SUM(O{$startDataRow}:O{$lastDataRow})");
+            $sheet->setCellValue("P{$row}", '');
+            $sheet->setCellValue("Q{$row}", '');
         } else {
             $sheet->setCellValue("K{$row}", 0.00);
             $sheet->setCellValue("L{$row}", 0.00);
             $sheet->setCellValue("M{$row}", 0.00);
             $sheet->setCellValue("N{$row}", 0.00);
             $sheet->setCellValue("O{$row}", 0.00);
+            $sheet->setCellValue("P{$row}", '');
+            $sheet->setCellValue("Q{$row}", '');
         }
 
-        $sheet->getStyle("A{$row}:P{$row}")->applyFromArray([
+        $sheet->getStyle("A{$row}:Q{$row}")->applyFromArray([
             'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => '004D40']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E0F2F1']],
             'borders' => [
@@ -305,7 +355,7 @@ class ReporteFacturasExcelService
 
         $sheet->freezePane('A9');
 
-        $columnasAuto = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'];
+        $columnasAuto = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'];
         foreach ($columnasAuto as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
@@ -373,6 +423,18 @@ class ReporteFacturasExcelService
             'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => '424242']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
+
+        if (!empty($resumen['cantidad_duplicadas']) && (int) $resumen['cantidad_duplicadas'] > 0) {
+            $sheetConstancia->mergeCells('B4:G4');
+            $sheetConstancia->setCellValue('B4', "⚠ ALERTA FISCAL: {$resumen['cantidad_duplicadas']} facturas duplicadas (" . ($resumen['total_numeros_duplicados'] ?? '') . " números repetidos) detectadas en este período fiscal.");
+            $sheetConstancia->getStyle('B4')->applyFromArray([
+                'font' => ['bold' => true, 'size' => 8.5, 'color' => ['rgb' => 'C62828']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFEBEE']],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'EF9A9A']]],
+            ]);
+            $sheetConstancia->getRowDimension(4)->setRowHeight(20);
+        }
 
         // Tabla de Metadatos Institucionales (B5:G10)
         $metaData = [
@@ -577,8 +639,28 @@ class ReporteFacturasExcelService
 
         $facturas = $query->reorder('numero_factura', 'asc')->limit($limite)->get();
 
+        $gestion = !empty($consolidacionRcv['gestion']) ? (int) $consolidacionRcv['gestion'] : (int) date('Y');
+        $dupsNumerosRcv = DB::table('facturacion.facturas')
+            ->where('estado_factura', 'VALIDADA')
+            ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestion])
+            ->groupBy('numero_factura')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('numero_factura')
+            ->flip()
+            ->all();
+
+        $dupsCufRcv = DB::table('facturacion.facturas')
+            ->whereNotNull('cuf')
+            ->whereRaw("cuf NOT LIKE 'SFV%'")
+            ->whereRaw('LENGTH(cuf) >= 42')
+            ->groupBy('cuf')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('cuf')
+            ->flip()
+            ->all();
+
         // Cabecera Libro de Ventas
-        $sheetLibro->mergeCells('A1:V1');
+        $sheetLibro->mergeCells('A1:W1');
         $sheetLibro->setCellValue('A1', "LIBRO DE VENTAS IVA - {$consolidacionRcv['razon_social']} (NIT: {$consolidacionRcv['nit']})");
         $sheetLibro->getStyle('A1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']],
@@ -587,7 +669,7 @@ class ReporteFacturasExcelService
         ]);
         $sheetLibro->getRowDimension(1)->setRowHeight(28);
 
-        $sheetLibro->mergeCells('A2:V2');
+        $sheetLibro->mergeCells('A2:W2');
         $sheetLibro->setCellValue('A2', "PERÍODO: {$consolidacionRcv['periodo']} / {$consolidacionRcv['gestion']} | Registros: " . count($facturas) . " facturas computadas");
         $sheetLibro->getStyle('A2')->applyFromArray([
             'font' => ['size' => 9.5, 'color' => ['rgb' => '004D40'], 'bold' => true],
@@ -596,7 +678,7 @@ class ReporteFacturasExcelService
         ]);
         $sheetLibro->getRowDimension(2)->setRowHeight(20);
 
-        // Encabezados oficiales de las 22 columnas
+        // Encabezados oficiales de las 22 columnas + Columna W de alerta fiscal
         $headersRnd = [
             'A' => 'N°',
             'B' => 'ESPECIFICACIÓN',
@@ -620,13 +702,14 @@ class ReporteFacturasExcelService
             'T' => 'BASE PARA DÉBITO FISCAL',
             'U' => 'DÉBITO FISCAL (13%)',
             'V' => 'ESTADO',
+            'W' => 'ALERTA FISCAL',
         ];
 
         foreach ($headersRnd as $col => $text) {
             $sheetLibro->setCellValue("{$col}4", $text);
         }
 
-        $sheetLibro->getStyle('A4:V4')->applyFromArray([
+        $sheetLibro->getStyle('A4:W4')->applyFromArray([
             'font' => ['bold' => true, 'size' => 8.5, 'color' => ['rgb' => 'FFFFFF']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '00695C']],
@@ -639,6 +722,9 @@ class ReporteFacturasExcelService
 
         foreach ($facturas as $idx => $f) {
             $esAnulada = in_array(strtoupper((string) $f->estado_factura), ['ANULADA', 'CANCELLED'], true);
+            $esDup = ($f->estado_factura === 'VALIDADA' && isset($dupsNumerosRcv[$f->numero_factura]))
+                || (!empty($f->cuf) && isset($dupsCufRcv[$f->cuf]));
+
             $totalVenta = $esAnulada ? 0.00 : (float) $f->monto_total;
             $baseFiscal = $esAnulada ? 0.00 : (float) $f->monto_total_sujeto_iva;
             $descuento = $esAnulada ? 0.00 : (float) $f->monto_descuento;
@@ -648,6 +734,7 @@ class ReporteFacturasExcelService
 
             $estadoSin = $esAnulada ? 'A' : (((int) $f->tipo_emision === 2) ? 'E' : 'V');
             $fechaFmt = $f->fecha_emision ? Carbon::parse($f->fecha_emision)->format('d/m/Y') : '-';
+            $alertaFiscal = $esDup ? '⚠ DUPLICADA' : 'CONFORME';
 
             $sheetLibro->setCellValue("A{$rowL}", $idx + 1);
             $sheetLibro->setCellValue("B{$rowL}", 1);
@@ -671,11 +758,12 @@ class ReporteFacturasExcelService
             $sheetLibro->setCellValue("T{$rowL}", $baseFiscal);
             $sheetLibro->setCellValue("U{$rowL}", $debitoFiscal);
             $sheetLibro->setCellValue("V{$rowL}", $estadoSin);
+            $sheetLibro->setCellValueExplicit("W{$rowL}", $alertaFiscal, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 
-            $bgRow = ($rowL % 2 === 0) ? 'F9FBFC' : 'FFFFFF';
-            $sheetLibro->getStyle("A{$rowL}:V{$rowL}")->applyFromArray([
+            $bgRow = $esDup ? 'FFF0F0' : (($rowL % 2 === 0) ? 'F9FBFC' : 'FFFFFF');
+            $sheetLibro->getStyle("A{$rowL}:W{$rowL}")->applyFromArray([
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgRow]],
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E0E0E0']]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => ($esDup ? 'EF9A9A' : 'E0E0E0')]]],
                 'font' => ['size' => 8.5],
             ]);
 
@@ -684,14 +772,21 @@ class ReporteFacturasExcelService
             $sheetLibro->getStyle("F{$rowL}:G{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheetLibro->getStyle("H{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
             $sheetLibro->getStyle("I{$rowL}:U{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheetLibro->getStyle("V{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheetLibro->getStyle("V{$rowL}:W{$rowL}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
             $sheetLibro->getStyle("I{$rowL}:U{$rowL}")->getNumberFormat()->setFormatCode('#,##0.00');
 
-            if ($esAnulada) {
-                $sheetLibro->getStyle("A{$rowL}:V{$rowL}")->getFont()->getColor()->setRGB('9E9E9E');
+            if ($esDup) {
+                $sheetLibro->getStyle("D{$rowL}")->getFont()->getColor()->setRGB('C62828');
+                $sheetLibro->getStyle("D{$rowL}")->getFont()->setBold(true);
+                $sheetLibro->getStyle("W{$rowL}")->getFont()->getColor()->setRGB('C62828');
+                $sheetLibro->getStyle("W{$rowL}")->getFont()->setBold(true);
+            } elseif ($esAnulada) {
+                $sheetLibro->getStyle("A{$rowL}:W{$rowL}")->getFont()->getColor()->setRGB('9E9E9E');
                 $sheetLibro->getStyle("V{$rowL}")->getFont()->getColor()->setRGB('C62828');
                 $sheetLibro->getStyle("V{$rowL}")->getFont()->setBold(true);
+            } else {
+                $sheetLibro->getStyle("W{$rowL}")->getFont()->getColor()->setRGB('2E7D32');
             }
 
             $sheetLibro->getRowDimension($rowL)->setRowHeight(18);
@@ -719,9 +814,10 @@ class ReporteFacturasExcelService
             $sheetLibro->setCellValue("T{$rowL}", "=SUM(T{$startDataRowL}:T{$lastRowL})");
             $sheetLibro->setCellValue("U{$rowL}", "=SUM(U{$startDataRowL}:U{$lastRowL})");
             $sheetLibro->setCellValue("V{$rowL}", '');
+            $sheetLibro->setCellValue("W{$rowL}", '');
         }
 
-        $sheetLibro->getStyle("A{$rowL}:V{$rowL}")->applyFromArray([
+        $sheetLibro->getStyle("A{$rowL}:W{$rowL}")->applyFromArray([
             'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => '004D40']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E0F2F1']],
             'borders' => [
@@ -735,7 +831,7 @@ class ReporteFacturasExcelService
 
         $sheetLibro->freezePane('A5');
 
-        foreach (range('A', 'V') as $c) {
+        foreach (range('A', 'W') as $c) {
             $sheetLibro->getColumnDimension($c)->setAutoSize(true);
         }
 

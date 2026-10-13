@@ -175,6 +175,12 @@
         </tr>
     </table>
 
+    @if(!empty($resumen['cantidad_duplicadas']) && (int) $resumen['cantidad_duplicadas'] > 0)
+        <div style="background-color: #ffebee; border: 1px solid #ef5350; border-left: 4px solid #c62828; padding: 6px 10px; margin-bottom: 12px; border-radius: 3px; font-size: 8.5px; color: #b71c1c;">
+            <strong>⚠ ADVERTENCIA FISCAL - FACTURAS DUPLICADAS:</strong> Se detectaron <strong>{{ $resumen['cantidad_duplicadas'] }} registros de facturas duplicadas</strong> ({{ $resumen['total_numeros_duplicados'] ?? '' }} números de factura repetidos) en este período fiscal. Se requiere auditoría manual para la anulación de los comprobantes sobrantes y evitar inconsistencias en el Formulario 200 / RCV del SIN.
+        </div>
+    @endif
+
     <div class="section-header">INFORMACIÓN DE CONSOLIDACIÓN</div>
 
     <!-- TABLA DE VENTAS Y COMPRAS CONSOLIDADAS -->

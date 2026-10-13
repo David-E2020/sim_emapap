@@ -97,14 +97,28 @@ class FacturaController extends Controller
         }
 
         if (!empty($estado) && $estado === 'DUPLICADAS') {
-            $query->whereIn('cuf', function ($sub) {
-                $sub->select('cuf')
-                    ->from('facturacion.facturas')
-                    ->whereNotNull('cuf')
-                    ->whereRaw("cuf NOT LIKE 'SFV%'")
-                    ->whereRaw('LENGTH(cuf) >= 42')
-                    ->groupBy('cuf')
-                    ->havingRaw('COUNT(*) > 1');
+            $gestionActual = (int) ($request->input('gestion') ?: date('Y'));
+            $query->where(function ($q) use ($gestionActual) {
+                $q->whereIn('cuf', function ($sub) {
+                    $sub->select('cuf')
+                        ->from('facturacion.facturas')
+                        ->whereNotNull('cuf')
+                        ->whereRaw("cuf NOT LIKE 'SFV%'")
+                        ->whereRaw('LENGTH(cuf) >= 42')
+                        ->groupBy('cuf')
+                        ->havingRaw('COUNT(*) > 1');
+                })->orWhere(function ($subQ) use ($gestionActual) {
+                    $subQ->where('estado_factura', 'VALIDADA')
+                        ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
+                        ->whereIn('numero_factura', function ($sub2) use ($gestionActual) {
+                            $sub2->select('numero_factura')
+                                ->from('facturacion.facturas')
+                                ->where('estado_factura', 'VALIDADA')
+                                ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
+                                ->groupBy('numero_factura')
+                                ->havingRaw('COUNT(*) > 1');
+                        });
+                });
             });
         } elseif (!empty($estado) && $estado !== 'TODOS') {
             $query->where('estado_factura', $estado);
@@ -169,9 +183,11 @@ class FacturaController extends Controller
             'total_debito_fiscal' => round($totalBase * 0.13, 2),
         ];
 
-        // Auditoría preventiva de duplicidad en CUFs (con caché de 5 minutos para alto rendimiento)
-        $auditoriaCuf = Cache::remember('siat_auditoria_cufs_duplicados', 300, function () {
-            $dups = DB::table('facturacion.facturas')
+        // Auditoría preventiva integral de duplicidad (por CUFs y por N° de facturas repetidas en estado VALIDADA)
+        $auditoriaCuf = Cache::remember('siat_auditoria_duplicados_general', 60, function () {
+            $gestionActual = (int) date('Y');
+
+            $dupsCuf = DB::table('facturacion.facturas')
                 ->select('cuf', DB::raw('COUNT(*) as cantidad'))
                 ->whereNotNull('cuf')
                 ->whereRaw("cuf NOT LIKE 'SFV%'")
@@ -180,23 +196,65 @@ class FacturaController extends Controller
                 ->havingRaw('COUNT(*) > 1')
                 ->get();
 
+            $dupsNumeros = DB::table('facturacion.facturas')
+                ->select('numero_factura', DB::raw('COUNT(*) as cantidad'))
+                ->where('estado_factura', 'VALIDADA')
+                ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
+                ->groupBy('numero_factura')
+                ->havingRaw('COUNT(*) > 1')
+                ->get();
+
+            $totalDuplicadas = $dupsCuf->count() + $dupsNumeros->count();
+
             return [
-                'total_cufs_duplicados' => $dups->count(),
-                'ejemplos' => $dups->take(5)->values()->all(),
-                'integro' => $dups->isEmpty(),
+                'total_cufs_duplicados' => $dupsCuf->count(),
+                'cufs_duplicados' => $dupsCuf->count(),
+                'total_numeros_duplicados' => $dupsNumeros->count(),
+                'numeros_duplicados' => $dupsNumeros->count(),
+                'total_duplicadas' => $totalDuplicadas,
+                'ejemplos_numeros' => $dupsNumeros->pluck('numero_factura')->take(10)->all(),
+                'ejemplos' => $dupsCuf->take(5)->values()->all(),
+                'integro' => $totalDuplicadas === 0,
             ];
         });
 
-        // Detectar si en la página actual algún CUF se repite en el lote visible
+        // Detectar si en la página actual o lote el N° de factura se repite como VALIDADA en la misma gestión
         $items = $paginator->items();
+        $numsEnPagina = [];
         $cufsEnPagina = [];
         foreach ($items as $item) {
             if (!empty($item->cuf) && !str_starts_with((string) $item->cuf, 'SFV')) {
                 $cufsEnPagina[$item->cuf] = ($cufsEnPagina[$item->cuf] ?? 0) + 1;
             }
+            if ($item->estado_factura === 'VALIDADA' && !empty($item->numero_factura)) {
+                $anio = date('Y', strtotime((string) $item->fecha_emision));
+                $key = "{$anio}_{$item->numero_factura}";
+                $numsEnPagina[$key] = ($numsEnPagina[$key] ?? 0) + 1;
+            }
         }
+
+        $gestionActual = (int) date('Y');
+        $numerosDupsGlobal = Cache::remember('siat_nums_dups_global_' . $gestionActual, 60, function () use ($gestionActual) {
+            return DB::table('facturacion.facturas')
+                ->where('estado_factura', 'VALIDADA')
+                ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
+                ->groupBy('numero_factura')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('numero_factura')
+                ->flip()
+                ->all();
+        });
+
         foreach ($items as $item) {
-            $item->es_cuf_duplicado = (!empty($item->cuf) && ($cufsEnPagina[$item->cuf] ?? 0) > 1);
+            $anio = date('Y', strtotime((string) $item->fecha_emision));
+            $key = "{$anio}_{$item->numero_factura}";
+            $esCufDup = (!empty($item->cuf) && ($cufsEnPagina[$item->cuf] ?? 0) > 1);
+            $esNumDup = ($item->estado_factura === 'VALIDADA' && (
+                ($numsEnPagina[$key] ?? 0) > 1 || 
+                ($anio == $gestionActual && isset($numerosDupsGlobal[$item->numero_factura]))
+            ));
+            $item->es_cuf_duplicado = $esCufDup;
+            $item->es_duplicada = ($esCufDup || $esNumDup);
         }
 
         return response()->json([
@@ -291,7 +349,27 @@ class FacturaController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        return response()->stream(function () use ($queryCsv) {
+        $gestionActual = (int) date('Y');
+        $dupsNumeros = DB::table('facturacion.facturas')
+            ->where('estado_factura', 'VALIDADA')
+            ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
+            ->groupBy('numero_factura')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('numero_factura')
+            ->flip()
+            ->all();
+
+        $dupsCuf = DB::table('facturacion.facturas')
+            ->whereNotNull('cuf')
+            ->whereRaw("cuf NOT LIKE 'SFV%'")
+            ->whereRaw('LENGTH(cuf) >= 42')
+            ->groupBy('cuf')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('cuf')
+            ->flip()
+            ->all();
+
+        return response()->stream(function () use ($queryCsv, $dupsNumeros, $dupsCuf) {
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
 
@@ -310,11 +388,14 @@ class FacturaController extends Controller
                 'METODO PAGO',
                 'CUF',
                 'USUARIO EMISION',
+                'ALERTA FISCAL',
             ], ';', '"', "\\");
 
             foreach ($queryCsv->cursor() as $f) {
                 $codigoAbonado = $f->abonado ? $f->abonado->codigo : '';
                 $tipoEmisionStr = ((int) $f->tipo_emision === 2) ? 'CONTINGENCIA' : 'EN LINEA';
+                $esDup = ($f->estado_factura === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]))
+                    || (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
 
                 fputcsv($handle, [
                     $f->numero_factura,
@@ -331,6 +412,7 @@ class FacturaController extends Controller
                     $f->codigo_metodo_pago ?? 1,
                     $f->cuf,
                     $f->usuario_emision ?? '',
+                    $esDup ? '⚠ DUPLICADA' : 'CONFORME',
                 ], ';', '"', "\\");
             }
 
@@ -362,9 +444,30 @@ class FacturaController extends Controller
             $empresa = null;
         }
 
+        $gestionActual = (int) date('Y');
+        $dupsNumeros = DB::table('facturacion.facturas')
+            ->where('estado_factura', 'VALIDADA')
+            ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
+            ->groupBy('numero_factura')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('numero_factura')
+            ->flip()
+            ->all();
+
+        $dupsCuf = DB::table('facturacion.facturas')
+            ->whereNotNull('cuf')
+            ->whereRaw("cuf NOT LIKE 'SFV%'")
+            ->whereRaw('LENGTH(cuf) >= 42')
+            ->groupBy('cuf')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('cuf')
+            ->flip()
+            ->all();
+
         $totalValidadas = 0;
         $totalAnuladas = 0;
         $totalContingencia = 0;
+        $totalDuplicadas = 0;
         $montoTotalValidadas = 0.0;
         $totalTasasValidas = 0.0;
         $totalBaseDebitoValidas = 0.0;
@@ -372,6 +475,13 @@ class FacturaController extends Controller
 
         foreach ($facturas as $f) {
             $st = strtoupper((string) $f->estado_factura);
+            $esDup = ($st === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]))
+                || (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
+            $f->es_duplicada = $esDup;
+            if ($esDup) {
+                $totalDuplicadas++;
+            }
+
             if ($st === 'ANULADA' || $st === 'CANCELLED') {
                 $totalAnuladas++;
             } else {
@@ -410,6 +520,7 @@ class FacturaController extends Controller
             'totalValidadas' => $totalValidadas,
             'totalAnuladas' => $totalAnuladas,
             'totalContingencia' => $totalContingencia,
+            'totalDuplicadas' => $totalDuplicadas,
             'montoTotalValidadas' => $montoTotalValidadas,
             'totalTasasValidas' => $totalTasasValidas,
             'totalBaseDebitoValidas' => $totalBaseDebitoValidas,

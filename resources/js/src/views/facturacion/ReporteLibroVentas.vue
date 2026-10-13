@@ -182,6 +182,55 @@
       </v-row>
     </v-card>
 
+    <!-- ALERTA FISCAL DE FACTURAS DUPLICADAS -->
+    <v-alert
+      v-if="resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0"
+      type="error"
+      prominent
+      border="left"
+      class="mb-4 erp-card-elevated"
+      elevation="2"
+    >
+      <v-row align="center">
+        <v-col class="grow">
+          <div class="text-subtitle-1 font-weight-black d-flex align-center">
+            <v-icon left color="white">mdi-alert-octagon</v-icon>
+            ALERTA FISCAL: {{ resumen.cantidad_duplicadas }} FACTURA(S) DUPLICADA(S) DETECTADA(S) ({{ resumen.total_numeros_duplicados }} NÚMEROS DE FACTURA REPETIDOS)
+          </div>
+          <div class="text-body-2 mt-1">
+            Se encontraron facturas validadas con el mismo correlativo en la gestión fiscal.
+            <span v-if="resumen.ejemplos_duplicados && resumen.ejemplos_duplicados.length > 0">
+              (Ejemplos: {{ resumen.ejemplos_duplicados.map(function(n) { return '#' + n; }).join(', ') }})
+            </span>
+            <br>
+            <strong>Criterio Contable:</strong> El operador debe revisar ambas emisiones y anular manualmente la duplicada con <em>Motivo 4: FACTURA DUPLICADA</em> para conciliar legalmente ante el SIN.
+          </div>
+        </v-col>
+        <v-col class="shrink d-flex gap-2">
+          <v-btn
+            color="white"
+            light
+            class="font-weight-black error--text"
+            small
+            @click="filtrarSoloDuplicadas"
+          >
+            <v-icon left small>mdi-filter-alert</v-icon>
+            {{ filtros.estado === 'DUPLICADAS' ? 'Mostrando Duplicadas' : 'Ver Duplicadas' }}
+          </v-btn>
+          <v-btn
+            v-if="filtros.estado === 'DUPLICADAS'"
+            outlined
+            color="white"
+            class="font-weight-bold"
+            small
+            @click="limpiarFiltroDuplicadas"
+          >
+            Ver Todas
+          </v-btn>
+        </v-col>
+      </v-row>
+    </v-alert>
+
     <!-- TARJETAS DE RESUMEN FISCAL (KPIS ESTANDARIZADOS) -->
     <v-row class="mb-4" dense>
       <!-- TOTAL FACTURADO -->
@@ -265,6 +314,14 @@
               </span>
               <v-chip x-small color="error" text-color="white" class="font-weight-bold">
                 {{ resumen.cantidad_anuladas || 0 }}
+              </v-chip>
+            </div>
+            <div class="d-flex align-center justify-space-between mt-1 pt-1" style="border-top: 1px dashed #ef9a9a;" v-if="resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0">
+              <span class="text-caption font-weight-bold error--text">
+                <v-icon x-small color="error">mdi-alert-octagon</v-icon> Duplicadas:
+              </span>
+              <v-chip x-small color="error" text-color="white" class="font-weight-black" @click="filtrarSoloDuplicadas" style="cursor: pointer;">
+                {{ resumen.cantidad_duplicadas }}
               </v-chip>
             </div>
           </div>
@@ -453,6 +510,18 @@
           <v-chip small color="warning darken-1" text-color="white" class="font-weight-bold" v-if="resumen.cantidad_contingencias > 0">
             {{ resumen.cantidad_contingencias }} en Contingencia
           </v-chip>
+          <v-chip
+            small
+            color="error"
+            text-color="white"
+            class="font-weight-bold"
+            v-if="resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0"
+            @click="filtrarSoloDuplicadas"
+            style="cursor: pointer;"
+          >
+            <v-icon left small>mdi-alert</v-icon>
+            {{ resumen.cantidad_duplicadas }} Duplicadas
+          </v-chip>
         </div>
       </v-card-title>
       <v-divider></v-divider>
@@ -462,12 +531,30 @@
         :items="facturas"
         :loading="cargando"
         :items-per-page="25"
+        :item-class="getItemRowClass"
         class="erp-table"
         dense
         no-data-text="No se encontraron facturas emitidas en el periodo seleccionado"
       >
         <template v-slot:item.numero_factura="{ item }">
-          <span class="font-weight-bold primary--text">#{{ item.numero_factura }}</span>
+          <div class="d-flex align-center">
+            <span class="font-weight-bold" :class="item.es_duplicada ? 'error--text font-weight-black' : 'primary--text'">#{{ item.numero_factura }}</span>
+            <v-tooltip bottom v-if="item.es_duplicada">
+              <template v-slot:activator="{ on, attrs }">
+                <v-chip
+                  x-small
+                  color="error"
+                  text-color="white"
+                  class="ml-1 font-weight-black elevation-1"
+                  v-bind="attrs"
+                  v-on="on"
+                >
+                  <v-icon left x-small>mdi-alert</v-icon> DUPLICADA
+                </v-chip>
+              </template>
+              <span>Factura repetida con el mismo número correlativo o CUF en la gestión. Requiere verificación contable.</span>
+            </v-tooltip>
+          </div>
         </template>
 
         <template v-slot:item.fecha_emision="{ item }">
@@ -532,15 +619,26 @@
         </template>
 
         <template v-slot:item.estado_factura="{ item }">
-          <v-chip
-            x-small
-            :color="colorEstado(item.estado_factura)"
-            text-color="white"
-            class="font-weight-bold"
-          >
-            <v-icon left x-small>{{ iconoEstado(item.estado_factura) }}</v-icon>
-            {{ labelEstado(item.estado_factura) }}
-          </v-chip>
+          <div class="d-flex flex-column align-center gap-1">
+            <v-chip
+              x-small
+              :color="colorEstado(item.estado_factura)"
+              text-color="white"
+              class="font-weight-bold"
+            >
+              <v-icon left x-small>{{ iconoEstado(item.estado_factura) }}</v-icon>
+              {{ labelEstado(item.estado_factura) }}
+            </v-chip>
+            <v-chip
+              v-if="item.es_duplicada"
+              x-small
+              color="red darken-3"
+              text-color="white"
+              class="font-weight-black"
+            >
+              ⚠ OBSERVADA
+            </v-chip>
+          </div>
         </template>
 
         <template v-slot:item.acciones="{ item }">
@@ -1479,6 +1577,7 @@ export default {
       },
       estadosList: [
         { text: 'Todos los estados fiscales', value: null },
+        { text: '⚠ DUPLICADAS (Alerta Fiscal)', value: 'DUPLICADAS' },
         { text: 'Válidas en Línea (V)', value: 'VALIDADA' },
         { text: 'Contingencia / Fuera de Línea (E)', value: 'CONTINGENCIA' },
         { text: 'Anuladas (A)', value: 'ANULADA' },
@@ -1495,6 +1594,9 @@ export default {
         cantidad_contingencias: 0,
         cantidad_anuladas: 0,
         cantidad_rechazadas: 0,
+        cantidad_duplicadas: 0,
+        total_numeros_duplicados: 0,
+        ejemplos_duplicados: [],
         total_facturado: 0,
         total_tasas: 0,
         total_descuento: 0,
@@ -1999,6 +2101,20 @@ export default {
       navigator.clipboard.writeText(txt);
       this.mostrarNotificacion('CUF copiado al portapapeles', 'info');
     },
+
+    filtrarSoloDuplicadas() {
+      this.filtros.estado = 'DUPLICADAS';
+      this.consultarReporte();
+    },
+
+    limpiarFiltroDuplicadas() {
+      this.filtros.estado = null;
+      this.consultarReporte();
+    },
+
+    getItemRowClass(item) {
+      return item && item.es_duplicada ? 'fila-factura-duplicada' : '';
+    },
   },
 };
 </script>
@@ -2034,5 +2150,11 @@ export default {
 .dialog-conciliador {
   border-radius: 12px;
   overflow: hidden;
+}
+.fila-factura-duplicada {
+  background-color: #fff0f0 !important;
+}
+.fila-factura-duplicada:hover {
+  background-color: #ffebee !important;
 }
 </style>

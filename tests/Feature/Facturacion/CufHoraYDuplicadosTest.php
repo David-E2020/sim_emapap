@@ -101,6 +101,86 @@ class CufHoraYDuplicadosTest extends BaseTestCase
     }
 
     /**
+     * Prueba que el endpoint de Libro de Ventas retorne auditoría de duplicados y marque filas duplicadas.
+     */
+    public function test_api_libro_ventas_retorna_auditoria_duplicados_y_filas_marcadas(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->getJson('/api/facturacion/reportes/libro-ventas?gestion=2026&periodo=9');
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'data',
+            'resumen' => [
+                'cantidad_duplicadas',
+                'total_numeros_duplicados',
+                'ejemplos_duplicados',
+            ],
+            'auditoria_duplicados' => [
+                'cantidad_duplicadas',
+                'total_numeros_duplicados',
+                'ejemplos_duplicados',
+            ],
+        ]);
+
+        $this->assertIsInt($response->json('auditoria_duplicados.cantidad_duplicadas'));
+    }
+
+    /**
+     * Prueba que el filtro estado=DUPLICADAS en Libro de Ventas devuelva solo registros duplicados.
+     */
+    public function test_filtro_duplicadas_en_libro_ventas(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->getJson('/api/facturacion/reportes/libro-ventas?gestion=2026&periodo=9&estado=DUPLICADAS');
+
+        $response->assertStatus(200);
+        $data = $response->json('data');
+        $this->assertIsArray($data);
+
+        foreach ($data as $item) {
+            $this->assertTrue($item['es_duplicada'], 'Todos los elementos devueltos con filtro DUPLICADAS deben tener es_duplicada = true');
+        }
+    }
+
+    /**
+     * Prueba que las 6 modalidades de exportación con alertas de duplicados generen HTTP 200.
+     */
+    public function test_exportaciones_con_alertas_duplicados_responden_200(): void
+    {
+        // 1. Libro de Ventas RCV Excel
+        $respRcvExcel = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->get('/api/facturacion/reportes/libro-ventas/exportar-excel?gestion=2026&periodo=9');
+        $respRcvExcel->assertStatus(200);
+
+        // 2. Libro de Ventas RCV CSV
+        $respRcvCsv = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->get('/api/facturacion/reportes/libro-ventas/exportar-csv?gestion=2026&periodo=9');
+        $respRcvCsv->assertStatus(200);
+
+        // 3. Libro de Ventas RCV PDF
+        $respRcvPdf = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->get('/api/facturacion/reportes/libro-ventas/exportar-pdf?gestion=2026&periodo=9');
+        $respRcvPdf->assertStatus(200);
+
+        // 4. Bandeja Facturas Excel
+        $respFacExcel = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->get('/api/facturacion/facturas/exportar-excel?gestion=2026&formato=excel');
+        $respFacExcel->assertStatus(200);
+
+        // 5. Bandeja Facturas CSV
+        $respFacCsv = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->get('/api/facturacion/facturas/exportar-excel?gestion=2026&formato=csv');
+        $respFacCsv->assertStatus(200);
+
+        // 6. Bandeja Facturas PDF
+        $respFacPdf = $this->withHeader('Authorization', 'Bearer '.$this->token)
+            ->get('/api/facturacion/facturas/exportar-pdf?gestion=2026');
+        $respFacPdf->assertStatus(200);
+    }
+
+    /**
      * Prueba que las facturas actualizadas en base de datos ya no tengan hora 00:00:00 para SIAT.
      */
     public function test_facturas_siat_tienen_hora_real_en_base_de_datos(): void
@@ -116,3 +196,4 @@ class CufHoraYDuplicadosTest extends BaseTestCase
         }
     }
 }
+

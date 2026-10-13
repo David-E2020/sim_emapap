@@ -58,7 +58,33 @@ class ReporteFacturacionController extends Controller
         }
 
         if (!empty($estado)) {
-            if ($estado === 'CONTINGENCIA') {
+            if ($estado === 'DUPLICADAS') {
+                $gestion = $request->filled('gestion') ? (int) $request->input('gestion') : Carbon::parse($fechaDesde)->year;
+                $dupsNumeros = DB::table('facturacion.facturas')
+                    ->where('estado_factura', 'VALIDADA')
+                    ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestion])
+                    ->groupBy('numero_factura')
+                    ->havingRaw('COUNT(*) > 1')
+                    ->pluck('numero_factura')
+                    ->all();
+
+                $dupsCuf = DB::table('facturacion.facturas')
+                    ->whereNotNull('cuf')
+                    ->whereRaw("cuf NOT LIKE 'SFV%'")
+                    ->whereRaw('LENGTH(cuf) >= 42')
+                    ->groupBy('cuf')
+                    ->havingRaw('COUNT(*) > 1')
+                    ->pluck('cuf')
+                    ->all();
+
+                $query->where(function ($q) use ($dupsNumeros, $dupsCuf) {
+                    $q->whereIn('cuf', $dupsCuf)
+                      ->orWhere(function ($sub) use ($dupsNumeros) {
+                          $sub->whereIn('numero_factura', $dupsNumeros)
+                              ->where('estado_factura', 'VALIDADA');
+                      });
+                });
+            } elseif ($estado === 'CONTINGENCIA') {
                 $query->where(function ($q) {
                     $q->whereIn('estado_factura', ['CONTINGENCIA', 'OFFLINE_PENDIENTE', 'OFFLINE_REGULARIZADA'])
                       ->orWhere('tipo_emision', 2);
@@ -121,12 +147,42 @@ class ReporteFacturacionController extends Controller
         $periodo = $request->filled('mes') ? (int) $request->input('mes') : Carbon::parse($fechaDesde)->month;
         $gestion = $request->filled('gestion') ? (int) $request->input('gestion') : Carbon::parse($fechaDesde)->year;
 
+        $dupsNumeros = DB::table('facturacion.facturas')
+            ->where('estado_factura', 'VALIDADA')
+            ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestion])
+            ->groupBy('numero_factura')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('numero_factura')
+            ->all();
+
+        $dupsCuf = DB::table('facturacion.facturas')
+            ->whereNotNull('cuf')
+            ->whereRaw("cuf NOT LIKE 'SFV%'")
+            ->whereRaw('LENGTH(cuf) >= 42')
+            ->groupBy('cuf')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('cuf')
+            ->all();
+
+        $dupsQuery = (clone $query)->where(function ($q) use ($dupsNumeros, $dupsCuf) {
+            $q->whereIn('cuf', $dupsCuf)
+              ->orWhere(function ($sub) use ($dupsNumeros) {
+                  $sub->whereIn('numero_factura', $dupsNumeros)
+                      ->where('estado_factura', 'VALIDADA');
+              });
+        });
+        $cantidadDuplicadas = (clone $dupsQuery)->count();
+        $ejemplosDuplicados = (clone $dupsQuery)->distinct()->pluck('numero_factura')->take(10)->all();
+
         $resumen = [
             'total_registros' => $totalRegistros,
             'cantidad_validas' => $cantidadValidas,
             'cantidad_contingencias' => $cantidadContingencias,
             'cantidad_anuladas' => $cantidadAnuladas,
             'cantidad_rechazadas' => $cantidadRechazadas,
+            'cantidad_duplicadas' => $cantidadDuplicadas,
+            'total_numeros_duplicados' => count($dupsNumeros),
+            'ejemplos_duplicados' => $ejemplosDuplicados,
             'total_facturado' => round($totalFacturado, 2),
             'total_tasas' => round($totalTasas, 2),
             'total_descuento' => round($totalDescuento, 2),
@@ -226,6 +282,32 @@ class ReporteFacturacionController extends Controller
             ->limit($limite)
             ->get();
 
+        $gestion = $request->filled('gestion') ? (int) $request->input('gestion') : Carbon::parse($fechaDesde)->year;
+        $dupsNumeros = DB::table('facturacion.facturas')
+            ->where('estado_factura', 'VALIDADA')
+            ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestion])
+            ->groupBy('numero_factura')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('numero_factura')
+            ->flip()
+            ->all();
+
+        $dupsCuf = DB::table('facturacion.facturas')
+            ->whereNotNull('cuf')
+            ->whereRaw("cuf NOT LIKE 'SFV%'")
+            ->whereRaw('LENGTH(cuf) >= 42')
+            ->groupBy('cuf')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('cuf')
+            ->flip()
+            ->all();
+
+        foreach ($facturas as $f) {
+            $esNumDup = ($f->estado_factura === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]));
+            $esCufDup = (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
+            $f->es_duplicada = ($esNumDup || $esCufDup);
+        }
+
         return response()->json([
             'success' => true,
             'periodo' => [
@@ -234,6 +316,11 @@ class ReporteFacturacionController extends Controller
             ],
             'resumen' => $resumen,
             'consolidacion_rcv' => $consolidacionRcv,
+            'auditoria_duplicados' => [
+                'cantidad_duplicadas' => $resumen['cantidad_duplicadas'] ?? 0,
+                'total_numeros_duplicados' => $resumen['total_numeros_duplicados'] ?? 0,
+                'ejemplos_duplicados' => $resumen['ejemplos_duplicados'] ?? [],
+            ],
             'data' => $facturas,
         ], Response::HTTP_OK);
     }
@@ -255,7 +342,27 @@ class ReporteFacturacionController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        return response()->stream(function () use ($query) {
+        $gestion = $request->filled('gestion') ? (int) $request->input('gestion') : Carbon::parse($fechaDesde)->year;
+        $dupsNumeros = DB::table('facturacion.facturas')
+            ->where('estado_factura', 'VALIDADA')
+            ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestion])
+            ->groupBy('numero_factura')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('numero_factura')
+            ->flip()
+            ->all();
+
+        $dupsCuf = DB::table('facturacion.facturas')
+            ->whereNotNull('cuf')
+            ->whereRaw("cuf NOT LIKE 'SFV%'")
+            ->whereRaw('LENGTH(cuf) >= 42')
+            ->groupBy('cuf')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('cuf')
+            ->flip()
+            ->all();
+
+        return response()->stream(function () use ($query, $dupsNumeros, $dupsCuf) {
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
 
@@ -283,6 +390,7 @@ class ReporteFacturacionController extends Controller
                 'DEBITO FISCAL (13%)',
                 'ESTADO',
                 'CODIGO DE CONTROL',
+                'ALERTA FISCAL',
             ], ';');
 
             $correlativo = 1;
@@ -304,6 +412,9 @@ class ReporteFacturacionController extends Controller
                 } else {
                     $estado = 'V';
                 }
+
+                $esDup = ($f->estado_factura === 'VALIDADA' && isset($dupsNumeros[$f->numero_factura]))
+                    || (!empty($f->cuf) && isset($dupsCuf[$f->cuf]));
 
                 fputcsv($handle, [
                     $correlativo++,
@@ -329,6 +440,7 @@ class ReporteFacturacionController extends Controller
                     number_format($debitoFiscal, 2, '.', ''),
                     $estado,
                     '0',
+                    $esDup ? '⚠ DUPLICADA' : 'CONFORME',
                 ], ';');
             }
 
