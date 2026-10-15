@@ -23,9 +23,23 @@ class DocumentoComercialPdfService
         $lectura->load(['abonado.zona', 'abonado.calle', 'abonado.categoria', 'abonado.medidorActual', 'periodo']);
 
         $historico = LecturaMensual::with('periodo')
-            ->where('id_abonado', $lectura->id_abonado)
-            ->where('id', '<=', $lectura->id)
-            ->orderByDesc('id')
+            ->leftJoin('comercial.periodos_facturacion', 'comercial.lecturas_mensuales.id_periodo', '=', 'comercial.periodos_facturacion.id')
+            ->where('comercial.lecturas_mensuales.id_abonado', $lectura->id_abonado)
+            ->where(function ($q) use ($lectura) {
+                if ($lectura->periodo && $lectura->periodo->gestion) {
+                    $q->where('comercial.periodos_facturacion.gestion', '<', $lectura->periodo->gestion)
+                        ->orWhere(function ($sub) use ($lectura) {
+                            $sub->where('comercial.periodos_facturacion.gestion', '=', $lectura->periodo->gestion)
+                                ->where('comercial.periodos_facturacion.mes', '<=', $lectura->periodo->mes);
+                        });
+                } else {
+                    $q->where('comercial.lecturas_mensuales.id', '<=', $lectura->id);
+                }
+            })
+            ->orderByDesc('comercial.periodos_facturacion.gestion')
+            ->orderByDesc('comercial.periodos_facturacion.mes')
+            ->orderByDesc('comercial.lecturas_mensuales.id')
+            ->select('comercial.lecturas_mensuales.*')
             ->limit(6)
             ->get();
 
@@ -73,9 +87,23 @@ class DocumentoComercialPdfService
         $items = [];
         foreach ($lecturas as $lec) {
             $historico = LecturaMensual::with('periodo')
-                ->where('id_abonado', $lec->id_abonado)
-                ->where('id', '<=', $lec->id)
-                ->orderByDesc('id')
+                ->leftJoin('comercial.periodos_facturacion', 'comercial.lecturas_mensuales.id_periodo', '=', 'comercial.periodos_facturacion.id')
+                ->where('comercial.lecturas_mensuales.id_abonado', $lec->id_abonado)
+                ->where(function ($q) use ($lec) {
+                    if ($lec->periodo && $lec->periodo->gestion) {
+                        $q->where('comercial.periodos_facturacion.gestion', '<', $lec->periodo->gestion)
+                            ->orWhere(function ($sub) use ($lec) {
+                                $sub->where('comercial.periodos_facturacion.gestion', '=', $lec->periodo->gestion)
+                                    ->where('comercial.periodos_facturacion.mes', '<=', $lec->periodo->mes);
+                            });
+                    } else {
+                        $q->where('comercial.lecturas_mensuales.id', '<=', $lec->id);
+                    }
+                })
+                ->orderByDesc('comercial.periodos_facturacion.gestion')
+                ->orderByDesc('comercial.periodos_facturacion.mes')
+                ->orderByDesc('comercial.lecturas_mensuales.id')
+                ->select('comercial.lecturas_mensuales.*')
                 ->limit(6)
                 ->get();
 
@@ -105,14 +133,26 @@ class DocumentoComercialPdfService
     /**
      * Genera el PDF del Extracto Histórico de Cuenta de un Abonado (basado en extracto.frx de FoxPro).
      */
-    public function generarExtractoHistoricoPdf(Abonado $abonado): string
+    public function generarExtractoHistoricoPdf(Abonado $abonado, string $orden = 'desc'): string
     {
         $abonado->load(['zona', 'calle', 'categoria', 'medidorActual']);
 
-        $lecturas = LecturaMensual::with(['periodo', 'facturaSiat'])
-            ->where('id_abonado', $abonado->id)
-            ->orderByDesc('id')
-            ->get();
+        $lecturasQuery = LecturaMensual::with(['periodo', 'facturaSiat'])
+            ->leftJoin('comercial.periodos_facturacion', 'comercial.lecturas_mensuales.id_periodo', '=', 'comercial.periodos_facturacion.id')
+            ->where('comercial.lecturas_mensuales.id_abonado', $abonado->id)
+            ->select('comercial.lecturas_mensuales.*');
+
+        if (strtolower($orden) === 'asc') {
+            $lecturasQuery->orderBy('comercial.periodos_facturacion.gestion', 'asc')
+                ->orderBy('comercial.periodos_facturacion.mes', 'asc')
+                ->orderBy('comercial.lecturas_mensuales.id', 'asc');
+        } else {
+            $lecturasQuery->orderByDesc('comercial.periodos_facturacion.gestion')
+                ->orderByDesc('comercial.periodos_facturacion.mes')
+                ->orderByDesc('comercial.lecturas_mensuales.id');
+        }
+
+        $lecturas = $lecturasQuery->get();
 
         $convenios = $abonado->convenios()
             ->with('cuotas')

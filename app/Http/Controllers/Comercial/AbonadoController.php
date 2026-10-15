@@ -117,7 +117,14 @@ class AbonadoController extends Controller
             'calle',
             'categoria',
             'medidorActual',
-            'lecturas' => fn($q) => $q->with(['periodo', 'facturaSiat'])->orderByDesc('id')->limit(48),
+            'lecturas' => function ($q) {
+                $q->with(['periodo', 'facturaSiat'])
+                    ->leftJoin('comercial.periodos_facturacion', 'comercial.lecturas_mensuales.id_periodo', '=', 'comercial.periodos_facturacion.id')
+                    ->orderByDesc('comercial.periodos_facturacion.gestion')
+                    ->orderByDesc('comercial.periodos_facturacion.mes')
+                    ->orderByDesc('comercial.lecturas_mensuales.id')
+                    ->select('comercial.lecturas_mensuales.*');
+            },
             'convenios' => fn($q) => $q->with('cuotas')->orderByDesc('id'),
             'ordenesTrabajo' => fn($q) => $q->orderByDesc('id')->limit(10),
         ])->findOrFail($id);
@@ -400,10 +407,12 @@ class AbonadoController extends Controller
      */
     public function descargarExtractoPdf(
         int $id,
+        Request $request,
         \App\Services\Comercial\DocumentoComercialPdfService $pdfService
     ): \Illuminate\Http\Response {
         $abonado = Abonado::findOrFail($id);
-        $pdf = $pdfService->generarExtractoHistoricoPdf($abonado);
+        $orden = (string) $request->input('orden', 'desc');
+        $pdf = $pdfService->generarExtractoHistoricoPdf($abonado, $orden);
 
         return response($pdf, Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',

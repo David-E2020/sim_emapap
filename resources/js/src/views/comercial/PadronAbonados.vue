@@ -683,13 +683,32 @@
           <v-divider class="my-3"></v-divider>
 
           <v-tabs v-model="tabFicha" color="primary" dense>
-            <v-tab><v-icon small left>mdi-counter</v-icon> Historial Lecturas</v-tab>
+            <v-tab><v-icon small left>mdi-counter</v-icon> Historial Lecturas ({{ (abonadoSeleccionado.lecturas || []).length }})</v-tab>
             <v-tab><v-icon small left>mdi-handshake-outline</v-icon> Convenios</v-tab>
             <v-tab><v-icon small left>mdi-pipe-wrench</v-icon> Aportes e Instalaciones ({{ aportesAbonado.length }})</v-tab>
           </v-tabs>
 
           <v-tabs-items v-model="tabFicha" class="pt-3">
             <v-tab-item>
+              <!-- BARRA DE ACCIÓN Y ORDEN DEL HISTORIAL -->
+              <div class="d-flex align-center justify-space-between mb-2 px-1">
+                <span class="text-caption font-weight-medium text-secondary">
+                  Total Registros: {{ lecturasFicha.length }} período(s)
+                </span>
+                <v-btn
+                  x-small
+                  outlined
+                  color="primary"
+                  class="rounded-pill text-capitalize font-weight-bold"
+                  @click="ordenLecturasFicha = (ordenLecturasFicha === 'desc' ? 'asc' : 'desc')"
+                >
+                  <v-icon x-small left>
+                    {{ ordenLecturasFicha === 'desc' ? 'mdi-sort-clock-descending-outline' : 'mdi-sort-clock-ascending-outline' }}
+                  </v-icon>
+                  {{ ordenLecturasFicha === 'desc' ? 'Más recientes primero (Descendente)' : 'Más antiguos primero (Ascendente)' }}
+                </v-btn>
+              </div>
+
               <div style="max-height: 420px; overflow-y: auto;">
                 <v-simple-table dense>
                   <template v-slot:default>
@@ -706,7 +725,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="lec in abonadoSeleccionado.lecturas" :key="lec.id">
+                      <tr v-for="lec in lecturasFicha" :key="lec.id">
                         <td><strong>{{ lec.periodo ? lec.periodo.periodo : '-' }}</strong></td>
                         <td class="text-right">{{ lec.lectura_anterior }}</td>
                         <td class="text-right">{{ lec.lectura_actual }}</td>
@@ -995,6 +1014,7 @@ export default {
       formatoVisor: 'rollo',
       itemAporteActual: null,
       facturaSiatIdActual: null,
+      ordenLecturasFicha: 'desc',
       cargando: false,
       guardando: false,
       tipoBusqueda: 'todos',
@@ -1092,6 +1112,16 @@ export default {
     };
   },
   computed: {
+    lecturasFicha() {
+      if (!this.abonadoSeleccionado || !this.abonadoSeleccionado.lecturas) {
+        return [];
+      }
+      const lista = [...this.abonadoSeleccionado.lecturas];
+      if (this.ordenLecturasFicha === 'asc') {
+        return lista.reverse();
+      }
+      return lista;
+    },
     etiquetaBusqueda() {
       switch (this.tipoBusqueda) {
         case 'codigo_abonado': return 'Buscar por Código de Abonado';
@@ -1379,7 +1409,8 @@ export default {
       this.esFacturaVisor = false;
       this.itemAporteActual = null;
       this.facturaSiatIdActual = null;
-      this.urlVisorPdf = `/api/comercial/abonados/${item.id}/extracto/pdf`;
+      const orden = this.ordenLecturasFicha || 'desc';
+      this.urlVisorPdf = `/api/comercial/abonados/${item.id}/extracto/pdf?orden=${orden}&_t=${Date.now()}`;
       this.tituloVisorPdf = `Extracto de Cuenta - Abonado #${item.codigo}`;
       this.subtituloVisorPdf = `${item.nombre_completo || ''} | NIT/CI: ${item.numero_documento || 'S/N'}`;
       this.mostrarVisorPdf = true;
