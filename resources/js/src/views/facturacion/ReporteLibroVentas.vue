@@ -99,6 +99,7 @@
       <v-divider class="mb-3"></v-divider>
 
       <v-row dense align="center">
+        <!-- Fila 1: Fechas, Sucursal y Punto de Venta -->
         <v-col cols="12" sm="6" md="2">
           <v-text-field
             v-model="filtros.fecha_desde"
@@ -125,7 +126,42 @@
           ></v-text-field>
         </v-col>
 
-        <v-col cols="12" sm="6" md="3">
+        <v-col cols="12" sm="6" md="4">
+          <v-select
+            v-model="filtros.id_sucursal"
+            :items="opcionesSucursales"
+            item-text="texto"
+            item-value="id"
+            label="Sucursal"
+            outlined
+            dense
+            hide-details
+            clearable
+            prepend-inner-icon="mdi-storefront-outline"
+            @change="alCambiarSucursal"
+          ></v-select>
+        </v-col>
+
+        <v-col cols="12" sm="6" md="4">
+          <v-select
+            v-model="filtros.id_punto_venta"
+            :items="opcionesPuntosVenta"
+            item-text="texto"
+            item-value="id"
+            label="Punto de Venta / Caja"
+            outlined
+            dense
+            hide-details
+            clearable
+            prepend-inner-icon="mdi-cash-register"
+            @change="consultarReporte"
+          ></v-select>
+        </v-col>
+      </v-row>
+
+      <v-row dense align="center" class="mt-2">
+        <!-- Fila 2: Estados, Tipo de Emisión y Acciones -->
+        <v-col cols="12" sm="6" md="4">
           <v-select
             v-model="filtros.estado"
             :items="estadosList"
@@ -139,7 +175,7 @@
           ></v-select>
         </v-col>
 
-        <v-col cols="12" sm="6" md="3">
+        <v-col cols="12" sm="6" md="4">
           <v-select
             v-model="filtros.tipo_emision"
             :items="tiposEmisionList"
@@ -153,11 +189,11 @@
           ></v-select>
         </v-col>
 
-        <v-col cols="12" sm="12" md="2" class="d-flex justify-end gap-2">
+        <v-col cols="12" sm="12" md="4" class="d-flex justify-end gap-2">
           <v-btn
             color="primary"
             dark
-            class="rounded-pill w-100 font-weight-bold"
+            class="rounded-pill px-5 font-weight-bold"
             :loading="cargando"
             @click="consultarReporte"
           >
@@ -180,56 +216,48 @@
           </v-tooltip>
         </v-col>
       </v-row>
-    </v-card>
 
-    <!-- ALERTA FISCAL DE FACTURAS DUPLICADAS -->
-    <v-alert
-      v-if="resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0"
-      type="error"
-      prominent
-      border="left"
-      class="mb-4 erp-card-elevated"
-      elevation="2"
-    >
-      <v-row align="center">
-        <v-col class="grow">
-          <div class="text-subtitle-1 font-weight-black d-flex align-center">
-            <v-icon left color="white">mdi-alert-octagon</v-icon>
-            ALERTA FISCAL: {{ resumen.cantidad_duplicadas }} FACTURA(S) DUPLICADA(S) DETECTADA(S) ({{ resumen.total_numeros_duplicados }} NÚMEROS DE FACTURA REPETIDOS)
-          </div>
-          <div class="text-body-2 mt-1">
-            Se encontraron facturas validadas con el mismo correlativo en la gestión fiscal.
-            <span v-if="resumen.ejemplos_duplicados && resumen.ejemplos_duplicados.length > 0">
-              (Ejemplos: {{ resumen.ejemplos_duplicados.map(function(n) { return '#' + n; }).join(', ') }})
-            </span>
-            <br>
-            <strong>Criterio Contable:</strong> El operador debe revisar ambas emisiones y anular manualmente la duplicada con <em>Motivo 4: FACTURA DUPLICADA</em> para conciliar legalmente ante el SIN.
-          </div>
-        </v-col>
-        <v-col class="shrink d-flex gap-2">
-          <v-btn
-            color="white"
-            light
-            class="font-weight-black error--text"
+      <!-- INDICADOR / ALERTA SUTIL DE INTEGRIDAD FISCAL (NO INVASIVA, IDÉNTICA A BANDEJA) -->
+      <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-2" style="border-top: 1px dashed #e0e0e0;">
+        <div class="d-flex align-center flex-wrap gap-2">
+          <v-chip
+            v-if="!(resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0)"
             small
+            color="green lighten-5"
+            class="font-weight-medium text-caption green--text text--darken-3"
+            outlined
+          >
+            <v-icon left x-small color="green darken-2">mdi-shield-check</v-icon>
+            Integridad SIAT: 100% Facturas Únicas (0 facturas duplicadas en el período seleccionado)
+          </v-chip>
+
+          <v-chip
+            v-else
+            small
+            color="red lighten-5"
+            class="font-weight-bold text-caption red--text text--darken-3"
+            outlined
+            style="cursor: pointer;"
             @click="filtrarSoloDuplicadas"
           >
-            <v-icon left small>mdi-filter-alert</v-icon>
-            {{ filtros.estado === 'DUPLICADAS' ? 'Mostrando Duplicadas' : 'Ver Duplicadas' }}
+            <v-icon left x-small color="red darken-2">mdi-alert-octagon</v-icon>
+            Alerta Fiscal: {{ resumen.cantidad_duplicadas }} Factura(s) Duplicada(s) detectada(s)
+            <span v-if="resumen.ejemplos_duplicados && resumen.ejemplos_duplicados.length > 0" class="ml-1">
+              (ej: {{ resumen.ejemplos_duplicados.slice(0, 3).map(function(n) { return 'N° ' + n; }).join(', ') }})
+            </span>
+            — Ver Duplicadas
+          </v-chip>
+        </div>
+
+        <div v-if="filtros.estado === 'DUPLICADAS'" class="text-caption red--text font-weight-bold d-flex align-center mt-1 mt-sm-0">
+          <v-icon x-small color="red" class="mr-1">mdi-filter-variant</v-icon>
+          Mostrando únicamente facturas duplicadas
+          <v-btn x-small text color="primary" class="ml-2 font-weight-bold" @click="limpiarFiltroDuplicadas">
+            Quitar filtro
           </v-btn>
-          <v-btn
-            v-if="filtros.estado === 'DUPLICADAS'"
-            outlined
-            color="white"
-            class="font-weight-bold"
-            small
-            @click="limpiarFiltroDuplicadas"
-          >
-            Ver Todas
-          </v-btn>
-        </v-col>
-      </v-row>
-    </v-alert>
+        </div>
+      </div>
+    </v-card>
 
     <!-- TARJETAS DE RESUMEN FISCAL (KPIS ESTANDARIZADOS) -->
     <v-row class="mb-4" dense>
@@ -1572,9 +1600,12 @@ export default {
       filtros: {
         fecha_desde: primerDiaMes,
         fecha_hasta: hoyStr,
+        id_sucursal: null,
+        id_punto_venta: null,
         estado: null,
         tipo_emision: null,
       },
+      sucursales: [],
       estadosList: [
         { text: 'Todos los estados fiscales', value: null },
         { text: '⚠ DUPLICADAS (Alerta Fiscal)', value: 'DUPLICADAS' },
@@ -1698,7 +1729,47 @@ export default {
       },
     };
   },
+  computed: {
+    opcionesSucursales() {
+      const lista = [{ id: null, texto: 'Todas las Sucursales' }];
+      (this.sucursales || []).forEach(s => {
+        lista.push({
+          id: s.id,
+          texto: `Suc. ${s.codigo_sucursal} - ${s.nombre}`,
+          codigo: s.codigo_sucursal,
+        });
+      });
+      return lista;
+    },
+    opcionesPuntosVenta() {
+      const lista = [{ id: null, texto: 'Todos los Puntos de Venta / Cajas' }];
+      if (this.filtros.id_sucursal) {
+        const suc = (this.sucursales || []).find(s => s.id === this.filtros.id_sucursal);
+        if (suc && suc.puntos_venta) {
+          suc.puntos_venta.forEach(pv => {
+            lista.push({
+              id: pv.id,
+              texto: `PV ${pv.codigo_punto_venta}: ${pv.nombre}`,
+            });
+          });
+        }
+      } else {
+        (this.sucursales || []).forEach(s => {
+          if (s.puntos_venta) {
+            s.puntos_venta.forEach(pv => {
+              lista.push({
+                id: pv.id,
+                texto: `[Suc. ${s.codigo_sucursal}] PV ${pv.codigo_punto_venta}: ${pv.nombre}`,
+              });
+            });
+          }
+        });
+      }
+      return lista;
+    },
+  },
   mounted() {
+    this.cargarSucursales();
     this.consultarReporte();
   },
   methods: {
@@ -1750,6 +1821,22 @@ export default {
       this.consultarReporte();
     },
 
+    async cargarSucursales() {
+      try {
+        const res = await axios.get('/api/facturacion/siat/sucursales');
+        if (res.data && res.data.success) {
+          this.sucursales = res.data.data;
+        }
+      } catch (e) {
+        console.error('Error al cargar sucursales en libro de ventas:', e);
+      }
+    },
+
+    alCambiarSucursal() {
+      this.filtros.id_punto_venta = null;
+      this.consultarReporte();
+    },
+
     async consultarReporte() {
       this.cargando = true;
       try {
@@ -1775,6 +1862,8 @@ export default {
         const params = {
           fecha_desde: this.filtros.fecha_desde,
           fecha_hasta: this.filtros.fecha_hasta,
+          id_sucursal: this.filtros.id_sucursal,
+          id_punto_venta: this.filtros.id_punto_venta,
           estado: this.filtros.estado,
           tipo_emision: this.filtros.tipo_emision,
         };
@@ -1802,6 +1891,8 @@ export default {
         const params = {
           fecha_desde: this.filtros.fecha_desde,
           fecha_hasta: this.filtros.fecha_hasta,
+          id_sucursal: this.filtros.id_sucursal,
+          id_punto_venta: this.filtros.id_punto_venta,
           estado: this.filtros.estado,
           tipo_emision: this.filtros.tipo_emision,
         };
@@ -1843,6 +1934,8 @@ export default {
         const params = {
           fecha_desde: this.filtros.fecha_desde,
           fecha_hasta: this.filtros.fecha_hasta,
+          id_sucursal: this.filtros.id_sucursal,
+          id_punto_venta: this.filtros.id_punto_venta,
           estado: this.filtros.estado,
           tipo_emision: this.filtros.tipo_emision,
         };
@@ -1869,6 +1962,8 @@ export default {
       this.periodoTipo = 'mes';
       this.filtros.fecha_desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().substr(0, 10);
       this.filtros.fecha_hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().substr(0, 10);
+      this.filtros.id_sucursal = null;
+      this.filtros.id_punto_venta = null;
       this.filtros.estado = null;
       this.filtros.tipo_emision = null;
       this.consultarReporte();

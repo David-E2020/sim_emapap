@@ -183,37 +183,79 @@ class FacturaController extends Controller
             'total_debito_fiscal' => round($totalBase * 0.13, 2),
         ];
 
-        // Auditoría preventiva integral de duplicidad (por CUFs y por N° de facturas repetidas en estado VALIDADA)
-        $auditoriaCuf = Cache::remember('siat_auditoria_duplicados_general', 60, function () {
-            $gestionActual = (int) date('Y');
+        // Auditoría preventiva integral de duplicidad filtrada según los criterios activos (Fechas, Sucursal, Caja/PV)
+        $idSucursal = $request->input('id_sucursal');
+        $idPuntoVenta = $request->input('id_punto_venta');
+        $fechaInicio = $request->input('fecha_inicio');
+        $fechaFin = $request->input('fecha_fin');
+        $gestionActual = (int) ($request->input('gestion') ?: (!empty($fechaInicio) ? date('Y', strtotime($fechaInicio)) : date('Y')));
 
+        $cacheKey = 'siat_auditoria_dup_' . md5(json_encode([$gestionActual, $fechaInicio, $fechaFin, $idSucursal, $idPuntoVenta]));
+        $auditoriaCuf = Cache::remember($cacheKey, 30, function () use ($gestionActual, $fechaInicio, $fechaFin, $idSucursal, $idPuntoVenta) {
             $dupsCuf = DB::table('facturacion.facturas')
-                ->select('cuf', DB::raw('COUNT(*) as cantidad'))
                 ->whereNotNull('cuf')
                 ->whereRaw("cuf NOT LIKE 'SFV%'")
                 ->whereRaw('LENGTH(cuf) >= 42')
                 ->groupBy('cuf')
                 ->havingRaw('COUNT(*) > 1')
-                ->get();
+                ->pluck('cuf')
+                ->all();
 
             $dupsNumeros = DB::table('facturacion.facturas')
-                ->select('numero_factura', DB::raw('COUNT(*) as cantidad'))
                 ->where('estado_factura', 'VALIDADA')
                 ->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual])
                 ->groupBy('numero_factura')
                 ->havingRaw('COUNT(*) > 1')
-                ->get();
+                ->pluck('numero_factura')
+                ->all();
 
-            $totalDuplicadas = $dupsCuf->count() + $dupsNumeros->count();
+            $scopeQuery = DB::table('facturacion.facturas');
+            if (!empty($idSucursal)) {
+                $scopeQuery->where('id_sucursal', $idSucursal);
+            }
+            if (!empty($idPuntoVenta)) {
+                if ($idPuntoVenta === 'sin_pv') {
+                    $scopeQuery->whereNull('id_punto_venta');
+                } else {
+                    $scopeQuery->where('id_punto_venta', $idPuntoVenta);
+                }
+            }
+            if (!empty($fechaInicio) && !empty($fechaFin)) {
+                $scopeQuery->whereBetween('fecha_emision', [
+                    Carbon::parse($fechaInicio)->startOfDay(),
+                    Carbon::parse($fechaFin)->endOfDay(),
+                ]);
+            } elseif (!empty($fechaInicio)) {
+                $scopeQuery->where('fecha_emision', '>=', Carbon::parse($fechaInicio)->startOfDay());
+            } elseif (!empty($fechaFin)) {
+                $scopeQuery->where('fecha_emision', '<=', Carbon::parse($fechaFin)->endOfDay());
+            } else {
+                $scopeQuery->whereRaw('EXTRACT(YEAR FROM fecha_emision) = ?', [$gestionActual]);
+            }
+
+            $dupsEnScope = (clone $scopeQuery)->where(function ($q) use ($dupsNumeros, $dupsCuf) {
+                $q->whereIn('cuf', $dupsCuf)
+                  ->orWhere(function ($sub) use ($dupsNumeros) {
+                      $sub->whereIn('numero_factura', $dupsNumeros)
+                          ->where('estado_factura', 'VALIDADA');
+                  });
+            });
+
+            $numerosEnScope = (clone $dupsEnScope)->where('estado_factura', 'VALIDADA')->distinct()->pluck('numero_factura')->all();
+            $cufsEnScope = (clone $dupsEnScope)->whereNotNull('cuf')->whereIn('cuf', $dupsCuf)->distinct()->pluck('cuf')->all();
+
+            $totalNumerosDuplicados = count($numerosEnScope);
+            $totalCufsDuplicados = count($cufsEnScope);
+            $totalDuplicadas = $totalNumerosDuplicados;
 
             return [
-                'total_cufs_duplicados' => $dupsCuf->count(),
-                'cufs_duplicados' => $dupsCuf->count(),
-                'total_numeros_duplicados' => $dupsNumeros->count(),
-                'numeros_duplicados' => $dupsNumeros->count(),
+                'total_cufs_duplicados' => $totalCufsDuplicados,
+                'cufs_duplicados' => $totalCufsDuplicados,
+                'total_numeros_duplicados' => $totalNumerosDuplicados,
+                'numeros_duplicados' => $totalNumerosDuplicados,
                 'total_duplicadas' => $totalDuplicadas,
-                'ejemplos_numeros' => $dupsNumeros->pluck('numero_factura')->take(10)->all(),
-                'ejemplos' => $dupsCuf->take(5)->values()->all(),
+                'ejemplos_numeros' => array_slice($numerosEnScope, 0, 10),
+                'ejemplos' => array_slice($cufsEnScope, 0, 5),
                 'integro' => $totalDuplicadas === 0,
             ];
         });

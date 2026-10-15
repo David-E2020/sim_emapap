@@ -171,11 +171,16 @@ class ReporteFacturacionController extends Controller
                       ->where('estado_factura', 'VALIDADA');
               });
         });
+        $numerosDuplicadosEnPeriodo = (clone $dupsQuery)
+            ->where('estado_factura', 'VALIDADA')
+            ->distinct()
+            ->pluck('numero_factura')
+            ->all();
+        $totalNumerosDuplicados = count($numerosDuplicadosEnPeriodo);
         $totalRegistrosDuplicados = (clone $dupsQuery)->count();
-        $totalNumerosDuplicados = count($dupsNumeros);
-        // La cantidad fiscal de facturas duplicadas es el excedente de emisiones a anular (15 facturas duplicadas)
-        $cantidadDuplicadas = $totalNumerosDuplicados > 0 ? $totalNumerosDuplicados : 0;
-        $ejemplosDuplicados = (clone $dupsQuery)->distinct()->pluck('numero_factura')->take(10)->all();
+        // La cantidad fiscal de facturas duplicadas es el número de duplicados detectados bajo los filtros activos
+        $cantidadDuplicadas = $totalNumerosDuplicados;
+        $ejemplosDuplicados = array_slice($numerosDuplicadosEnPeriodo, 0, 10);
 
         $resumen = [
             'total_registros' => $totalRegistros,
