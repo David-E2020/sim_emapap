@@ -39,6 +39,8 @@
       border-radius: 6px;
       padding: 10px;
       margin-bottom: 15px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .info-table {
       width: 100%;
@@ -57,11 +59,25 @@
       color: #0f172a;
       width: 32%;
     }
+    table {
+      overflow: visible !important;
+    }
     .data-table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
       margin-bottom: 15px;
+      page-break-inside: auto;
+    }
+    .data-table thead {
+      display: table-header-group !important;
+    }
+    .data-table tfoot {
+      display: table-row-group !important;
+    }
+    .data-table tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .data-table th {
       background-color: #1e293b;
@@ -70,12 +86,16 @@
       font-size: 10px;
       text-align: center;
       border: 1px solid #1e293b;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .data-table td {
       padding: 5px 6px;
       font-size: 10px;
       border: 1px solid #e2e8f0;
       text-align: center;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .data-table tr:nth-child(even) {
       background-color: #f8fafc;
@@ -112,6 +132,8 @@
       margin-top: 10px;
       background-color: #f1f5f9;
       border: 1px solid #94a3b8;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .totales-box td {
       padding: 5px 10px;

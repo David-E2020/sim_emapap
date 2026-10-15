@@ -583,7 +583,7 @@
     </v-dialog>
 
     <!-- DIÁLOGO FICHA ABONADO -->
-    <v-dialog v-model="modalFicha" max-width="850">
+    <v-dialog v-model="modalFicha" max-width="1050" width="96%" scrollable>
       <v-card rounded="lg" v-if="abonadoSeleccionado">
         <v-card-title class="primary white--text py-3 d-flex justify-space-between">
           <div class="d-flex align-center">
@@ -595,7 +595,7 @@
           </v-btn>
         </v-card-title>
 
-        <v-card-text class="pt-4">
+        <v-card-text class="pt-4" style="max-height: calc(85vh - 120px); overflow-y: auto;">
           <v-row dense>
             <v-col cols="12" md="8">
               <h3 class="text-h6 font-weight-bold">{{ abonadoSeleccionado.nombre_completo }}</h3>
@@ -625,16 +625,16 @@
             <v-btn color="amber darken-2" outlined small class="rounded-pill text-capitalize font-weight-bold" @click="abrirModalEditar(abonadoSeleccionado)">
               <v-icon left small>mdi-pencil</v-icon> Editar Datos
             </v-btn>
-            <v-btn color="primary" outlined small class="rounded-pill text-capitalize" @click="descargarExtracto(abonadoSeleccionado)">
+            <v-btn color="primary" outlined small class="rounded-pill text-capitalize font-weight-bold" @click="descargarExtracto(abonadoSeleccionado)">
               <v-icon left small>mdi-file-pdf-box</v-icon> Descargar Extracto Histórico
             </v-btn>
             <v-btn color="cyan darken-3" outlined small class="rounded-pill text-capitalize font-weight-bold" v-if="aportesAbonado && aportesAbonado.length > 0" @click="imprimirContratoAporte(aportesAbonado[0])">
               <v-icon left small>mdi-file-sign</v-icon> Contrato Conexión ({{ aportesAbonado.length }})
             </v-btn>
-            <v-btn color="warning" outlined small class="rounded-pill text-capitalize" @click="abrirCambioMedidor(abonadoSeleccionado)">
+            <v-btn color="warning" outlined small class="rounded-pill text-capitalize font-weight-bold" @click="abrirCambioMedidor(abonadoSeleccionado)">
               <v-icon left small>mdi-counter</v-icon> Cambiar Medidor
             </v-btn>
-            <v-btn color="error" outlined small class="rounded-pill text-capitalize" v-if="abonadoSeleccionado.estado_servicio !== 'BAJA'" @click="abrirDarBaja(abonadoSeleccionado)">
+            <v-btn color="error" outlined small class="rounded-pill text-capitalize font-weight-bold" v-if="abonadoSeleccionado.estado_servicio !== 'BAJA'" @click="abrirDarBaja(abonadoSeleccionado)">
               <v-icon left small>mdi-account-cancel</v-icon> Dar de Baja
             </v-btn>
           </div>
@@ -650,7 +650,7 @@
                 <v-icon left x-small>mdi-account-star</v-icon> {{ abonadoSeleccionado.es_tercera_edad ? '3ra Edad (Ley 1886): SÍ' : '3ra Edad: NO' }}
               </v-chip>
               <v-chip x-small outlined color="primary" class="font-weight-medium">
-                <v-icon left x-small>mdi-calendar-check</v-icon> Ingreso: {{ abonadoSeleccionado.fecha_ingreso || 'S/F' }}
+                <v-icon left x-small>mdi-calendar-check</v-icon> Ingreso: {{ abonadoSeleccionado.fecha_ingreso ? formatearFecha(abonadoSeleccionado.fecha_ingreso) : 'S/F' }}
               </v-chip>
               <v-chip x-small outlined :color="abonadoSeleccionado.medidor_actual && abonadoSeleccionado.medidor_actual.numero_serie === '1' ? 'amber darken-3' : 'teal'" class="font-weight-medium">
                 <v-icon left x-small>mdi-counter</v-icon> Medidor: {{ abonadoSeleccionado.medidor_actual ? (abonadoSeleccionado.medidor_actual.numero_serie === '1' ? '1 (Con Medidor en FoxPro)' : abonadoSeleccionado.medidor_actual.numero_serie) : 'Sin medidor' }}
@@ -689,86 +689,132 @@
           </v-tabs>
 
           <v-tabs-items v-model="tabFicha" class="pt-3">
+            <!-- TAB 1: HISTORIAL DE LECTURAS -->
             <v-tab-item>
               <!-- BARRA DE ACCIÓN Y ORDEN DEL HISTORIAL -->
-              <div class="d-flex align-center justify-space-between mb-2 px-1">
-                <span class="text-caption font-weight-medium text-secondary">
-                  Total Registros: {{ lecturasFicha.length }} período(s)
-                </span>
-                <v-btn
-                  x-small
-                  outlined
-                  color="primary"
-                  class="rounded-pill text-capitalize font-weight-bold"
-                  @click="ordenLecturasFicha = (ordenLecturasFicha === 'desc' ? 'asc' : 'desc')"
-                >
-                  <v-icon x-small left>
-                    {{ ordenLecturasFicha === 'desc' ? 'mdi-sort-clock-descending-outline' : 'mdi-sort-clock-ascending-outline' }}
-                  </v-icon>
-                  {{ ordenLecturasFicha === 'desc' ? 'Más recientes primero (Descendente)' : 'Más antiguos primero (Ascendente)' }}
-                </v-btn>
+              <div class="d-flex align-center justify-space-between mb-2 px-1 flex-wrap gap-2">
+                <div class="d-flex align-center gap-2">
+                  <span class="text-caption font-weight-medium text-secondary">
+                    Total Registros: {{ lecturasFicha.length }} período(s)
+                  </span>
+                  <v-btn
+                    x-small
+                    outlined
+                    color="primary"
+                    class="rounded-pill text-capitalize font-weight-bold"
+                    @click="ordenLecturasFicha = (ordenLecturasFicha === 'desc' ? 'asc' : 'desc')"
+                  >
+                    <v-icon x-small left>
+                      {{ ordenLecturasFicha === 'desc' ? 'mdi-sort-clock-descending-outline' : 'mdi-sort-clock-ascending-outline' }}
+                    </v-icon>
+                    {{ ordenLecturasFicha === 'desc' ? 'Más recientes primero (Descendente)' : 'Más antiguos primero (Ascendente)' }}
+                  </v-btn>
+                </div>
+
+                <div style="max-width: 250px;" class="flex-grow-1 flex-sm-grow-0">
+                  <v-text-field
+                    v-model="buscarLecturaFicha"
+                    dense
+                    outlined
+                    hide-details
+                    small
+                    placeholder="Filtrar periodo, estado..."
+                    prepend-inner-icon="mdi-magnify"
+                    clearable
+                  ></v-text-field>
+                </div>
               </div>
 
-              <div style="max-height: 420px; overflow-y: auto;">
-                <v-simple-table dense>
-                  <template v-slot:default>
-                    <thead>
-                      <tr>
-                        <th>Periodo</th>
-                        <th class="text-right">Anterior</th>
-                        <th class="text-right">Actual</th>
-                        <th class="text-right">Consumo m³</th>
-                        <th class="text-right">Total Bs</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Fecha Pago</th>
-                        <th class="text-center">N° Factura</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="lec in lecturasFicha" :key="lec.id">
-                        <td><strong>{{ lec.periodo ? lec.periodo.periodo : '-' }}</strong></td>
-                        <td class="text-right">{{ lec.lectura_anterior }}</td>
-                        <td class="text-right">{{ lec.lectura_actual }}</td>
-                        <td class="text-right font-weight-bold">{{ lec.consumo_m3 }}</td>
-                        <td class="text-right font-weight-bold">Bs {{ parseFloat(lec.total_facturado).toFixed(2) }}</td>
-                        <td class="text-center">
-                          <v-chip x-small :color="lec.estado_pago === 'PAGADO' ? 'success' : 'warning'" text-color="white">
-                            {{ lec.estado_pago }}
-                          </v-chip>
-                        </td>
-                        <td class="text-center text-caption font-weight-medium">
-                          <span v-if="lec.fecha_pago" class="success--text">
-                            <v-icon x-small color="success">mdi-calendar-check</v-icon> {{ formatearFecha(lec.fecha_pago) }}
-                          </span>
-                          <span v-else class="grey--text">-</span>
-                        </td>
-                        <td class="text-center text-caption">
-                          <template v-if="lec.factura_siat && lec.factura_siat.numero_factura">
-                            <v-btn
-                              x-small
-                              text
-                              color="primary"
-                              class="font-weight-bold"
-                              @click="abrirFacturaDesdeFicha(lec.factura_siat.id, lec.factura_siat.numero_factura)"
-                            >
-                              <v-icon x-small left>mdi-file-document-outline</v-icon> #{{ lec.factura_siat.numero_factura }}
-                            </v-btn>
-                          </template>
-                          <span v-else-if="lec.id_factura" class="font-weight-medium">
-                            #{{ lec.id_factura }}
-                          </span>
-                          <span v-else class="grey--text">-</span>
-                        </td>
-                      </tr>
-                      <tr v-if="!abonadoSeleccionado.lecturas || abonadoSeleccionado.lecturas.length === 0">
-                        <td colspan="8" class="text-center text-secondary py-3">No registra lecturas en el historial</td>
-                      </tr>
-                    </tbody>
+              <!-- DATA TABLE RESPONSIVA CON FIXED HEADER Y PAGINACIÓN NATIVA -->
+              <v-data-table
+                :headers="columnasLecturasFicha"
+                :items="lecturasFicha"
+                :search="buscarLecturaFicha"
+                dense
+                fixed-header
+                height="380px"
+                :items-per-page="12"
+                :footer-props="{
+                  'items-per-page-options': [12, 24, 48, 120, -1],
+                  'items-per-page-text': 'Filas por página',
+                  'items-per-page-all-text': 'Todos'
+                }"
+                class="elevation-0"
+                no-data-text="No registra lecturas en el historial"
+                no-results-text="No se encontraron registros que coincidan con la búsqueda"
+              >
+                <!-- Periodo -->
+                <template v-slot:item.periodo.periodo="{ item }">
+                  <strong>{{ item.periodo ? item.periodo.periodo : '-' }}</strong>
+                </template>
+
+                <!-- F. Lectura -->
+                <template v-slot:item.fecha_lectura="{ item }">
+                  <span class="text-caption">{{ item.fecha_lectura ? formatearFecha(item.fecha_lectura) : '-' }}</span>
+                </template>
+
+                <!-- Lectura Anterior -->
+                <template v-slot:item.lectura_anterior="{ item }">
+                  <span>{{ item.lectura_anterior !== null && item.lectura_anterior !== undefined ? parseFloat(item.lectura_anterior).toFixed(2) : '-' }}</span>
+                </template>
+
+                <!-- Lectura Actual -->
+                <template v-slot:item.lectura_actual="{ item }">
+                  <span>{{ item.lectura_actual !== null && item.lectura_actual !== undefined ? parseFloat(item.lectura_actual).toFixed(2) : '-' }}</span>
+                </template>
+
+                <!-- Consumo m3 -->
+                <template v-slot:item.consumo_m3="{ item }">
+                  <span class="font-weight-bold">{{ item.consumo_m3 !== null && item.consumo_m3 !== undefined ? parseFloat(item.consumo_m3).toFixed(2) : '0.00' }} m³</span>
+                </template>
+
+                <!-- Total Facturado -->
+                <template v-slot:item.total_facturado="{ item }">
+                  <span class="font-weight-bold">Bs {{ parseFloat(item.total_facturado || 0).toFixed(2) }}</span>
+                </template>
+
+                <!-- Estado Pago -->
+                <template v-slot:item.estado_pago="{ item }">
+                  <v-chip
+                    x-small
+                    :color="item.estado_pago === 'PAGADO' ? 'success' : (item.estado_pago === 'EN_CONVENIO' ? 'warning' : 'error')"
+                    text-color="white"
+                    class="font-weight-bold"
+                  >
+                    {{ item.estado_pago }}
+                  </v-chip>
+                </template>
+
+                <!-- Fecha Pago -->
+                <template v-slot:item.fecha_pago="{ item }">
+                  <span v-if="item.fecha_pago" class="success--text text-caption font-weight-medium">
+                    <v-icon x-small color="success">mdi-calendar-check</v-icon> {{ formatearFecha(item.fecha_pago) }}
+                  </span>
+                  <span v-else class="grey--text">-</span>
+                </template>
+
+                <!-- N° Factura -->
+                <template v-slot:item.factura="{ item }">
+                  <template v-if="item.factura_siat && item.factura_siat.numero_factura">
+                    <v-btn
+                      x-small
+                      text
+                      color="primary"
+                      class="font-weight-bold"
+                      @click="abrirFacturaDesdeFicha(item.factura_siat.id, item.factura_siat.numero_factura)"
+                    >
+                      <v-icon x-small left>mdi-file-document-outline</v-icon> #{{ item.factura_siat.numero_factura }}
+                    </v-btn>
                   </template>
-                </v-simple-table>
-              </div>
+                  <span v-else-if="item.id_factura" class="font-weight-medium text-caption">
+                    #{{ item.id_factura }}
+                  </span>
+                  <span v-else class="grey--text">-</span>
+                </template>
+              </v-data-table>
             </v-tab-item>
 
+            <!-- TAB 2: CONVENIOS -->
             <v-tab-item>
               <div v-if="abonadoSeleccionado.convenios && abonadoSeleccionado.convenios.length > 0">
                 <v-card outlined class="mb-2 pa-3" v-for="conv in abonadoSeleccionado.convenios" :key="conv.id">
@@ -781,85 +827,136 @@
                   </div>
                 </v-card>
               </div>
-              <div v-else class="text-center text-secondary py-4">No tiene convenios de pago registrados</div>
+              <div v-else class="text-center text-secondary py-5">
+                <v-icon large color="grey lighten-1">mdi-handshake-outline</v-icon>
+                <div class="mt-2 text-caption">No tiene convenios de pago registrados</div>
+              </div>
             </v-tab-item>
 
             <!-- TAB 3: APORTES E INSTALACIONES (AGUA / ALCANTARILLADO) -->
             <v-tab-item>
-              <div style="max-height: 420px; overflow-y: auto;">
-                <v-simple-table dense>
-                  <template v-slot:default>
-                    <thead>
-                      <tr>
-                        <th>Servicio</th>
-                        <th>Periodo</th>
-                        <th>Fecha Reg.</th>
-                        <th class="text-right">Aporte Bs</th>
-                        <th class="text-right">Instalación Bs</th>
-                        <th class="text-right">Total Bs</th>
-                        <th class="text-center">Plazo</th>
-                        <th class="text-center">Estado Pago</th>
-                        <th class="text-center">N° Factura</th>
-                        <th class="text-center">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="ap in aportesAbonado" :key="ap.id">
-                        <td>
-                          <v-chip x-small :color="ap.tipo_servicio === 'AGUA' ? 'primary' : 'teal'" text-color="white" class="font-weight-bold">
-                            <v-icon x-small left>{{ ap.tipo_servicio === 'AGUA' ? 'mdi-water' : 'mdi-pipe' }}</v-icon>
-                            {{ ap.tipo_servicio === 'AGUA' ? 'Agua Potable' : 'Alcantarillado' }}
-                          </v-chip>
-                        </td>
-                        <td><strong>{{ ap.periodo || '-' }}</strong></td>
-                        <td class="text-caption">{{ ap.fecha ? ap.fecha.slice(0, 10) : '-' }}</td>
-                        <td class="text-right">{{ parseFloat(ap.aporte).toFixed(2) }}</td>
-                        <td class="text-right">{{ parseFloat(ap.instalacion).toFixed(2) }}</td>
-                        <td class="text-right font-weight-bold primary--text">Bs {{ parseFloat(ap.total).toFixed(2) }}</td>
-                        <td class="text-center font-weight-medium">{{ ap.plazo }} mes(es)</td>
-                        <td class="text-center">
-                          <v-chip x-small :color="ap.pagado ? 'success' : 'warning'" text-color="white" class="font-weight-medium">
-                            {{ ap.pagado ? 'PAGADO' : 'PENDIENTE' }}
-                          </v-chip>
-                        </td>
-                        <td class="text-center text-caption font-weight-bold">
-                          <v-chip
-                            v-if="ap.factura"
-                            x-small
-                            outlined
-                            color="primary"
-                            class="font-weight-bold cursor-pointer"
-                            title="Ver Factura / Recibo de Pago"
-                            @click="verFacturaAporte(ap)"
-                          >
-                            <v-icon x-small left color="primary">mdi-receipt-text-outline</v-icon>
-                            #{{ ap.factura }}
-                          </v-chip>
-                          <span v-else class="grey--text">-</span>
-                        </td>
-                        <td class="text-center">
-                          <v-btn
-                            x-small
-                            color="primary"
-                            outlined
-                            class="text-capitalize rounded-pill font-weight-bold"
-                            title="Reimprimir Contrato de Pago Diferido"
-                            @click="imprimirContratoAporte(ap)"
-                          >
-                            <v-icon x-small left>mdi-file-document-outline</v-icon> Contrato PDF
-                          </v-btn>
-                        </td>
-                      </tr>
-                      <tr v-if="!aportesAbonado || aportesAbonado.length === 0">
-                        <td colspan="10" class="text-center text-secondary py-3">No registra contratos de aportes o instalaciones de conexión</td>
-                      </tr>
-                    </tbody>
-                  </template>
-                </v-simple-table>
-              </div>
+              <v-data-table
+                :headers="columnasAportesFicha"
+                :items="aportesAbonado"
+                dense
+                fixed-header
+                height="380px"
+                :items-per-page="10"
+                :footer-props="{
+                  'items-per-page-options': [10, 20, 50, -1],
+                  'items-per-page-text': 'Filas por página',
+                  'items-per-page-all-text': 'Todos'
+                }"
+                class="elevation-0"
+                no-data-text="No registra contratos de aportes o instalaciones de conexión"
+              >
+                <!-- Servicio -->
+                <template v-slot:item.tipo_servicio="{ item }">
+                  <v-chip x-small :color="item.tipo_servicio === 'AGUA' ? 'primary' : 'teal'" text-color="white" class="font-weight-bold">
+                    <v-icon x-small left>{{ item.tipo_servicio === 'AGUA' ? 'mdi-water' : 'mdi-pipe' }}</v-icon>
+                    {{ item.tipo_servicio === 'AGUA' ? 'Agua Potable' : 'Alcantarillado' }}
+                  </v-chip>
+                </template>
+
+                <!-- Periodo -->
+                <template v-slot:item.periodo="{ item }">
+                  <strong>{{ item.periodo || '-' }}</strong>
+                </template>
+
+                <!-- Fecha -->
+                <template v-slot:item.fecha="{ item }">
+                  <span class="text-caption">{{ item.fecha ? formatearFecha(item.fecha) : '-' }}</span>
+                </template>
+
+                <!-- Aporte Bs -->
+                <template v-slot:item.aporte="{ item }">
+                  <span>{{ parseFloat(item.aporte || 0).toFixed(2) }}</span>
+                </template>
+
+                <!-- Instalación Bs -->
+                <template v-slot:item.instalacion="{ item }">
+                  <span>{{ parseFloat(item.instalacion || 0).toFixed(2) }}</span>
+                </template>
+
+                <!-- Total Bs -->
+                <template v-slot:item.total="{ item }">
+                  <span class="font-weight-bold primary--text">Bs {{ parseFloat(item.total || 0).toFixed(2) }}</span>
+                </template>
+
+                <!-- Plazo -->
+                <template v-slot:item.plazo="{ item }">
+                  <span>{{ item.plazo }} mes(es)</span>
+                </template>
+
+                <!-- Estado Pago -->
+                <template v-slot:item.pagado="{ item }">
+                  <v-chip x-small :color="item.pagado ? 'success' : 'warning'" text-color="white" class="font-weight-medium">
+                    {{ item.pagado ? 'PAGADO' : 'PENDIENTE' }}
+                  </v-chip>
+                </template>
+
+                <!-- N° Factura -->
+                <template v-slot:item.factura="{ item }">
+                  <v-chip
+                    v-if="item.factura"
+                    x-small
+                    outlined
+                    color="primary"
+                    class="font-weight-bold cursor-pointer"
+                    title="Ver Factura / Recibo de Pago"
+                    @click="verFacturaAporte(item)"
+                  >
+                    <v-icon x-small left color="primary">mdi-receipt-text-outline</v-icon>
+                    #{{ item.factura }}
+                  </v-chip>
+                  <span v-else class="grey--text">-</span>
+                </template>
+
+                <!-- Acciones -->
+                <template v-slot:item.acciones="{ item }">
+                  <v-btn
+                    x-small
+                    color="primary"
+                    outlined
+                    class="text-capitalize rounded-pill font-weight-bold"
+                    title="Reimprimir Contrato de Pago Diferido"
+                    @click="imprimirContratoAporte(item)"
+                  >
+                    <v-icon x-small left>mdi-file-document-outline</v-icon> Contrato PDF
+                  </v-btn>
+                </template>
+              </v-data-table>
             </v-tab-item>
           </v-tabs-items>
         </v-card-text>
+
+        <!-- PIE FIJO DE LA FICHA -->
+        <v-divider class="ma-0"></v-divider>
+        <v-card-actions class="pa-3 d-flex justify-space-between align-center">
+          <div class="text-caption text-secondary d-none d-sm-flex align-center">
+            <v-icon small left color="primary">mdi-shield-check-outline</v-icon>
+            Ficha homologada y sincronizada con el Padrón Comercial EMAPAP
+          </div>
+          <div class="d-flex align-center gap-2 ml-auto">
+            <v-btn
+              color="primary"
+              outlined
+              small
+              class="rounded-pill text-capitalize font-weight-bold"
+              @click="descargarExtracto(abonadoSeleccionado)"
+            >
+              <v-icon left small>mdi-file-pdf-box</v-icon> Descargar Extracto
+            </v-btn>
+            <v-btn
+              text
+              small
+              class="rounded-pill text-capitalize font-weight-bold"
+              @click="modalFicha = false"
+            >
+              <v-icon left small>mdi-close</v-icon> Cerrar Ficha
+            </v-btn>
+          </div>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -1015,6 +1112,30 @@ export default {
       itemAporteActual: null,
       facturaSiatIdActual: null,
       ordenLecturasFicha: 'desc',
+      buscarLecturaFicha: '',
+      columnasLecturasFicha: [
+        { text: 'Periodo', value: 'periodo.periodo', width: '95px' },
+        { text: 'F. Lectura', value: 'fecha_lectura', align: 'center', width: '95px' },
+        { text: 'Lec. Ant.', value: 'lectura_anterior', align: 'end', width: '85px' },
+        { text: 'Lec. Act.', value: 'lectura_actual', align: 'end', width: '85px' },
+        { text: 'Consumo m³', value: 'consumo_m3', align: 'end', width: '95px' },
+        { text: 'Total Facturado', value: 'total_facturado', align: 'end', width: '105px' },
+        { text: 'Estado', value: 'estado_pago', align: 'center', width: '95px' },
+        { text: 'Fecha Pago', value: 'fecha_pago', align: 'center', width: '105px' },
+        { text: 'N° Factura', value: 'factura', align: 'center', sortable: false, width: '115px' },
+      ],
+      columnasAportesFicha: [
+        { text: 'Servicio', value: 'tipo_servicio', width: '130px' },
+        { text: 'Periodo', value: 'periodo', width: '90px' },
+        { text: 'Fecha Reg.', value: 'fecha', align: 'center', width: '95px' },
+        { text: 'Aporte Bs', value: 'aporte', align: 'end', width: '90px' },
+        { text: 'Instalación Bs', value: 'instalacion', align: 'end', width: '95px' },
+        { text: 'Total Bs', value: 'total', align: 'end', width: '95px' },
+        { text: 'Plazo', value: 'plazo', align: 'center', width: '85px' },
+        { text: 'Estado', value: 'pagado', align: 'center', width: '95px' },
+        { text: 'N° Factura', value: 'factura', align: 'center', width: '100px' },
+        { text: 'Acciones', value: 'acciones', align: 'center', sortable: false, width: '120px' },
+      ],
       cargando: false,
       guardando: false,
       tipoBusqueda: 'todos',
@@ -1511,6 +1632,9 @@ export default {
 </script>
 
 <style scoped>
+.gap-2 {
+  gap: 8px;
+}
 .erp-card-elevated {
   border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.05);
