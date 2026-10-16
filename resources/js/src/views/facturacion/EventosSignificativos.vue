@@ -101,6 +101,7 @@
 
     <!-- TABLA DE EVENTOS SIGNIFICATIVOS -->
     <v-card rounded="lg" class="erp-card-elevated">
+
       <v-data-table
         :headers="headers"
         :items="eventos"

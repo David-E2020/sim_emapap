@@ -78,7 +78,7 @@
       <div class="d-flex align-center justify-space-between flex-wrap mb-3 gap-2">
         <div class="d-flex align-center flex-wrap gap-2">
           <span class="text-caption font-weight-bold text-secondary mr-2">PERÍODO RÁPIDO:</span>
-          <v-btn-toggle v-model="periodoTipo" mandatory dense color="primary" @change="cambiarPeriodoRapido">
+          <v-btn-toggle v-model="periodoTipo" mandatory dense color="primary" class="btn-toggle-wrap" @change="cambiarPeriodoRapido">
             <v-btn small value="hoy" class="text-capitalize">Hoy</v-btn>
             <v-btn small value="semana" class="text-capitalize">Esta Semana</v-btn>
             <v-btn small value="mes" class="text-capitalize">Este Mes</v-btn>
@@ -218,7 +218,7 @@
       </v-row>
 
       <!-- INDICADOR / ALERTA SUTIL DE INTEGRIDAD FISCAL (NO INVASIVA, IDÉNTICA A BANDEJA) -->
-      <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-2" style="border-top: 1px dashed #e0e0e0;">
+      <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-2 dashed-border-top">
         <div class="d-flex align-center flex-wrap gap-2">
           <v-chip
             v-if="!(resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0)"
@@ -262,10 +262,10 @@
     <!-- TARJETAS DE RESUMEN FISCAL (KPIS ESTANDARIZADOS) -->
     <v-row class="mb-4" dense>
       <!-- TOTAL FACTURADO -->
-      <v-col cols="12" sm="6" md="2">
+      <v-col cols="12" sm="6" md="4" lg="2">
         <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #004D40;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Total Facturado</div>
-          <div class="text-h5 font-weight-black primary--text mt-1">
+          <div class="text-subtitle-1 text-sm-h5 font-weight-black primary--text mt-1 text-truncate" :title="'Bs ' + formatoMoneda(resumen.total_facturado)">
             Bs {{ formatoMoneda(resumen.total_facturado) }}
           </div>
           <div class="text-caption text-secondary mt-1">
@@ -275,10 +275,10 @@
       </v-col>
 
       <!-- TASAS NO SUJETAS IVA -->
-      <v-col cols="12" sm="6" md="2">
+      <v-col cols="12" sm="6" md="4" lg="2">
         <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #0288D1;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Tasas No IVA</div>
-          <div class="text-h5 font-weight-black blue--text text--darken-2 mt-1">
+          <div class="text-subtitle-1 text-sm-h5 font-weight-black blue--text text--darken-2 mt-1 text-truncate" :title="'Bs ' + formatoMoneda(resumen.total_tasas || 0)">
             Bs {{ formatoMoneda(resumen.total_tasas || 0) }}
           </div>
           <div class="text-caption text-secondary mt-1">
@@ -288,10 +288,10 @@
       </v-col>
 
       <!-- BASE DÉBITO FISCAL -->
-      <v-col cols="12" sm="6" md="3">
+      <v-col cols="12" sm="6" md="4" lg="3">
         <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #2E7D32;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Base Débito Fiscal</div>
-          <div class="text-h5 font-weight-black success--text mt-1">
+          <div class="text-subtitle-1 text-sm-h5 font-weight-black success--text mt-1 text-truncate" :title="'Bs ' + formatoMoneda(resumen.total_base_debito_fiscal)">
             Bs {{ formatoMoneda(resumen.total_base_debito_fiscal) }}
           </div>
           <div class="text-caption text-success mt-1 font-weight-medium">
@@ -301,10 +301,10 @@
       </v-col>
 
       <!-- DÉBITO FISCAL IVA (13%) -->
-      <v-col cols="12" sm="6" md="2">
+      <v-col cols="12" sm="6" md="6" lg="2">
         <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #5E35B1;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Débito Fiscal (13%)</div>
-          <div class="text-h5 font-weight-black purple--text text--darken-2 mt-1">
+          <div class="text-subtitle-1 text-sm-h5 font-weight-black purple--text text--darken-2 mt-1 text-truncate" :title="'Bs ' + formatoMoneda(resumen.debito_fiscal_iva)">
             Bs {{ formatoMoneda(resumen.debito_fiscal_iva) }}
           </div>
           <div class="text-caption text-secondary mt-1">
@@ -314,44 +314,28 @@
       </v-col>
 
       <!-- RESUMEN DE ESTADOS FISCALES -->
-      <v-col cols="12" sm="12" md="3">
-        <v-card class="pa-3 erp-card-elevated" rounded="lg">
-          <div class="text-caption text-secondary font-weight-bold text-uppercase text-center mb-1">
+      <v-col cols="12" sm="12" md="6" lg="3">
+        <v-card class="pa-3 text-center erp-card-elevated d-flex flex-column justify-center" rounded="lg" style="height: 100%; border-top: 3px solid #16a34a;">
+          <div class="text-caption text-secondary font-weight-bold text-uppercase mb-2">
             Estados Fiscales SIN
           </div>
-          <div class="d-flex flex-column gap-1">
-            <div class="d-flex align-center justify-space-between">
-              <span class="text-caption font-weight-medium success--text">
-                <v-icon x-small color="success">mdi-check-circle</v-icon> Válidas:
-              </span>
-              <v-chip x-small color="success" text-color="white" class="font-weight-bold">
-                {{ resumen.cantidad_validas || 0 }}
-              </v-chip>
-            </div>
-            <div class="d-flex align-center justify-space-between" v-if="resumen.cantidad_contingencias > 0">
-              <span class="text-caption font-weight-medium warning--text text--darken-2">
-                <v-icon x-small color="warning darken-2">mdi-cloud-off-outline</v-icon> Contingencias:
-              </span>
-              <v-chip x-small color="warning darken-1" text-color="white" class="font-weight-bold">
-                {{ resumen.cantidad_contingencias || 0 }}
-              </v-chip>
-            </div>
-            <div class="d-flex align-center justify-space-between">
-              <span class="text-caption font-weight-medium error--text">
-                <v-icon x-small color="error">mdi-cancel</v-icon> Anuladas:
-              </span>
-              <v-chip x-small color="error" text-color="white" class="font-weight-bold">
-                {{ resumen.cantidad_anuladas || 0 }}
-              </v-chip>
-            </div>
-            <div class="d-flex align-center justify-space-between mt-1 pt-1" style="border-top: 1px dashed #ef9a9a;" v-if="resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0">
-              <span class="text-caption font-weight-bold error--text">
-                <v-icon x-small color="error">mdi-alert-octagon</v-icon> Duplicadas:
-              </span>
-              <v-chip x-small color="error" text-color="white" class="font-weight-black" @click="filtrarSoloDuplicadas" style="cursor: pointer;">
-                {{ resumen.cantidad_duplicadas }}
-              </v-chip>
-            </div>
+          <div class="d-flex align-center justify-center flex-wrap gap-2">
+            <v-chip small color="success" class="font-weight-bold white--text px-3" elevation="1">
+              <v-icon left x-small color="white">mdi-check-circle</v-icon>
+              Válidas: {{ Number(resumen.cantidad_validas || 0).toLocaleString() }}
+            </v-chip>
+            <v-chip small color="error" class="font-weight-bold white--text px-3" elevation="1">
+              <v-icon left x-small color="white">mdi-cancel</v-icon>
+              Anuladas: {{ Number(resumen.cantidad_anuladas || 0).toLocaleString() }}
+            </v-chip>
+            <v-chip v-if="resumen.cantidad_contingencias > 0" small color="warning darken-1" class="font-weight-bold white--text px-3" elevation="1">
+              <v-icon left x-small color="white">mdi-cloud-off-outline</v-icon>
+              Contingencias: {{ Number(resumen.cantidad_contingencias || 0).toLocaleString() }}
+            </v-chip>
+            <v-chip v-if="resumen.cantidad_duplicadas && resumen.cantidad_duplicadas > 0" small color="error" class="font-weight-black white--text px-3" elevation="1" @click="filtrarSoloDuplicadas" style="cursor: pointer;">
+              <v-icon left x-small color="white">mdi-alert-octagon</v-icon>
+              Duplicadas: {{ resumen.cantidad_duplicadas }}
+            </v-chip>
           </div>
         </v-card>
       </v-col>
@@ -527,11 +511,21 @@
 
     <!-- TABLA DETALLADA DEL LIBRO DE VENTAS CON TOTALES (TFOOT) -->
     <v-card class="erp-card-elevated" rounded="lg">
-      <v-card-title class="py-3 px-4 d-flex justify-space-between align-center">
+      <v-card-title class="py-3 px-4 d-flex justify-space-between align-center flex-wrap gap-2">
         <div class="font-weight-bold text-subtitle-1">
           <v-icon left color="primary">mdi-table</v-icon> Detalle de Facturas Registradas
         </div>
-        <div class="d-flex align-center gap-2">
+        <div class="d-flex align-center flex-wrap gap-2">
+          <v-chip
+            small
+            :color="mostrarColumnasFiscales ? 'primary' : 'default'"
+            :outlined="!mostrarColumnasFiscales"
+            class="font-weight-medium cursor-pointer"
+            @click="mostrarColumnasFiscales = !mostrarColumnasFiscales"
+          >
+            <v-icon left x-small>{{ mostrarColumnasFiscales ? 'mdi-table-eye' : 'mdi-table-eye-off' }}</v-icon>
+            {{ mostrarColumnasFiscales ? 'Ocultar Desglose (Tasas/Base/DF)' : 'Ver Desglose Completo (Tasas/Base/DF)' }}
+          </v-chip>
           <v-chip small color="primary" outlined class="font-weight-bold">
             {{ facturas.length }} facturas computadas
           </v-chip>
@@ -555,7 +549,7 @@
       <v-divider></v-divider>
 
       <v-data-table
-        :headers="headers"
+        :headers="headersVisibles"
         :items="facturas"
         :loading="cargando"
         :items-per-page="25"
@@ -1646,17 +1640,18 @@ export default {
       headers: [
         { text: 'N° Factura', value: 'numero_factura', align: 'center', width: '90px' },
         { text: 'Fecha y Hora', value: 'fecha_emision', width: '130px' },
-        { text: 'NIT / C.I.', value: 'documento', width: '110px' },
-        { text: 'Abonado / Razón Social', value: 'nombre_razon_social' },
-        { text: 'Modalidad', value: 'tipo_emision', align: 'center', width: '130px' },
-        { text: 'CUF (Autorización)', value: 'cuf', width: '170px' },
-        { text: 'Total Venta', value: 'monto_total', align: 'end', width: '110px' },
-        { text: 'Tasas No IVA', value: 'monto_tasas', align: 'end', width: '110px' },
-        { text: 'Base Sujeta IVA', value: 'monto_total_sujeto_iva', align: 'end', width: '125px' },
-        { text: 'Débito Fiscal (13%)', value: 'debito_fiscal', align: 'end', width: '130px' },
-        { text: 'Estado SIN', value: 'estado_factura', align: 'center', width: '135px' },
+        { text: 'NIT / C.I.', value: 'documento', width: '105px' },
+        { text: 'Abonado / Razón Social', value: 'nombre_razon_social', width: '180px' },
+        { text: 'Modalidad', value: 'tipo_emision', align: 'center', width: '115px' },
+        { text: 'CUF (Autorización)', value: 'cuf', width: '150px' },
+        { text: 'Total Venta', value: 'monto_total', align: 'end', width: '105px' },
+        { text: 'Tasas No IVA', value: 'monto_tasas', align: 'end', width: '105px' },
+        { text: 'Base Sujeta IVA', value: 'monto_total_sujeto_iva', align: 'end', width: '115px' },
+        { text: 'Débito Fiscal (13%)', value: 'debito_fiscal', align: 'end', width: '115px' },
+        { text: 'Estado', value: 'estado_factura', align: 'center', width: '100px' },
         { text: 'Acciones', value: 'acciones', align: 'center', sortable: false, width: '95px' },
       ],
+      mostrarColumnasFiscales: false,
 
       // MODAL DE CONCILIACIÓN
       dialogoConciliador: false,
@@ -1730,6 +1725,12 @@ export default {
     };
   },
   computed: {
+    headersVisibles() {
+      if (this.mostrarColumnasFiscales) {
+        return this.headers;
+      }
+      return this.headers.filter(h => !['monto_tasas', 'monto_total_sujeto_iva', 'debito_fiscal'].includes(h.value));
+    },
     opcionesSucursales() {
       const lista = [{ id: null, texto: 'Todas las Sucursales' }];
       (this.sucursales || []).forEach(s => {

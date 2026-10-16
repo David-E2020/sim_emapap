@@ -142,6 +142,7 @@
 
     <!-- TABLA DE ABONADOS -->
     <v-card rounded="lg" class="erp-card-elevated">
+
       <v-data-table
         :headers="columnas"
         :items="abonados"
@@ -1172,7 +1173,7 @@ export default {
         { text: 'Medidor', value: 'medidor', width: '120px' },
         { text: 'Estado', value: 'estado_servicio', width: '110px' },
         { text: 'Saldo Deuda', value: 'saldo_deuda', align: 'end', width: '130px' },
-        { text: 'Acciones', value: 'acciones', sortable: false, align: 'center', width: '90px' },
+        { text: 'Acciones', value: 'acciones', sortable: false, align: 'center', width: '120px' },
       ],
       modalForm: false,
       esEdicion: false,

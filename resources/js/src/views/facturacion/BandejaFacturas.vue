@@ -152,43 +152,70 @@
         </v-col>
       </v-row>
 
-      <!-- BARRA DE ACCIONES Y ATAJOS DE FECHA -->
-      <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-3" style="border-top: 1px dashed #e0e0e0;">
-        <!-- Atajos rápidos -->
-        <div class="d-flex align-center flex-wrap gap-1">
-          <span class="text-caption text-secondary mr-1 font-weight-medium">Atajos de fecha:</span>
-          <v-btn x-small text class="text-capitalize font-weight-bold" color="teal darken-2" @click="establecerRangoRapido('junio_2026')">
-            Junio 2026 (RCV)
-          </v-btn>
-          <v-btn x-small text class="text-capitalize font-weight-bold" color="teal darken-2" @click="establecerRangoRapido('julio_2026')">
-            Julio 2026 (RCV)
-          </v-btn>
-          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('hoy')">
-            Hoy
-          </v-btn>
-          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('semana')">
-            Esta Semana
-          </v-btn>
-          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('mes')">
-            Este Mes
-          </v-btn>
-          <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('gestion')">
-            Año {{ new Date().getFullYear() }}
-          </v-btn>
+      <!-- BARRA DE ACCIONES, ATAJOS DE FECHA Y ALERTA FISCAL -->
+      <v-divider class="my-3"></v-divider>
+      <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+        <!-- Atajos rápidos y Alerta Fiscal -->
+        <div class="d-flex align-center flex-wrap gap-2">
+          <div class="d-flex align-center flex-wrap gap-1">
+            <span class="text-caption text-secondary mr-1 font-weight-medium">Atajos de fecha:</span>
+            <v-btn x-small text class="text-capitalize font-weight-bold" color="teal darken-2" @click="establecerRangoRapido('junio_2026')">
+              Junio 2026 (RCV)
+            </v-btn>
+            <v-btn x-small text class="text-capitalize font-weight-bold" color="teal darken-2" @click="establecerRangoRapido('julio_2026')">
+              Julio 2026 (RCV)
+            </v-btn>
+            <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('hoy')">
+              Hoy
+            </v-btn>
+            <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('semana')">
+              Esta Semana
+            </v-btn>
+            <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('mes')">
+              Este Mes
+            </v-btn>
+            <v-btn x-small text class="text-capitalize font-weight-bold" color="primary" @click="establecerRangoRapido('gestion')">
+              Año {{ new Date().getFullYear() }}
+            </v-btn>
+            <v-btn
+              v-if="busqueda || filtroEstado !== 'TODOS' || filtroSucursal || filtroPuntoVenta || filtroFechaInicio || filtroFechaFin"
+              x-small
+              text
+              class="text-capitalize font-weight-bold ml-1"
+              color="red darken-1"
+              @click="limpiarFiltros"
+            >
+              <v-icon x-small left>mdi-close-circle-outline</v-icon> Limpiar
+            </v-btn>
+          </div>
+
+          <!-- Alerta Fiscal compacta si existen duplicadas -->
+          <v-chip
+            v-if="auditoriaCuf.total_duplicadas || auditoriaCuf.numeros_duplicados || auditoriaCuf.cufs_duplicados || auditoriaCuf.total_cufs_duplicados"
+            small
+            color="red lighten-5"
+            class="font-weight-bold text-caption red--text text--darken-3 ml-sm-2"
+            outlined
+            @click="filtrarDuplicadas"
+          >
+            <v-icon left x-small color="red darken-2">mdi-alert-octagon</v-icon>
+            {{ auditoriaCuf.total_duplicadas || auditoriaCuf.numeros_duplicados || auditoriaCuf.cufs_duplicados || auditoriaCuf.total_cufs_duplicados || 0 }} Duplicada(s) detectada(s) — Ver
+          </v-chip>
+
           <v-btn
-            v-if="busqueda || filtroEstado !== 'TODOS' || filtroSucursal || filtroPuntoVenta || filtroFechaInicio || filtroFechaFin"
+            v-if="filtroEstado === 'DUPLICADAS'"
             x-small
             text
-            class="text-capitalize font-weight-bold ml-1"
-            color="red darken-1"
-            @click="limpiarFiltros"
+            color="primary"
+            class="font-weight-bold"
+            @click="filtroEstado = 'TODOS'; cargarFacturas()"
           >
-            <v-icon x-small left>mdi-close-circle-outline</v-icon> Limpiar Filtros
+            Quitar filtro
           </v-btn>
         </div>
 
         <!-- Botones de Acción: Buscar y Exportar -->
-        <div class="d-flex align-center gap-2 mt-2 mt-sm-0">
+        <div class="d-flex align-center gap-2 mt-2 mt-md-0">
           <v-btn
             color="primary"
             class="text-capitalize font-weight-medium rounded-pill elevation-1 px-4"
@@ -252,50 +279,14 @@
           </v-menu>
         </div>
       </div>
-
-      <!-- ALERTA / INDICADOR DE INTEGRIDAD FISCAL Y CUFS ÚNICOS -->
-      <div class="d-flex align-center justify-space-between flex-wrap mt-3 pt-2" style="border-top: 1px dashed #e0e0e0;">
-        <div class="d-flex align-center flex-wrap gap-2">
-          <v-chip
-            v-if="!(auditoriaCuf.total_duplicadas || auditoriaCuf.numeros_duplicados || auditoriaCuf.cufs_duplicados || auditoriaCuf.total_cufs_duplicados)"
-            small
-            color="green lighten-5"
-            class="font-weight-medium text-caption green--text text--darken-3"
-            outlined
-          >
-            <v-icon left x-small color="green darken-2">mdi-shield-check</v-icon>
-            Integridad SIAT: 100% Facturas Únicas (0 facturas duplicadas)
-          </v-chip>
-
-          <v-chip
-            v-else
-            small
-            color="red lighten-5"
-            class="font-weight-bold text-caption red--text text--darken-3"
-            outlined
-            @click="filtrarDuplicadas"
-          >
-            <v-icon left x-small color="red darken-2">mdi-alert-octagon</v-icon>
-            Alerta Fiscal: {{ auditoriaCuf.total_duplicadas || auditoriaCuf.numeros_duplicados || auditoriaCuf.cufs_duplicados || auditoriaCuf.total_cufs_duplicados || 0 }} Factura(s) Duplicada(s) detectada(s) (ej: N° {{ (auditoriaCuf.ejemplos_numeros || []).slice(0, 3).join(', ') }}) — Ver Duplicadas
-          </v-chip>
-        </div>
-
-        <div v-if="filtroEstado === 'DUPLICADAS'" class="text-caption red--text font-weight-bold d-flex align-center mt-1 mt-sm-0">
-          <v-icon x-small color="red" class="mr-1">mdi-filter-variant</v-icon>
-          Mostrando únicamente facturas duplicadas (por CUF o N° correlativo validado)
-          <v-btn x-small text color="primary" class="ml-2 font-weight-bold" @click="filtroEstado = 'TODOS'; cargarFacturas()">
-            Quitar filtro
-          </v-btn>
-        </div>
-      </div>
     </v-card>
 
     <!-- TARJETAS DE RESUMEN TRIBUTARIO Y FINANCIERO (KPIS BANDEJA) -->
     <v-row class="mb-4" dense v-if="resumenKpis && resumenKpis.total_registros > 0">
-      <v-col cols="12" sm="6" md="2">
-        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #004D40;">
+      <v-col cols="12" sm="6" md="4" lg="2">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="height: 100%; border-top: 3px solid #004D40;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Total Facturado</div>
-          <div class="text-h6 font-weight-black primary--text mt-1">
+          <div class="text-subtitle-1 text-sm-h6 font-weight-black primary--text mt-1 text-truncate" :title="'Bs ' + Number(resumenKpis.total_facturado || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })">
             Bs {{ Number(resumenKpis.total_facturado || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}
           </div>
           <div class="text-caption text-secondary">
@@ -304,10 +295,10 @@
         </v-card>
       </v-col>
 
-      <v-col cols="12" sm="6" md="2">
-        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #0288D1;">
+      <v-col cols="12" sm="6" md="4" lg="2">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="height: 100%; border-top: 3px solid #0288D1;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Tasas No IVA</div>
-          <div class="text-h6 font-weight-black blue--text text--darken-2 mt-1">
+          <div class="text-subtitle-1 text-sm-h6 font-weight-black blue--text text--darken-2 mt-1 text-truncate" :title="'Bs ' + Number(resumenKpis.total_tasas || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })">
             Bs {{ Number(resumenKpis.total_tasas || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}
           </div>
           <div class="text-caption text-secondary">
@@ -316,10 +307,10 @@
         </v-card>
       </v-col>
 
-      <v-col cols="12" sm="6" md="3">
-        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #2E7D32;">
+      <v-col cols="12" sm="6" md="4" lg="3">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="height: 100%; border-top: 3px solid #2E7D32;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Base Débito Fiscal</div>
-          <div class="text-h6 font-weight-black success--text mt-1">
+          <div class="text-subtitle-1 text-sm-h6 font-weight-black success--text mt-1 text-truncate" :title="'Bs ' + Number(resumenKpis.total_base_debito_fiscal || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })">
             Bs {{ Number(resumenKpis.total_base_debito_fiscal || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}
           </div>
           <div class="text-caption text-success font-weight-medium">
@@ -328,10 +319,10 @@
         </v-card>
       </v-col>
 
-      <v-col cols="12" sm="6" md="2">
-        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="border-top: 3px solid #5E35B1;">
+      <v-col cols="12" sm="6" md="6" lg="2">
+        <v-card class="pa-3 text-center erp-card-elevated" rounded="lg" style="height: 100%; border-top: 3px solid #5E35B1;">
           <div class="text-caption text-secondary font-weight-bold text-uppercase">Débito Fiscal (13%)</div>
-          <div class="text-h6 font-weight-black purple--text text--darken-2 mt-1">
+          <div class="text-subtitle-1 text-sm-h6 font-weight-black purple--text text--darken-2 mt-1 text-truncate" :title="'Bs ' + Number(resumenKpis.total_debito_fiscal || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })">
             Bs {{ Number(resumenKpis.total_debito_fiscal || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 }) }}
           </div>
           <div class="text-caption text-secondary">
@@ -340,36 +331,24 @@
         </v-card>
       </v-col>
 
-      <v-col cols="12" sm="12" md="3">
-        <v-card class="pa-3 erp-card-elevated" rounded="lg">
-          <div class="text-caption text-secondary font-weight-bold text-uppercase text-center mb-1">
+      <v-col cols="12" sm="12" md="6" lg="3">
+        <v-card class="pa-3 text-center erp-card-elevated d-flex flex-column justify-center" rounded="lg" style="height: 100%; border-top: 3px solid #16a34a;">
+          <div class="text-caption text-secondary font-weight-bold text-uppercase mb-2">
             Estados Fiscales
           </div>
-          <div class="d-flex flex-column gap-1">
-            <div class="d-flex align-center justify-space-between">
-              <span class="text-caption font-weight-medium success--text">
-                <v-icon x-small color="success">mdi-check-circle</v-icon> Válidas:
-              </span>
-              <v-chip x-small color="success" text-color="white" class="font-weight-bold">
-                {{ resumenKpis.cantidad_validas || 0 }}
-              </v-chip>
-            </div>
-            <div class="d-flex align-center justify-space-between" v-if="resumenKpis.cantidad_contingencias > 0">
-              <span class="text-caption font-weight-medium warning--text text--darken-2">
-                <v-icon x-small color="warning darken-2">mdi-cloud-off-outline</v-icon> Contingencias:
-              </span>
-              <v-chip x-small color="warning darken-1" text-color="white" class="font-weight-bold">
-                {{ resumenKpis.cantidad_contingencias || 0 }}
-              </v-chip>
-            </div>
-            <div class="d-flex align-center justify-space-between">
-              <span class="text-caption font-weight-medium error--text">
-                <v-icon x-small color="error">mdi-cancel</v-icon> Anuladas:
-              </span>
-              <v-chip x-small color="error" text-color="white" class="font-weight-bold">
-                {{ resumenKpis.cantidad_anuladas || 0 }}
-              </v-chip>
-            </div>
+          <div class="d-flex align-center justify-center flex-wrap gap-2">
+            <v-chip small color="success" class="font-weight-bold white--text px-3" elevation="1">
+              <v-icon left x-small color="white">mdi-check-circle</v-icon>
+              Válidas: {{ Number(resumenKpis.cantidad_validas || 0).toLocaleString() }}
+            </v-chip>
+            <v-chip small color="error" class="font-weight-bold white--text px-3" elevation="1">
+              <v-icon left x-small color="white">mdi-cancel</v-icon>
+              Anuladas: {{ Number(resumenKpis.cantidad_anuladas || 0).toLocaleString() }}
+            </v-chip>
+            <v-chip v-if="resumenKpis.cantidad_contingencias > 0" small color="warning darken-1" class="font-weight-bold white--text px-3" elevation="1">
+              <v-icon left x-small color="white">mdi-cloud-off-outline</v-icon>
+              Contingencias: {{ Number(resumenKpis.cantidad_contingencias || 0).toLocaleString() }}
+            </v-chip>
           </div>
         </v-card>
       </v-col>
@@ -377,8 +356,39 @@
 
     <!-- TABLA DE FACTURAS -->
     <v-card rounded="lg" class="erp-card-elevated">
+      <!-- BARRA SUPERIOR DE TABLA / CONTROL DE COLUMNAS -->
+      <div class="py-3 px-4 d-flex align-center justify-space-between flex-wrap gap-2">
+        <div class="d-flex align-center flex-wrap gap-2">
+          <v-avatar color="primary" rounded="lg" size="32" class="mr-2 text-white elevation-1">
+            <v-icon small color="white">mdi-table</v-icon>
+          </v-avatar>
+          <div>
+            <span class="text-subtitle-2 font-weight-bold text-uppercase primary--text">
+              Facturas Emitidas
+            </span>
+            <span class="text-caption text-secondary ml-1 font-weight-medium">
+              ({{ totalFacturas.toLocaleString() }} registros)
+            </span>
+          </div>
+        </div>
+
+        <div class="d-flex align-center gap-2">
+          <v-btn
+            small
+            :outlined="!mostrarDesgloseFiscal"
+            :color="mostrarDesgloseFiscal ? 'primary' : 'secondary'"
+            class="rounded-pill text-capitalize font-weight-medium elevation-0"
+            @click="mostrarDesgloseFiscal = !mostrarDesgloseFiscal"
+          >
+            <v-icon left small>{{ mostrarDesgloseFiscal ? 'mdi-table-column-remove' : 'mdi-table-column-plus-after' }}</v-icon>
+            {{ mostrarDesgloseFiscal ? 'Ocultar Desglose Tributario' : 'Ver Desglose Tributario (Tasas/Base/DF)' }}
+          </v-btn>
+        </div>
+      </div>
+      <v-divider></v-divider>
+
       <v-data-table
-        :headers="headers"
+        :headers="headersVisibles"
         :items="facturas"
         :loading="cargando"
         :server-items-length="totalFacturas"
@@ -440,59 +450,43 @@
 
         <!-- Sucursal / Caja (Punto de Venta) -->
         <template v-slot:item.sucursal_punto_venta="{ item }">
-          <div class="d-flex flex-column py-1" style="min-width: 180px;">
+          <div class="d-flex flex-column py-1 text-caption" style="max-width: 155px;">
             <div
-              class="d-flex align-center font-weight-medium text-caption text-truncate"
-              :title="item.sucursal ? item.sucursal.nombre : 'Casa Matriz'"
+              class="d-flex align-center font-weight-medium text-truncate"
+              :title="item.sucursal ? (item.sucursal.codigo_sucursal + ' - ' + item.sucursal.nombre) : 'Casa Matriz (Suc. 0)'"
             >
               <v-icon x-small color="primary" class="mr-1">mdi-office-building-marker</v-icon>
-              <span>{{ item.sucursal ? `Suc. ${item.sucursal.codigo_sucursal} - ${item.sucursal.nombre}` : 'Casa Matriz (Suc. 0)' }}</span>
+              <span class="text-truncate">{{ formatearSucursalCorta(item.sucursal) }}</span>
             </div>
-            <div class="d-flex align-center flex-wrap gap-1 mt-1">
-              <v-chip
-                v-if="item.punto_venta"
-                x-small
-                color="teal lighten-5"
-                class="teal--text text--darken-3 font-weight-medium"
-                :title="item.punto_venta.descripcion || item.punto_venta.nombre"
-              >
-                <v-icon left x-small color="teal darken-2">mdi-cash-register</v-icon>
-                PV {{ item.punto_venta.codigo_punto_venta }}: {{ item.punto_venta.nombre }}
-              </v-chip>
-              <v-chip
-                v-else
-                x-small
-                color="grey lighten-4"
-                class="grey--text text--darken-2"
-                title="Documento histórico migrado desde FoxPro (sin punto de venta registrado)"
-              >
-                <v-icon left x-small color="grey">mdi-database-clock-outline</v-icon>
-                Migrada (Sin PV)
-              </v-chip>
-
-              <!-- Cajero si tiene sesión de caja -->
-              <v-tooltip v-if="item.sesion_caja && item.sesion_caja.cajero" bottom>
-                <template v-slot:activator="{ on, attrs }">
-                  <v-chip v-bind="attrs" v-on="on" x-small outlined color="indigo" class="font-weight-medium">
-                    <v-icon left x-small>mdi-account</v-icon>
-                    {{ item.sesion_caja.cajero.name.split(' ')[0] }}
-                  </v-chip>
-                </template>
-                <span>Cajero: {{ item.sesion_caja.cajero.name }} (Sesión #{{ item.sesion_caja.numero_sesion }})</span>
-              </v-tooltip>
+            <div class="d-flex align-center text-caption text-secondary text-truncate mt-1" style="font-size: 11px;">
+              <template v-if="item.punto_venta">
+                <v-icon x-small color="teal" class="mr-1">mdi-cash-register</v-icon>
+                <span class="text-truncate" :title="item.punto_venta.nombre">
+                  PV {{ item.punto_venta.codigo_punto_venta }}: {{ item.punto_venta.nombre }}
+                </span>
+              </template>
+              <template v-else>
+                <v-icon x-small color="grey" class="mr-1">mdi-database-clock-outline</v-icon>
+                <span class="grey--text">Migrada FoxPro</span>
+              </template>
+              <span v-if="item.sesion_caja && item.sesion_caja.cajero" class="ml-1 indigo--text font-weight-medium" :title="'Cajero: ' + item.sesion_caja.cajero.name">
+                • {{ item.sesion_caja.cajero.name.split(' ')[0] }}
+              </span>
             </div>
           </div>
         </template>
 
         <!-- Cliente / NIT / Abonado -->
         <template v-slot:item.nombre_razon_social="{ item }">
-          <div class="font-weight-medium">{{ item.nombre_razon_social }}</div>
-          <div class="d-flex align-center gap-1 text-caption text-secondary flex-wrap mt-1">
-            <span>Doc: {{ item.numero_documento }} {{ item.complemento ? '-' + item.complemento : '' }}</span>
-            <v-chip v-if="item.abonado" x-small outlined color="primary" class="font-weight-bold ml-1">
-              <v-icon x-small left>mdi-water</v-icon>
-              Abonado #{{ item.abonado.codigo }}
-            </v-chip>
+          <div style="min-width: 180px;" class="py-1">
+            <div class="font-weight-medium">{{ item.nombre_razon_social }}</div>
+            <div class="d-flex align-center gap-1 text-caption text-secondary flex-wrap mt-1">
+              <span>Doc: {{ item.numero_documento }} {{ item.complemento ? '-' + item.complemento : '' }}</span>
+              <v-chip v-if="item.abonado" x-small outlined color="primary" class="font-weight-bold ml-1">
+                <v-icon x-small left>mdi-water</v-icon>
+                Abonado #{{ item.abonado.codigo }}
+              </v-chip>
+            </div>
           </div>
         </template>
 
@@ -546,7 +540,7 @@
 
         <!-- Acciones -->
         <template v-slot:item.acciones="{ item }">
-          <div class="d-flex align-center justify-end gap-1">
+          <div class="d-flex align-center justify-center gap-1">
             <!-- Ver Detalle / Desglose Fiscal -->
             <v-tooltip bottom>
               <template v-slot:activator="{ on, attrs }">
@@ -556,6 +550,7 @@
               </template>
               <span>Ver Detalle y Desglose Tributario</span>
             </v-tooltip>
+
             <!-- Imprimir Carta / Rollo 80mm -->
             <v-menu offset-y>
               <template v-slot:activator="{ on, attrs }">
@@ -584,106 +579,86 @@
               </v-list>
             </v-menu>
 
-            <!-- Descargar XML -->
-            <v-tooltip bottom>
+            <!-- Menú Más Opciones (Acciones Fiscales y SIAT) -->
+            <v-menu offset-y left transition="slide-y-transition">
               <template v-slot:activator="{ on, attrs }">
-                <v-btn icon small color="secondary" v-bind="attrs" v-on="on" @click="descargarXml(item.id)">
-                  <v-icon small>mdi-xml</v-icon>
-                </v-btn>
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on: tooltipOn }">
+                    <v-btn icon small color="secondary" v-bind="attrs" v-on="{ ...on, ...tooltipOn }">
+                      <v-icon small>mdi-dots-vertical</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Más opciones y acciones fiscales</span>
+                </v-tooltip>
               </template>
-              <span>Descargar XML Firmado</span>
-            </v-tooltip>
+              <v-list dense style="min-width: 230px;">
+                <!-- Descargar XML Firmado -->
+                <v-list-item @click="descargarXml(item.id)">
+                  <v-list-item-icon class="mr-2">
+                    <v-icon small color="secondary">mdi-xml</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Descargar XML Firmado</v-list-item-title>
+                </v-list-item>
 
-            <!-- Reenviar Factura a SIAT (Regularizar Contingencia) -->
-            <v-tooltip bottom v-if="item.estado_factura === 'CONTINGENCIA'">
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
-                  icon
-                  small
-                  color="amber darken-3"
-                  v-bind="attrs"
-                  v-on="on"
-                  :loading="reenviandoId === item.id"
-                  @click="reenviarFacturaAlSiat(item)"
+                <!-- Verificar Estado en Línea SIAT -->
+                <v-list-item @click="verificarEstadoEnSin(item)" :disabled="verificandoId === item.id">
+                  <v-list-item-icon class="mr-2">
+                    <v-icon small color="primary">mdi-cloud-sync-outline</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Verificar Estado en Línea (SIAT)</v-list-item-title>
+                </v-list-item>
+
+                <!-- Portal SIAT Oficial con QR -->
+                <v-list-item @click="abrirPortalSiatOficial(item)">
+                  <v-list-item-icon class="mr-2">
+                    <v-icon small color="teal darken-1">mdi-qrcode-scan</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Consultar Portal SIAT (SIN)</v-list-item-title>
+                </v-list-item>
+
+                <!-- Enviar Factura por Correo -->
+                <v-list-item @click="abrirDialogoCorreo(item)">
+                  <v-list-item-icon class="mr-2">
+                    <v-icon small color="info">mdi-email-fast-outline</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Enviar por Correo</v-list-item-title>
+                </v-list-item>
+
+                <!-- Reenviar a SIAT si es contingencia -->
+                <v-list-item v-if="item.estado_factura === 'CONTINGENCIA'" @click="reenviarFacturaAlSiat(item)" :disabled="reenviandoId === item.id">
+                  <v-list-item-icon class="mr-2">
+                    <v-icon small color="amber darken-3">mdi-cloud-upload-outline</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Reenviar Contingencia a SIAT</v-list-item-title>
+                </v-list-item>
+
+                <v-divider class="my-1"></v-divider>
+
+                <!-- Anular Factura -->
+                <v-list-item
+                  v-if="item.estado_factura !== 'ANULADA' && item.estado_factura !== 'CANCELLED'"
+                  @click="abrirDialogoAnulacion(item)"
+                  class="red--text"
                 >
-                  <v-icon small>mdi-cloud-upload-outline</v-icon>
-                </v-btn>
-              </template>
-              <span>Reenviar a SIAT (Regularizar Contingencia)</span>
-            </v-tooltip>
+                  <v-list-item-icon class="mr-2">
+                    <v-icon small color="error">mdi-cancel</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title class="font-weight-medium error--text">Anular Factura en SIAT</v-list-item-title>
+                </v-list-item>
 
-            <!-- Verificar Estado en Línea con SIAT -->
-            <v-tooltip bottom>
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
-                  icon
-                  small
-                  color="primary"
-                  v-bind="attrs"
-                  v-on="on"
-                  :loading="verificandoId === item.id"
-                  @click="verificarEstadoEnSin(item)"
-                >
-                  <v-icon small>mdi-cloud-sync-outline</v-icon>
-                </v-btn>
-              </template>
-              <span>Verificar Estado en Línea (SIAT)</span>
-            </v-tooltip>
-
-            <!-- Consultar Directamente en Portal SIAT Oficial (Impuestos) -->
-            <v-tooltip bottom>
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
-                  icon
-                  small
-                  color="teal darken-1"
-                  v-bind="attrs"
-                  v-on="on"
-                  @click="abrirPortalSiatOficial(item)"
-                >
-                  <v-icon small>mdi-qrcode-scan</v-icon>
-                </v-btn>
-              </template>
-              <span>Verificar en Portal SIAT Oficial (Impuestos)</span>
-            </v-tooltip>
-
-            <!-- Reenviar por Correo -->
-            <v-tooltip bottom>
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn icon small color="info" v-bind="attrs" v-on="on" @click="abrirDialogoCorreo(item)">
-                  <v-icon small>mdi-email-fast-outline</v-icon>
-                </v-btn>
-              </template>
-              <span>Enviar Factura por Correo</span>
-            </v-tooltip>
-
-            <!-- Anular Factura Ordinaria o Administrativa -->
-            <v-tooltip bottom v-if="item.estado_factura !== 'ANULADA' && item.estado_factura !== 'CANCELLED'">
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn icon small color="error" v-bind="attrs" v-on="on" @click="abrirDialogoAnulacion(item)">
-                  <v-icon small>mdi-cancel</v-icon>
-                </v-btn>
-              </template>
-              <span>Anular Factura ante el SIN</span>
-            </v-tooltip>
-
-            <!-- Revertir Anulación (Restaurar a VALIDADA) -->
-            <v-tooltip bottom v-if="item.estado_factura === 'ANULADA' || item.estado_factura === 'CANCELLED'">
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
-                  icon
-                  small
-                  color="teal"
-                  v-bind="attrs"
-                  v-on="on"
-                  :loading="revertiendoId === item.id"
+                <!-- Revertir Anulación -->
+                <v-list-item
+                  v-if="item.estado_factura === 'ANULADA' || item.estado_factura === 'CANCELLED'"
                   @click="confirmarReversionAnulacion(item)"
+                  class="teal--text"
                 >
-                  <v-icon small>mdi-restore-alert</v-icon>
-                </v-btn>
-              </template>
-              <span>Revertir Anulación (Restaurar en SIAT)</span>
-            </v-tooltip>
+                  <v-list-item-icon class="mr-2">
+                    <v-icon small color="teal">mdi-restore-alert</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title class="font-weight-medium teal--text text--darken-2">Revertir Anulación</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
           </div>
         </template>
       </v-data-table>
@@ -1119,17 +1094,18 @@ export default {
         { codigo: 5, descripcion: 'AUTORIZACIÓN ADMINISTRATIVA / R.A.' },
       ],
       headers: [
-        { text: 'N° Factura', value: 'numero_factura', width: '130px' },
-        { text: 'Fecha Emisión', value: 'fecha_emision', width: '145px' },
-        { text: 'Sucursal / Caja (PV)', value: 'sucursal_punto_venta', width: '180px' },
-        { text: 'Razón Social / Cliente', value: 'nombre_razon_social' },
-        { text: 'Total Venta', value: 'monto_total', align: 'right', width: '110px' },
-        { text: 'Tasas No IVA', value: 'monto_tasas', align: 'right', width: '110px' },
-        { text: 'Base Sujeta IVA', value: 'monto_total_sujeto_iva', align: 'right', width: '120px' },
-        { text: 'Débito Fiscal (13%)', value: 'debito_fiscal', align: 'right', width: '120px' },
-        { text: 'Estado SIN', value: 'estado_factura', align: 'center', width: '120px' },
-        { text: 'Acciones', value: 'acciones', align: 'right', sortable: false, width: '170px' },
+        { text: 'N° Factura', value: 'numero_factura', width: '105px' },
+        { text: 'Fecha Emisión', value: 'fecha_emision', width: '125px' },
+        { text: 'Sucursal / Caja', value: 'sucursal_punto_venta', width: '130px' },
+        { text: 'Razón Social / Cliente', value: 'nombre_razon_social', width: '170px' },
+        { text: 'Total Venta', value: 'monto_total', align: 'right', width: '95px' },
+        { text: 'Tasas No IVA', value: 'monto_tasas', align: 'right', width: '100px' },
+        { text: 'Base Sujeta IVA', value: 'monto_total_sujeto_iva', align: 'right', width: '110px' },
+        { text: 'Débito Fiscal (13%)', value: 'debito_fiscal', align: 'right', width: '110px' },
+        { text: 'Estado', value: 'estado_factura', align: 'center', width: '90px' },
+        { text: 'Acciones', value: 'acciones', align: 'center', sortable: false, width: '95px' },
       ],
+      mostrarDesgloseFiscal: false,
       resumenKpis: {
         total_registros: 0,
         cantidad_validas: 0,
@@ -1158,6 +1134,12 @@ export default {
     };
   },
   computed: {
+    headersVisibles() {
+      if (this.mostrarDesgloseFiscal) {
+        return this.headers;
+      }
+      return this.headers.filter(h => !['monto_tasas', 'monto_total_sujeto_iva', 'debito_fiscal'].includes(h.value));
+    },
     etiquetaBusqueda() {
       switch (this.tipoBusqueda) {
         case 'codigo_abonado': return 'Código de Abonado';
@@ -1467,6 +1449,17 @@ export default {
         this.finalizarProgreso();
         this.mostrarNotificacion(`No se pudo generar el archivo ${extension.toUpperCase()}`, 'error', 'mdi-alert-circle');
       }
+    },
+    formatearSucursalCorta(sucursal) {
+      if (!sucursal) return 'Casa Matriz';
+      let nombre = sucursal.nombre || '';
+      nombre = nombre
+        .replace(/EMAPAP\s*-\s*/gi, '')
+        .replace(/OFICINA\s+CENTRAL\s+PATACAMAYA/gi, 'Central')
+        .replace(/OFICINA\s+CENTRAL/gi, 'Central')
+        .replace(/PATACAMAYA/gi, '')
+        .trim();
+      return `Suc. ${sucursal.codigo_sucursal}${nombre ? ' (' + nombre + ')' : ''}`;
     },
     formatearFecha(fechaStr) {
       if (!fechaStr) return '-';
